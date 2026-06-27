@@ -1,8 +1,11 @@
 (* ::Package:: *)
 
 (* Test suite for the Einstoff rearrange/reshape lowering (Einstoff[ArrayReshape]).
-   A flat .wlt list of VerificationTest[...]s, consumed by TestReport[].
-   Run via: wolframscript -file scripts/run-tests.wls *)
+   Run via: wolframscript -file scripts/run-tests.wls
+   BeginTestSection/EndTestSection are MUnit markers; the runner loads MUnit`
+   so they carry section semantics. The .wlt itself does not import MUnit`. *)
+
+BeginTestSection["Einstoff`Lowering"];
 
 ClearAll[a, b, c];
 
@@ -90,3 +93,5 @@ VerificationTest[
   $Failed,
   TestID -> "lower-reject-multitensor"
 ];
+
+EndTestSection[];

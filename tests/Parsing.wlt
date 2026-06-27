@@ -1,7 +1,12 @@
 (* ::Package:: *)
 
-(* Test suite for Einstoff`Parsing`. A flat .wlt list of VerificationTest[...]s,
-   consumed by TestReport[]. Run via: wolframscript -file scripts/run-tests.wls *)
+(* Test suite for Einstoff`Parsing`. Run via:
+   wolframscript -file scripts/run-tests.wls
+   BeginTestSection/EndTestSection are MUnit markers; the runner loads
+   MUnit` so they carry section semantics (skip/require). The .wlt itself
+   does not import MUnit`, matching public-paclet convention. *)
+
+BeginTestSection["Einstoff`Parsing"];
 
 ClearAll[a, b, c, q, k, h, w, i, g, n, m];
 
@@ -161,3 +166,5 @@ VerificationTest[
   True,
   TestID -> "unsat-reason-present"
 ];
+
+EndTestSection[];
