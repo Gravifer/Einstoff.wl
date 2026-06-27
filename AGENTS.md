@@ -39,3 +39,8 @@ For more details on the design, see `SPEC.md`
 
 - Wolfram language namespaces (called 'contexts' in mathematica terms) use backticks as seperators,
   so when writing inline code in markdown, use double backticks to fence it, e.g. ``Einstoff`Private``.
+
+- On windows, the shell we're using is most likely `pwsh` (powershell v7) or `powershell`;
+  there are aliases matching common `bash` utilities, but the syntax for stuff like parameters can be different.
+  You don't need to generate terminal commands with full powershell verbosity,
+  just keep in mind this is a possible cause of issue.
