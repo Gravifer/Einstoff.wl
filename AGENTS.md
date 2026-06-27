@@ -38,7 +38,8 @@ For more details on the design, see `SPEC.md`
 - For wolfram language, use [the structured package format](https://reference.wolfram.com/language/tutorial/UsingTheStructuredPackageFormat.en.md)
 
 - Wolfram language namespaces (called 'contexts' in mathematica terms) use backticks as seperators,
-  so when writing inline code in markdown, use double backticks to fence it, e.g. ``Einstoff`Private``.
+  so when writing inline code in markdown, use double backticks to fence it,
+  e.g. ``Einstoff`Private`` or ``BeginTestSection["Einstoff`Lowering`Reduce"]``.
 
 - On windows, the shell we're using is most likely `pwsh` (powershell v7) or `powershell`;
   there are aliases matching common `bash` utilities, but the syntax for stuff like parameters can be different.

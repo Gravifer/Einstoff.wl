@@ -1,7 +1,7 @@
 (* ::Package:: *)
 
 (* Test suite for Einstoff`Parsing`. Run via:
-   wolframscript -file scripts/run-tests.wls
+   wolframscript -script scripts/run-tests.wls
    BeginTestSection/EndTestSection are MUnit markers; the runner loads
    MUnit` so they carry section semantics (skip/require). The .wlt itself
    does not import MUnit`, matching public-paclet convention. *)

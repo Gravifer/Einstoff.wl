@@ -1,11 +1,12 @@
 (* ::Package:: *)
 
-(* Test suite for the Einstoff rearrange/reshape lowering (Einstoff[ArrayReshape]).
-   Run via: wolframscript -file scripts/run-tests.wls
+(* Tests for the rearrange/reshape lowering path (Einstoff[ArrayReshape]).
+   One file per lowering path under tests/; future paths get Reduce.wlt etc.
+   Run via: wolframscript -script scripts/run-tests.wls
    BeginTestSection/EndTestSection are MUnit markers; the runner loads MUnit`
    so they carry section semantics. The .wlt itself does not import MUnit`. *)
 
-BeginTestSection["Einstoff`Lowering"];
+BeginTestSection["Einstoff`Lowering`Reshape"];
 
 ClearAll[a, b, c];
 

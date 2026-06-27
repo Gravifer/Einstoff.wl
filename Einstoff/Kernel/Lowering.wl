@@ -44,6 +44,8 @@ EinstoffRearrange::unsat =
 (* ------------------------------------------------------------------ *)
 
 Einstoff[ArrayReshape] := EinstoffRearrange;
+Einstoff["Reshape"] := EinstoffRearrange;
+Einstoff["Rearrange"] := EinstoffRearrange;
 
 (* ------------------------------------------------------------------ *)
 (* Atomic-axis decomposition of one dimension term.                    *)
