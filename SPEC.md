@@ -45,14 +45,14 @@ matching do double duty as both parser and shape-binder.
 | Named dimension (binding) | `a` | `a_` | `Pattern[a, Blank[]]` |
 | Named dimension (reference to an already-bound name) | `a` (repeated) | `a` | bare symbol |
 | Integer immediate | `2` | `2` | literal integer |
-| Anonymous dimension | `_` (einx) | `_` | `Blank[]` |
+| Anonymous dimension | `_` | `_` | `Blank[]` |
 | Ellipsis (anonymous) | `...` | `___` | `BlankNullSequence[]` |
 | Ellipsis (anonymous, ≥1) | — | `__` | `BlankSequence[]` |
-| Named ellipsis (capture the whole repeated group) | `a...` | `a : Repeated[pattern]` | `Pattern[a, Repeated[pattern]]` |
-| Named ellipsis (structural constraint only, not captured per-element) | inner names in `a...` | names inside `Repeated[...]` | — |
-| Product / axis composition | `(a b)` | `CircleTimes[a, b]` | `CircleTimes` |
-| Direct sum / concatenation | `(a + b)` | `CirclePlus[a, b]` | `CirclePlus` |
-| Bracket (elementary-op signature axis) | `[a]` | `Slot[a_]` | `Slot` |
+| Named ellipsis (capture the whole repeated group) | `a...` | `a : pattern..` | `Pattern[a, Repeated[pattern]]` (or `RepeatedNull`) |
+| Named ellipsis (structural constraint only, not captured per-element) | inner names in `(pattern)...` | names inside `Repeated[...]` | — |
+| Product / axis composition | `(a b)` | `a ⊗ b` | `CircleTimes` |
+| Direct sum / concatenation | `(a + b)` | `a ⊕ b` | `CirclePlus` |
+| Bracket (elementary-op signature axis) | `[a]` | `#a` | `Slot["a"]` |
 | Bracket, multiple axes | `[a b]` | `Slot[a_, b_]` | `Slot` (non-standard arity, inert) |
 | Bracket, anonymous ellipsis | `[...]` | `Slot[___]` | `Slot` |
 | Bracket, integer immediate | `[2]` | `Slot[2]` | `Slot[2]` — **aliases `#2`, see §7.4** |
