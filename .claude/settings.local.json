@@ -3,7 +3,8 @@
     "allow": [
       "mcp__Wolfram__ReadNotebook",
       "PowerShell(& \"C:\\\\Program Files\\\\Wolfram Research\\\\WolframScript\\\\wolframscript\" -file run-tests.wl)",
-      "PowerShell(& \"C:\\\\Program Files\\\\Wolfram Research\\\\WolframScript\\\\wolframscript\" -file scripts/run-tests.wls)"
+      "PowerShell(& \"C:\\\\Program Files\\\\Wolfram Research\\\\WolframScript\\\\wolframscript\" -file scripts/run-tests.wls)",
+      "WebFetch(domain:reference.wolfram.com)"
     ]
   }
 }

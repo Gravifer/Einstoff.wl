@@ -36,3 +36,6 @@ For more details on the design, see `SPEC.md`
   create a `agent-explore.nb` notebook, or just use a plain `.wl` file.
 
 - For wolfram language, use [the structured package format](https://reference.wolfram.com/language/tutorial/UsingTheStructuredPackageFormat.en.md)
+
+- Wolfram language namespaces (called 'contexts' in mathematica terms) use backticks as seperators,
+  so when writing inline code in markdown, use double backticks to fence it, e.g. ``Einstoff`Private``.

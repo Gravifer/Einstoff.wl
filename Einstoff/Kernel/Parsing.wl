@@ -1,6 +1,6 @@
 (* ::Package:: *)
 
-(* Einstoff`Parsing` — shape-resolution / satisfiability layer.
+(* Einstoff parsing — shape-resolution / satisfiability layer.
 
    Given a `desc` (an einops/einx-style axis transformation written as
    `lhs :> rhs`, list-of-shapes both sides, see SPEC.md) and the *shapes*
@@ -14,9 +14,18 @@
    (binding), integer immediates, `_`/`__`/`___`, `CircleTimes` (product),
    `CirclePlus` (direct sum), `Slot[...]` brackets, and multi-tensor shared
    axes. Named-ellipsis re-walk (`Repeated` inner/outer mvars) is out of
-   scope for now. *)
+   scope for now.
 
-BeginPackage["Einstoff`Parsing`"];
+   Structured Package Format: public symbols are declared with
+   PackageExported (they land in the `Einstoff`` context); every helper below
+   is left undeclared and is therefore private to this file
+   (`Einstoff`Parsing`Private``). *)
+
+PackageExported[{
+  EinstoffShapes,
+  EinstoffParse,
+  EinstoffMatch
+}]
 
 EinstoffShapes::usage =
   "EinstoffShapes[desc, inputShapes, bindings] resolves the einstoff \
@@ -32,8 +41,6 @@ EinstoffMatch::usage =
   "EinstoffMatch[lhsShapes, inputShapes, bindings] binds axis sizes by \
 matching the lhs shapes against the input shapes, returning an association \
 with \"ok\" and either \"env\" or \"reason\".";
-
-Begin["`Private`"];
 
 (* ------------------------------------------------------------------ *)
 (* Parse / normalize the description.                                  *)
@@ -250,6 +257,3 @@ EinstoffShapes[desc_, inputShapes_, bindings_ : {}] :=
         "Bracketed" -> bracketed|>]];
     <|"Satisfiable" -> True, "OutputShapes" -> out, "Bindings" -> env,
       "Bracketed" -> bracketed, "Reason" -> ""|>];
-
-End[];
-EndPackage[];

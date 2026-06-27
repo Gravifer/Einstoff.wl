@@ -6,7 +6,9 @@ scriptDir = DirectoryName[$InputFileName];
 If[scriptDir === "", scriptDir = Directory[]];
 root = ParentDirectory[scriptDir];
 
-Get[FileNameJoin[{root, "Einstoff", "Parsing.wl"}]];
+(* Load the Einstoff paclet from the project tree (structured package format). *)
+PacletDirectoryLoad[root];
+Needs["Einstoff`"];
 
 report = TestReport[FileNameJoin[{root, "tests", "Parsing.test.wl"}]];
 
