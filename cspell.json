@@ -7,6 +7,7 @@
         "einops",
         "Einstoff",
         "einx",
+        "mvars",
         "vmapped"
     ],
     "ignoreWords": [],

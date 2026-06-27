@@ -49,13 +49,13 @@ matching do double duty as both parser and shape-binder.
 | Ellipsis (anonymous) | `...` | `___` | `BlankNullSequence[]` |
 | Ellipsis (anonymous, ≥1) | — | `__` | `BlankSequence[]` |
 | Named ellipsis (capture the whole repeated group) | `a...` | `a : pattern..` | `Pattern[a, Repeated[pattern]]` (or `RepeatedNull`) |
-| Named ellipsis (structural constraint only, not captured per-element) | inner names in `(pattern)...` | names inside `Repeated[...]` | — |
+| Named ellipsis (inner mvar — destructuring template, see §5.3) | inner names in `(pattern)...` | names inside `Repeated[...]` | — (provisional) |
 | Product / axis composition | `(a b)` | `a ⊗ b` | `CircleTimes` |
 | Direct sum / concatenation | `(a + b)` | `a ⊕ b` | `CirclePlus` |
 | Bracket (elementary-op signature axis) | `[a]` | `#a` | `Slot["a"]` |
 | Bracket, multiple axes | `[a b]` | `Slot[a_, b_]` | `Slot` (non-standard arity, inert) |
 | Bracket, anonymous ellipsis | `[...]` | `Slot[___]` | `Slot` |
-| Bracket, integer immediate | `[2]` | `Slot[2]` | `Slot[2]` — **aliases `#2`, see §7.4** |
+| Bracket, integer immediate | `[2]` | `Slot[2]` | `Slot[2]` — **aliases `#2`, see §7.3** |
 
 ## 4. Grammar
 
@@ -125,29 +125,32 @@ names alone.
 
 ### 5.3 Named ellipsis: where the name lives matters
 
-- `name : Repeated[pattern]` — `name` binds to the *entire matched
-  `Sequence`*. This is the only form that gives you the repeated group back
-  as data.
-- `Repeated[name_]` — `name` gets rebound on every repetition; only the
-  *last* match survives. Names inside `Repeated[...]` function as
-  **structural constraints** (e.g. "every element must look like
-  `CircleTimes[s_, Slot[ds_]]`"), not as accessors.
-- Consequence: extracting the per-repetition `s_i`, `ds_i` families out of
-  a captured group requires the engine (or the operation's `:>` RHS, see
-  §7.1) to re-walk the bound `Sequence` after matching.
-- `Repeated[...]` does **not**, by itself, assert that repetitions are
-  pairwise equal (unlike e.g. `{x_, x_, x_}`). If an operation's semantics
-  require all repetitions of a named ellipsis to share a size, the engine
-  must check it — the pattern match will succeed even if they differ.
+Two roles a name can play inside an ellipsis:
+
+- **Outer mvar** (`name : Repeated[pattern]`) — binds the *entire captured
+  `Sequence`*; `{name}` listifies it.
+- **Inner mvar** (a named sub-pattern inside `Repeated[...]`,
+  e.g. `grp:(a:(_Integer|_Symbol))...`) — a destructuring template. After
+  `grp` captures the sequence via WL matching, the engine **re-walks**
+  `{grp}` element-by-element applying the inner pattern, producing a
+  per-repetition binding list `{a} = {a<sub>1</sub>, a<sub>2</sub>, ...}`.
+
+Cross-group consistency (e.g. `Length[{a}] == Length[{b}]` before a
+`MapThread`) is enforced by the engine during the manual binding phase, not
+pushed into individual `RuleDelayed` RHS bodies.
+
+**Provisional:** WL's stock `Repeated[x_]` semantics enforce that all
+repetitions unify to the same value. The engine ignores that constraint and
+re-drives matching manually. Safe while no compilation target delegates
+`Repeated[x_]` back to native WL pattern matching; revisit if one does.
 
 ### 5.4 Size resolution
 
-For any name *not* under a `Repeated`, `sizeRules` maps `name -> integer`,
-as usual. For any name living under a `Repeated`, the corresponding entry
-must instead be `name -> {size, size, ...}`, one per repetition (cf. einx's
-`ds=(2,2)`). Size-resolution code must know whether a name sits under a
-`Repeated` before it knows which shape of value to expect from
-`sizeRules`.
+Outer mvars map to scalar integers in `sizeRules` as usual (cf. einx's
+scalar axis sizes). Inner mvars (§5.3) are automatically list-valued —
+`a -> {s1, s2, ...}`, one entry per repetition — as a natural product of
+the engine's re-walk. No pre-classification of "is this name under a
+`Repeated`?" is needed before reading `sizeRules`.
 
 ## 6. Worked examples
 
@@ -194,8 +197,9 @@ after that for brevity.
    {{a : Repeated[_]}, {b : Repeated[_]}} :> {MapThread[CircleTimes, {{a}, {b}}]}
    ```
    Resolved by `RuleDelayed` (§7.1): `{a}`/`{b}` listify the captured
-   `Sequence`s, `MapThread` zips them. Note this does *not* check
-   `Length[{a}] == Length[{b}]` — see §7.3.
+   `Sequence`s, `MapThread` zips them. Cross-group length consistency
+   (`Length[{a}] == Length[{b}]`) is enforced by the engine's manual
+   binding phase (§5.3).
 
 8. **Named ellipsis with internal structure (pooling)** —
    `einx.sum("b (s [ds])... c", x, ds=(2, 2))`
@@ -252,8 +256,6 @@ needs to be designed; `RuleDelayed`'s existing held-then-substituted
 semantics already is that interface.
 
 **What's still open**, narrower than before:
-- Cross-group consistency (e.g. `{a}` and `{b}` having equal length in
-  example 7) is not checked by the match or by `RuleDelayed` — see §7.3.
 - Once such an RHS evaluates to a concrete (possibly irregular) shape,
   *lowering* it to actual `Transpose`/`ArrayReshape`/`ArrayReduce`/`Join`
   calls that produce real array data is operation-specific engineering,
@@ -283,30 +285,13 @@ being optional. Current mitigating factor: none of the planned compilation
 targets (`Transpose`, `ArrayReshape`, `ArrayReduce`, `Join`) are `Function`s,
 so the AST is not currently expected to flow into one.
 
-### 7.3 Repeated-group equality is not enforced by the pattern itself
-
-Per §5.3: if an operation's semantics require all repetitions of a named
-ellipsis to share a size, that check has to be written by the engine — and
-per §7.1, "written by the engine" now concretely means: as a guard inside
-(or before) the `RuleDelayed` RHS, e.g. asserting `Length[{a}] ==
-Length[{b}]` before `MapThread` runs in example 7. Not yet decided whether
-that guard lives in a shared helper all operations call, or is duplicated
-per-operation.
-
-### 7.4 `Slot` non-standard arities
+### 7.3 `Slot` non-standard arities
 
 `Slot[a_, b_]` (multi-axis bracket) and `Slot[]` (bracketed nothing, if it
 ever comes up) are arities `Slot` was never designed for. They're inert
 today, but unconfirmed whether any WL builtin or future language version
 attaches meaning to multi-argument `Slot`. Worth a guard/sanity check rather
 than an assumption.
-
-### 7.5 Per-repetition `sizeRules` shape
-
-Per §5.4, `sizeRules` needs to switch from scalar to list-valued depending
-on whether the name sits under a `Repeated`. Not yet decided how that's
-detected (engine inspects the parsed LHS to classify each name before
-reading `sizeRules`) or how mismatches are reported.
 
 ## 8. Resolved / verified (no further action needed)
 
@@ -322,6 +307,15 @@ reading `sizeRules`) or how mismatches are reported.
 - Output shapes that depend on combining or projecting captured named
   ellipses (§7.1) are expressible as ordinary `RuleDelayed` RHS code — no
   separate output-derivation interface needs to be designed.
+- Inner-mvar re-walk (§5.3): named sub-patterns inside `Repeated[...]` serve
+  as destructuring templates; the engine re-walks the captured sequence
+  element-by-element to produce per-repetition bindings. Cross-group
+  consistency is enforced during the same manual binding phase.
+  **Provisional:** WL's `Repeated[x_]` all-same semantics is intentionally
+  ignored; revisit if a backend delegates to native WL matching (formerly §7.3).
+- `sizeRules` for inner mvars is automatically list-valued as a product of
+  the re-walk — no LHS pre-scan needed to detect `Repeated`-nested names
+  (formerly §7.5).
 
 ## 9. Next steps
 
