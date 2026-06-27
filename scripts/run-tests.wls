@@ -10,22 +10,28 @@ root = ParentDirectory[scriptDir];
 PacletDirectoryLoad[root];
 Needs["Einstoff`"];
 
-report = TestReport[FileNameJoin[{root, "tests", "Parsing.test.wl"}]];
+(* Discover and run every tests/*.test.wl file. *)
+testFiles = FileNames["*.test.wl", FileNameJoin[{root, "tests"}]];
 
-Print["Tests succeeded: ", report["TestsSucceededCount"]];
-Print["Tests failed:    ", report["TestsFailedCount"]];
+reports = AssociationMap[TestReport, testFiles];
 
-failed = Join[
-  Values @ report["TestsFailedWrongResults"],
-  Values @ report["TestsFailedWithMessages"],
-  Values @ report["TestsFailedWithErrors"]
-];
+allOK = True;
+KeyValueMap[
+  Function[{file, report},
+    Print[FileNameTake[file], ":  ",
+      report["TestsSucceededCount"], " succeeded, ",
+      report["TestsFailedCount"], " failed"];
+    failed = Join[
+      Values @ report["TestsFailedWrongResults"],
+      Values @ report["TestsFailedWithMessages"],
+      Values @ report["TestsFailedWithErrors"]
+    ];
+    If[failed =!= {},
+      allOK = False;
+      Scan[
+        Print["  ", #["TestID"], ":  got ", #["ActualOutput"],
+              "  expected ", #["ExpectedOutput"]] &,
+        failed]]],
+  reports];
 
-If[failed =!= {},
-  Print["----- Failures -----"];
-  Scan[
-    Print["  ", #["TestID"], ":  got ", #["ActualOutput"],
-          "  expected ", #["ExpectedOutput"]] &,
-    failed]];
-
-Exit[If[report["AllTestsSucceeded"], 0, 1]];
+Exit[If[allOK, 0, 1]];

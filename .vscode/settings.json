@@ -2,6 +2,7 @@
     "conventionalCommits.scopes": [
         "spec",
         "parse",
-        "agents"
+        "agents",
+        "lowering"
     ]
 }
