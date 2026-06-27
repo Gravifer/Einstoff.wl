@@ -1,13 +1,14 @@
 #!/usr/bin/env wolframscript
 (* Runner for the Einstoff parsing-layer test suite.
-   Usage:  wolframscript -file run-tests.wl   *)
+   Usage:  wolframscript -file scripts/run-tests.wls   *)
 
-dir = DirectoryName[$InputFileName];
-If[dir === "", dir = Directory[]];
+scriptDir = DirectoryName[$InputFileName];
+If[scriptDir === "", scriptDir = Directory[]];
+root = ParentDirectory[scriptDir];
 
-Get[FileNameJoin[{dir, "Einstoff", "Parsing.wl"}]];
+Get[FileNameJoin[{root, "Einstoff", "Parsing.wl"}]];
 
-report = TestReport[FileNameJoin[{dir, "tests", "Parsing.wt"}]];
+report = TestReport[FileNameJoin[{root, "tests", "Parsing.test.wl"}]];
 
 Print["Tests succeeded: ", report["TestsSucceededCount"]];
 Print["Tests failed:    ", report["TestsFailedCount"]];
