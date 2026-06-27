@@ -99,7 +99,9 @@ solveOne[Plus, knowns_, d_] :=
 
 solveComposite[op_, factors_, d_, env_, rest_, drest_] :=
   Module[{res, knowns, unknowns, anon, opaque, solved, e2},
-    res = resolveFactor[#, env] & /@ factors;
+    (* NB: Table, not `& /@`. A factor can be Slot[...]; routing it through an
+       anonymous Function would reinterpret it as a Function slot (SPEC 7.2). *)
+    res = Table[resolveFactor[f, env], {f, factors}];
     knowns = Cases[res, {"known", v_} :> v];
     unknowns = Cases[res, {"unknown", n_} :> n];
     anon = Count[res, {"anon"}];
@@ -170,13 +172,19 @@ matchTerms[terms_, dims_, env_] :=
         (Sow["unrecognized dimension term: " <> ToString[t]]; {})]];
 
 (* Fold the matcher across all tensors, threading env so shared axes
-   unify across operands for free. *)
+   unify across operands for free.
+
+   Crucially this uses a *downvalue* step + Do loop, never an anonymous
+   Function: a shape can contain Slot[...] (brackets), and any Slot routed
+   through a `&`/Function body is captured as that function's argument slot
+   (SPEC 7.2) — which silently corrupts the match. *)
 matchAll[lhss_, inps_, env_] :=
-  Fold[
-    Function[{envs, pair},
-      Join @@ (matchTerms[First[pair], Last[pair], #] & /@ envs)],
-    {env},
-    Transpose[{lhss, inps}]];
+  Fold[matchStep, {env}, Transpose[{lhss, inps}]];
+
+matchStep[envs_, pair_] :=
+  Module[{acc = {}, e},
+    Do[acc = Join[acc, matchTerms[First[pair], Last[pair], e]], {e, envs}];
+    acc];
 
 (* ------------------------------------------------------------------ *)
 (* Public: match.                                                      *)
