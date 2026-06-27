@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "mcp__Wolfram__ReadNotebook"
+      "mcp__Wolfram__ReadNotebook",
+      "PowerShell(& \"C:\\\\Program Files\\\\Wolfram Research\\\\WolframScript\\\\wolframscript\" -file run-tests.wl)"
     ]
   }
 }
