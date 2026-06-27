@@ -29,3 +29,8 @@ For more details on the design, see `SPEC.md`
 ## Notes
 
 - We will *NOT* implement the sugar layer of the syntax in the forseeable future.
+
+- `human-explore.nb` may be too crammed with exploration code by the human,
+  and would cost too much tokens to call for the agent.
+  To explore on the agent's self, and persist the findings,
+  create a `agent-explore.nb` notebook, or just use a plain `.wl` file.
