@@ -3,6 +3,7 @@
         "spec",
         "parse",
         "agents",
-        "lowering"
+        "lowering",
+        "tests"
     ]
 }

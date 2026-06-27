@@ -1,9 +1,7 @@
 (* ::Package:: *)
 
-(* Test suite for Einstoff`Parsing`. Run via: wolframscript -file run-tests.wl
-   (which Gets the package, then TestReport[]s this file). *)
-
-BeginTestSection["Einstoff`Parsing"];
+(* Test suite for Einstoff`Parsing`. A flat .wlt list of VerificationTest[...]s,
+   consumed by TestReport[]. Run via: wolframscript -file scripts/run-tests.wls *)
 
 ClearAll[a, b, c, q, k, h, w, i, g, n, m];
 
@@ -163,5 +161,3 @@ VerificationTest[
   True,
   TestID -> "unsat-reason-present"
 ];
-
-EndTestSection[];
