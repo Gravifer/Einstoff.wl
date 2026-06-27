@@ -34,3 +34,5 @@ For more details on the design, see `SPEC.md`
   and would cost too much tokens to call for the agent.
   To explore on the agent's self, and persist the findings,
   create a `agent-explore.nb` notebook, or just use a plain `.wl` file.
+
+- For wolfram language, use [the structured package format](https://reference.wolfram.com/language/tutorial/UsingTheStructuredPackageFormat.en.md)

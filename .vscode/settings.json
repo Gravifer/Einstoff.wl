@@ -1,6 +1,7 @@
 {
     "conventionalCommits.scopes": [
         "spec",
-        "parse"
+        "parse",
+        "agents"
     ]
 }
