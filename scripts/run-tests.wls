@@ -2,17 +2,19 @@
 (* Runner for the Einstoff test suite.
    Discovers and runs every tests/*.wlt file via TestReport[].
 
-   Usage:  wolframscript -file scripts/run-tests.wls [quiet|verbose]
-     quiet  (q)      one summary line per file (+ any failures)
-     (default)       a PASS/FAIL line per test, grouped by file
-     verbose (v)     also show per-test time and the test input
+   Level (default = a PASS/FAIL line per test, grouped by file):
+     quiet / -q / --quiet      one summary line per file (+ any failures)
+     verbose / -v / --verbose  also show per-test time and the test input
 
-   NB: `wolframscript -file` strips every dash-prefixed token before the
-   script sees it (and -v/-verbose additionally trips wolframscript's own
-   verbose mode), so the level is selected with plain words here. The
-   equivalent -q/-v/--quiet/--verbose dash flags are still honored when the
-   script is run directly via its shebang (./scripts/run-tests.wls -v), where
-   they do reach $ScriptCommandLine.
+   Invoke either way:
+     wolframscript -script scripts/run-tests.wls -q      (dash flags, clean)
+     wolframscript -file   scripts/run-tests.wls quiet   (plain words)
+
+   NB: only `-script` sets up $ScriptCommandLine with the trailing args
+   verbatim, so dash flags survive there. `wolframscript -file` instead strips
+   every dash-prefixed token (and -v/-verbose trips wolframscript's own verbose
+   mode), so under -file the level must be a plain word. The runner accepts
+   both: dash flags via CommandLineParse, plain words via direct matching.
 
    Exit code is 0 iff every test passed. *)
 
@@ -49,6 +51,17 @@ verbosity = Which[
   asked[{"-v", "--verbose"}, {"verbose", "v"}], 2,
   asked[{"-q", "--quiet"}, {"quiet", "q"}], 0,
   True, 1];
+
+(* Under `-script` $CommandLine carries the literal -script token; under -file
+   it is the raw wolfram.exe launch (...-mathlink) with no -script. Warn when
+   -file strips dash flags. NB wolframscript routes $Messages to stdout, so for
+   a true stderr warning we write to the fd-2 OutputStream directly. *)
+stderrStream = FirstCase[Streams[], OutputStream[_, 2], $Output];
+If[! MemberQ[$CommandLine, "-script"],
+  WriteString[stderrStream,
+    "warning: invoked via `wolframscript -file` - dash flags such as -q/-v are ",
+    "stripped before the script and have no effect. Use a plain-word level ",
+    "(quiet|verbose), or invoke with `-script` to pass dash flags.\n"]];
 
 (* ---- test discovery ---------------------------------------------------- *)
 

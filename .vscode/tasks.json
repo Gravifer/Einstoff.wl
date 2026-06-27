@@ -2,14 +2,42 @@
     "version": "2.0.0",
     "tasks": [
         {
+            // -script (not -file) sets up $ScriptCommandLine verbatim, so dash
+            // flags reach the runner and the -file warning is not emitted.
             "label": "Wolfram: run tests",
             "type": "shell",
             "command": "wolframscript",
-            "args": ["-file", "scripts/run-tests.wls"],
+            "args": ["-script", "scripts/run-tests.wls"],
             "group": {
                 "kind": "test",
                 "isDefault": true
             },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Wolfram: run tests (verbose)",
+            "type": "shell",
+            "command": "wolframscript",
+            "args": ["-script", "scripts/run-tests.wls", "-v"],
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Wolfram: run tests (quiet)",
+            "type": "shell",
+            "command": "wolframscript",
+            "args": ["-script", "scripts/run-tests.wls", "-q"],
+            "group": "test",
             "presentation": {
                 "reveal": "always",
                 "panel": "dedicated",
