@@ -9,7 +9,9 @@ Some elementary APIs being
 - `Einstoff[ArrayReshape]` corresponding to `einx.id`/`einops.rearrange`
 - `Einstoff[ArrayReduce]` corresponding to `einx` reduction ops / `einops.reduce`
   - `Einstoff[Dot]` corresponding to `einx.dot` is a special case
-- `Einstoff[ArrayRepeat]` corresponding to `einx.repeat` / `einops.repeat`
+- Repetition (`einx.repeat` / `einops.repeat`) is **not** a separate operator.
+  Following einx, an output-only axis is broadcast uniformly by *any* operator
+  above (SPEC §5.5); there is no `Einstoff[ArrayRepeat]` (not a WL builtin).
 
 Most APIs will have expect the arguments to be like
 

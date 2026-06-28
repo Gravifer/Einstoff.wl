@@ -152,6 +152,40 @@ scalar axis sizes). Inner mvars (§5.3) are automatically list-valued —
 the engine's re-walk. No pre-classification of "is this name under a
 `Repeated`?" is needed before reading `sizeRules`.
 
+### 5.5 Repetition as uniform vectorization
+
+Following einx, **repetition is not a distinct operation** but a form of
+vectorization layered on the output of *any* operator. An axis present on the
+RHS but absent from the LHS is *materialized by broadcasting*: each existing
+element is replicated along the new axis. Its size cannot come from input-axis
+binding (nothing on the LHS constrains it), so it is supplied out of band via
+`bindings` (cf. §5.1), mirroring einx's `c=3` keyword. This applies uniformly
+to `Einstoff[ArrayReshape]` (≙ einops.repeat / einx.id with an output-only
+axis), `Einstoff[ArrayReduce]`, and `Einstoff[Dot]` — there is **no** separate
+repeat operator (and no `ArrayRepeat`, which is not a WL builtin). The op symbol
+selects the underlying elementary operation; repetition composes with it on the
+output side, e.g.
+
+- `einx.id("a b -> a b c", x, c=3)`   ≙ `{{a_,b_}} :> {{a, b, c}}`, `{c -> 3}`
+- `einx.sum("a [b] -> a c", x, c=3)`  ≙ `{{a_, #b}} :> {{a, c}}`, `{c -> 3}`
+- `einx.dot("a [b], [b] c -> a c r", x, y, r=2)`
+  ≙ `{{a_, #b}, {#b, c_}} :> {{a, c, r}}`, `{r -> 2}`
+
+Two further forms of an output-only axis are also repetition, handled the same
+way (this is how einx treats them, confirmed against the reference):
+
+- an **explicit integer** on the output that is not inside a bracket — its size
+  is the literal itself, no binding needed: `einx.id("a -> a 2", x)`
+  ≙ `{{a_}} :> {{a, 2}}`;
+- a new axis that is **a factor of an output `CircleTimes`**, bound out of band —
+  it is broadcast, then merged into the composite: `einx.id("a -> (a c)", x, c=3)`
+  ≙ `{{a_}} :> {{a ⊗ c}}`, `{c -> 3}`.
+
+Implementation: every lowering path routes its output through one shared
+materialization step that broadcasts the repeat axes (replicate), permutes the
+atomic axes into RHS order, and recomposes composites — so repetition is written
+once and obtained uniformly.
+
 ## 6. Worked examples
 
 Canonical core-grammar form (always list-of-shapes both sides, `:>`); the
@@ -361,10 +395,11 @@ Mechanics:
 
 **Out-of-band desc equivalence.** Each cross-validation test pairs a Python einx
 pattern *string* with its Wolfram `desc` *expression* by hand; the equivalence is
-reasoned by a human and written into the test. Only the rearrange/reshape subset
-that is actually implemented is required to match. More complex einx behavior
-(reduce, repeat, dot, nested name-binding) is explicitly **not** required to agree
-and is out of scope for cross-validation until the corresponding lowering exists.
+reasoned by a human and written into the test. The implemented subset is required
+to match: rearrange/reshape, reduce, dot, and repetition (§5.5) all cross-validate
+against einx (and einops where it has a single-call equivalent). Behavior outside
+the implemented lowering — variable-arity bracket ellipses, direct sums, nested
+name-binding — is explicitly **not** required to agree until that lowering exists.
 
 ### 10.2 Future goal — `Interpreter` (einx string → Wolfram desc)
 
