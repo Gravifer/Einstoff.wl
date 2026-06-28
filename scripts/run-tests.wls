@@ -65,6 +65,11 @@ verbosity = Which[
 
 wantPython = asked[{"--python"}, {"python"}];
 
+(* Temporary progress panels (TestReport's "Collecting tests…", the
+   ExternalEvaluate spinner from the python suite) clutter stdout — silence them
+   except in verbose mode, where the user has asked to see everything. *)
+$ProgressReporting = verbosity >= 2;
+
 (* Under `-script` $CommandLine carries the literal -script token; under -file
    it is the raw wolfram.exe launch (...-mathlink) with no -script. Warn when
    -file strips dash flags. NB wolframscript routes $Messages to stdout, so for
@@ -97,6 +102,10 @@ testLabel[tro_, pos_] := Replace[tro["TestID"], {
 
 millisOf[q_] := Round[QuantityMagnitude[UnitConvert[q, "Seconds"]] * 1000];
 
+(* Label a test file by its path relative to tests/, so that e.g. Reshape.wlt and
+   python/Reshape.wlt are distinguishable. *)
+fileLabel[file_] := FileNameJoin[Drop[FileNameSplit[file], Length[FileNameSplit[testsDir]]]];
+
 (* ---- run --------------------------------------------------------------- *)
 
 totalPass = 0; totalFail = 0;
@@ -113,9 +122,9 @@ Scan[
       totalPass += npass; totalFail += nfail;
 
       If[verbosity === 0,
-        Print[FileNameTake[file], ": ", npass, " passed, ", nfail, " failed"],
+        Print[fileLabel[file], ": ", npass, " passed, ", nfail, " failed"],
         Print[""];
-        Print["== ", FileNameTake[file], "  (", npass + nfail, " tests, ",
+        Print["== ", fileLabel[file], "  (", npass + nfail, " tests, ",
               millisOf @ report["TimeElapsed"], " ms) =="]];
 
       MapIndexed[

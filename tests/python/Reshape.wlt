@@ -28,10 +28,7 @@
    BeginTestSection[name, pythonReady] skips (not fails) the whole section when
    Python / the packages are unavailable. *)
 
-ClearAll[a, b, c];
-
-(* Suppress ExternalEvaluate's temporary progress panels in the test output. *)
-$ProgressReporting = False;
+ClearAll[a, b, c, d];
 
 (* Project root: exported by the runner; fall back to the loaded paclet's
    location so the file is also usable via a bare TestReport[...]. *)
