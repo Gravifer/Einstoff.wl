@@ -351,20 +351,33 @@ than an assumption.
   the re-walk — no LHS pre-scan needed to detect `Repeated`-nested names
   (formerly §7.5).
 
-## 9. Next steps
+## 9. Status & next steps
 
-Pick one:
+Implemented and cross-validated against einx/einops: the matcher / shape resolver
+(`EinstoffShapes`), and the lowering paths `Einstoff[ArrayReshape]`
+(rearrange/reshape), `Einstoff[ArrayReduce]` (reduce), `Einstoff[Dot]`
+(contraction), and uniform repetition (§5.5).
 
-- (a) Work out native-primitive lowering for `RuleDelayed`-derived
-  irregular output shapes (Kronecker-style zip, projected pooling) — i.e.
-  once the RHS evaluates to a concrete shape, design how the engine
-  produces the actual `Transpose`/`ArrayReshape`/`Join` calls that realize
-  it, since these aren't simple permute+reshape (§7.1 residual).
-- (b) Write the matcher: given a concrete `Dimensions[tensor]` and an
-  Einstoff LHS shape, produce the bound axis-size association via
-  `MatchQ`/`Cases`, including bracket-aware branching (§5.2) and
-  `Repeated`-group re-walking (§5.3), then evaluate the `RuleDelayed` RHS
-  to get the output shape.
+**Short-term TODO — `CirclePlus` (direct sum / concatenation).** Lower the
+direct-sum axis `(a + b)`: **concatenation** when CirclePlus is on the RHS
+(`{op1, op2, …} :> {{… a ⊕ b …}}` via `Join[…, n]`; ex4) and **splitting** when it
+is on the LHS (`{{… a ⊕ b …}} :> {out1, out2, …}` via `Take` → multi-output; ex3).
+Folded into `Einstoff[ArrayReshape]`, with `Einstoff[Join]` / `Einstoff[Split]` as
+the same machinery under a directional guard (RHS-only / LHS-only CirclePlus). The
+shape layer already resolves CirclePlus; only lowering is needed. **Concat first,
+split next.** Working plan: `docs/plans/circleplus-direct-sum.md`.
+
+**Other deferred lowering items** (rejected loudly today, not mis-compiled):
+variable-arity bracket ellipsis `Slot[___]` (ex6); named-ellipsis / `Repeated[...]`
+re-walk (§5.3); `Einstoff[Dot]` beyond two operands and within-operand reduction
+before contraction.
+
+**Long-term TODO (heavily deferred — do not pursue now) — CI policy for the Python
+cross-validation suite.** When CI exists: the `tests/python/*.wlt` einx/einops
+cross-tests must *not* be required status checks (opt-in; need a Python venv); and
+when run they should be auto-retried up to **3×**, a pass on **any** attempt
+counting as a pass — to absorb the intermittent ZMQ `0xC0000005` startup segfault
+(the cross-validation logic is deterministic; only session startup is flaky).
 
 ## 10. Testing & validation
 

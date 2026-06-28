@@ -30,6 +30,14 @@ For more details on the design, see `SPEC.md`
 
 ## Notes
 
+- **Parentheses vs brackets are different things** (don't conflate `(...)` with `[...]`).
+  In the einx surface notation, *parentheses* group composition — `(a b)` is a
+  product (``CircleTimes``, `⊗`) and `(a + b)` is a direct sum (``CirclePlus``, `⊕`);
+  *brackets* `[...]` are the elementary-op axis marker (``Slot``, used by reduce /
+  dot / gather). So ``CircleTimes``/``CirclePlus`` (parens) and ``Slot`` (brackets)
+  are orthogonal — e.g. ``Slot[CirclePlus[...]]`` is a *bracketed direct sum*
+  (reducing/contracting over a concatenated axis).
+
 - We will *NOT* implement the sugar layer of the syntax in the forseeable future.
 
 - `human-explore.nb` may be too crammed with exploration code by the human,
