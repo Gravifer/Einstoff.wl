@@ -331,3 +331,58 @@ Pick one:
   `MatchQ`/`Cases`, including bracket-aware branching (§5.2) and
   `Repeated`-group re-walking (§5.3), then evaluate the `RuleDelayed` RHS
   to get the output shape.
+
+## 10. Testing & validation
+
+### 10.1 Cross-validation against einx / einops
+
+Beyond the hand-written `VerificationTest`s, a second, independent oracle runs
+the *actual* `einx` / `einops` Python implementations on the same inputs and
+asserts Einstoff produces the same arrays. This catches a class of bug a
+hand-written expected value can share with the implementation.
+
+Mechanics:
+
+- Interop is `ExternalEvaluate["Python", …]` (native, ZMQ-backed — the reason
+  `pyzmq` is a project dependency), with the evaluator **registered ephemerally
+  under an opaque UUID** pointing at the repo `.venv` interpreter, then
+  unregistered when the test section ends. Nothing is persisted to the user's
+  external-evaluator registry.
+- Inputs are *not* marshaled across the boundary. Both sides rebuild the tensor
+  from a shared dims recipe — WL `ArrayReshape[Range[Times @@ dims], dims]`
+  vs Python `(1 + np.arange(prod)).reshape(dims)`. The `1+` matches WL's 1-based
+  `Range`; numpy's default C-order matches WL `ArrayReshape` row-major. Only the
+  *result* is marshaled back, via `.tolist()`, and compared by exact equality
+  (integer arrays — no float tolerance needed).
+- The tests are **opt-in** (`run-tests.wls python`), excluded from the default
+  fast WL-only run, and live under `tests/python/`. Each section is gated with
+  `BeginTestSection[name, pythonReady]` so it *skips* (not fails) when Python or
+  the packages are unavailable.
+
+**Out-of-band desc equivalence.** Each cross-validation test pairs a Python einx
+pattern *string* with its Wolfram `desc` *expression* by hand; the equivalence is
+reasoned by a human and written into the test. Only the rearrange/reshape subset
+that is actually implemented is required to match. More complex einx behavior
+(reduce, repeat, dot, nested name-binding) is explicitly **not** required to agree
+and is out of scope for cross-validation until the corresponding lowering exists.
+
+### 10.2 Future goal — `Interpreter` (einx string → Wolfram desc)
+
+In Mathematica terminology, an `Interpreter`-style converter that mechanically
+turns an einx-dialect *string* `desc` (we primarily target the einx dialect) into
+the equivalent Wolfram expression `desc`. This would let cross-validation tests
+drop the hand-written pairing of §10.1, deriving the Wolfram `desc` from the
+Python string automatically.
+
+**Do not implement in the foreseeable future.** This is recorded here so the goal
+is not lost; coding agents should not be distracted by it. The near-term work is
+the lowering paths (§9), not surface-syntax conversion. (Cf. the standing decision
+to not implement the sugar layer either.)
+
+### 10.3 Lesser goal — reverse direction (Wolfram from Python)
+
+Driving the Wolfram engine *from* Python via `wolframclient`
+(`WolframLanguageSession`) — the inverse of §10.1's Wolfram→Python call. This is a
+**lesser goal**: noted for completeness, not currently pursued. The cross-validation
+direction (Wolfram calling Python) is sufficient for validating Einstoff against
+the reference implementations.
