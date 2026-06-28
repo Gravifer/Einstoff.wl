@@ -8,8 +8,10 @@ dependencies = [
     "einops>=0.8.2",
     "einx>=0.4.3",
     "numpy>=2.4.6",
+    "pandas>=3.0.3",
     "pyarrow>=24.0.0",
     "pyzmq>=27.1.0",
     "tzdata>=2026.2",
+    "wolframclient>=1.4.0",
     "zmq>=0.0.0",
 ]
