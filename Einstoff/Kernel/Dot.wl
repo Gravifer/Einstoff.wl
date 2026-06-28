@@ -21,6 +21,10 @@
    empty axis group is 1, so outer products (no K), missing batch, and one-sided
    free axes all fall out of the same code.
 
+   An output-only axis (on neither operand) is repetition (SPEC 5.5): the
+   contraction result is broadcast along it, via the shared materializeOutput
+   (e.g. einx.dot("a [b], [b] c -> a c r", x, y, r=3)).
+
    First cut: exactly two input tensors, one output; every non-output axis must
    be a shared (contracted) axis — a single-operand axis dropped before the
    contraction (within-operand reduction) is rejected, as is a CirclePlus or a
@@ -42,7 +46,7 @@ SetAttributes[EinstoffDot, HoldFirst];
 
 EinstoffDot[desc_, tensors_, bindings_List : {}] :=
   Module[{parts, lhs, rhs, shp, env, op1, op2, outA, both, b, k, m, n,
-          sz, prod, t1, t2, perm1, perm2, t1r, t2r, res, order, srcOut, outDims},
+          sz, prod, t1, t2, perm1, perm2, t1r, t2r, res, present, result},
     parts = descParts[Hold[desc]];
     If[parts === $Failed,
       Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
@@ -63,10 +67,9 @@ EinstoffDot[desc_, tensors_, bindings_List : {}] :=
     env = shp["Bindings"];
 
     (* Atomic axes of each operand (brackets unwrapped) and of the output. *)
-    {op1, op2} = Catch[{
-      (Join @@ Table[reduceAtoms[t], {t, lhs[[1]]}])[[All, 1]],
-      (Join @@ Table[reduceAtoms[t], {t, lhs[[2]]}])[[All, 1]]}];
-    If[op1 === $Failed, Return[$Failed]];
+    op1 = Catch[(Join @@ Table[reduceAtoms[t], {t, lhs[[1]]}])[[All, 1]]];
+    op2 = Catch[(Join @@ Table[reduceAtoms[t], {t, lhs[[2]]}])[[All, 1]]];
+    If[op1 === $Failed || op2 === $Failed, Return[$Failed]];
     outA = Catch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
     If[outA === $Failed, Return[$Failed]];
 
@@ -84,12 +87,8 @@ EinstoffDot[desc_, tensors_, bindings_List : {}] :=
         "an input axis appears in only one operand and is dropped — a \
 within-operand reduction before contraction is not supported yet"];
       Return[$Failed]];
-    (* Every output axis must come from some operand (else it is repeat). *)
-    If[! SubsetQ[Union[op1, op2], outA],
-      Message[Einstoff::unsupp,
-        "an output axis is on neither input — introducing an axis is repeat, \
-not contraction"];
-      Return[$Failed]];
+    (* An output axis on neither operand is allowed — it is a repetition axis,
+       broadcast onto the contraction result by materializeOutput (SPEC 5.5). *)
 
     sz[atoms_] := atomSize[#, env] & /@ atoms;
     prod[atoms_] := Times @@ sz[atoms];   (* 1 for an empty group *)
@@ -109,16 +108,17 @@ not contraction"];
     If[res === $Failed,
       Message[Einstoff::unsat, "an axis size is unbound"]; Return[$Failed]];
 
-    (* Full contraction to a scalar (no surviving output axis). *)
-    If[outA === {}, Return[First @ Flatten[res]]];
-
-    (* Recompose: atomic [B, M, N] -> permute to output atom order -> output shape. *)
-    res = ArrayReshape[res, sz[Join[b, m, n]]];
-    order = Join[b, m, n];
-    srcOut = Flatten[FirstPosition[order, #] & /@ outA];
-    If[Length[srcOut] > 1, res = Transpose[res, InversePermutation[srcOut]]];
-    outDims = Catch[(Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ First[rhs]];
-    If[outDims === $Failed,
-      Message[Einstoff::unsat, "an output axis size is unbound"]; Return[$Failed]];
-    ArrayReshape[res, outDims]
+    (* res has atomic axes [B, M, N] (flattened to {prodB, prodM, prodN}).
+       Recompose to atomic axes, then materialize repeats / permute / reshape
+       onto the output shape.  Empty [B,M,N] means a scalar contraction. *)
+    present = Join[b, m, n];
+    result = Catch[
+      materializeOutput[
+        If[present === {}, First @ Flatten[res], ArrayReshape[res, sz[present]]],
+        present, First[rhs], env]];
+    If[result === $Failed,
+      Message[Einstoff::unsat,
+        "an output axis size is unbound (a repeated axis needs a binding)"];
+      Return[$Failed]];
+    result
   ];

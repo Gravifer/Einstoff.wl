@@ -1,14 +1,15 @@
 (* ::Package:: *)
 
 (* Reshape / rearrange path: Einstoff[ArrayReshape] / EinstoffRearrange
-   (einx.id / einops.rearrange).  Pure permute + split + merge with no axis
-   introduced or dropped.  Lowers to the native trio
+   (einx.id / einops.rearrange).  Permute + split + merge, and — following einx's
+   uniform treatment of repetition (SPEC 5.5) — repeat: an output-only axis is
+   materialized by broadcasting (einops.repeat / einx.id with a new axis, e.g.
+   {{a_}} :> {{a, c}} with c bound in `bindings`).  No input axis may be dropped
+   (that is reduce).  Lowers to ArrayReshape (decompose) then materializeOutput
+   (broadcast repeats, permute to RHS order, recompose).
 
-       ArrayReshape  (decompose composites into atomic axes)
-       Transpose     (permute atomic axes from LHS order to RHS order)
-       ArrayReshape  (recompose composites on the output side)
-
-   Shared helpers (descParts, rearrangeAtoms, atomSize) live in Lowering.wl. *)
+   Shared helpers (descParts, rearrangeAtoms, atomSize, materializeOutput) live
+   in Lowering.wl. *)
 
 PackageExported[{EinstoffRearrange}]
 
@@ -27,7 +28,7 @@ SetAttributes[EinstoffRearrange, HoldFirst];
 
 EinstoffRearrange[desc_, tensors_, bindings_List : {}] :=
   Module[{parts, lhs, rhs, inShapes, shp, env, x,
-          lhsAtoms, rhsAtoms, decompDims, srcOrder, xr, xt, outDims},
+          lhsAtoms, rhsAtoms, decompDims, result},
     parts = descParts[Hold[desc]];
     If[parts === $Failed,
       Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
@@ -48,14 +49,14 @@ tensor (multi-tensor contraction/broadcast is a separate path)"];
       Message[Einstoff::unsat, shp["Reason"]]; Return[$Failed]];
     env = shp["Bindings"];
 
-    {lhsAtoms, rhsAtoms} = Catch[
-      {Join @@ (rearrangeAtoms /@ First[lhs]),
-       Join @@ (rearrangeAtoms /@ First[rhs])}];
-    If[lhsAtoms === $Failed, Return[$Failed]];
-    If[Sort[lhsAtoms] =!= Sort[rhsAtoms],
+    lhsAtoms = Catch[Join @@ (rearrangeAtoms /@ First[lhs])];
+    rhsAtoms = Catch[Join @@ (rearrangeAtoms /@ First[rhs])];
+    If[lhsAtoms === $Failed || rhsAtoms === $Failed, Return[$Failed]];
+    (* Every input axis must survive to the output; a dropped axis is reduce.
+       Output-only axes are allowed — they are repetition (materializeOutput). *)
+    If[! SubsetQ[rhsAtoms, lhsAtoms],
       Message[Einstoff::unsupp,
-        "axes are not a permutation between input and output — an axis is \
-introduced or dropped, which is repeat/reduce, not rearrange"];
+        "an input axis is dropped on the output — that is reduce, not rearrange"];
       Return[$Failed]];
 
     x = First[tensors];
@@ -63,13 +64,12 @@ introduced or dropped, which is repeat/reduce, not rearrange"];
     If[decompDims === $Failed,
       Message[Einstoff::unsat, "an input axis size is unbound"];
       Return[$Failed]];
-    srcOrder = Flatten[FirstPosition[lhsAtoms, #] & /@ rhsAtoms];
-    outDims = Catch[
-      (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ First[rhs]];
-    If[outDims === $Failed, Return[$Failed]];
 
-    xr = ArrayReshape[x, decompDims];
-    xt = If[Length[srcOrder] <= 1, xr,
-            Transpose[xr, InversePermutation[srcOrder]]];
-    ArrayReshape[xt, outDims]
+    result = Catch[
+      materializeOutput[ArrayReshape[x, decompDims], lhsAtoms, First[rhs], env]];
+    If[result === $Failed,
+      Message[Einstoff::unsat,
+        "an output axis size is unbound (a repeated axis needs a binding)"];
+      Return[$Failed]];
+    result
   ];

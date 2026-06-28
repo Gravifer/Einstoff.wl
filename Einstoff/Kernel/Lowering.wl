@@ -31,7 +31,7 @@ Einstoff::unsupp = "`1`";
 Einstoff::unsat =
   "description is not satisfiable against the given tensor(s): `1`";
 
-PackageScoped[{descParts, rearrangeAtoms, atomSize, reduceAtoms}]
+PackageScoped[{descParts, rearrangeAtoms, atomSize, reduceAtoms, materializeOutput}]
 
 (* ------------------------------------------------------------------ *)
 (* desc parsing.  Operators are HoldFirst and pass Hold[desc] in, so the *)
@@ -84,3 +84,36 @@ reduceAtoms[t_, br_ : False] :=
           " (direct sums and variable-arity bracket ellipses are not in the \
 supported subset yet)"];
        Throw[$Failed])];
+
+(* ------------------------------------------------------------------ *)
+(* Shared output materialization, including repetition.                *)
+(*                                                                      *)
+(* Given the array `arr` whose atomic axes are exactly `presentAtoms`   *)
+(* (in that order), and the held-then-released RHS shape `rhsTerms`,    *)
+(* produce the final output array.  Output-only axes (on the RHS but    *)
+(* absent from presentAtoms) are *repetition* axes (SPEC 5.5): each is  *)
+(* materialized by broadcasting (ConstantArray), sized from `env`       *)
+(* (i.e. from `bindings`, since nothing on the input constrains it).    *)
+(* Then the atoms are permuted into RHS order and composites recomposed.*)
+(* Throws $Failed (caught by the caller) on an unbound or bad axis.     *)
+(*                                                                      *)
+(* Repetition is layered here, uniformly, so every operator path        *)
+(* (reshape/reduce/dot) gets einx-style repeat for free.  Callers must  *)
+(* ensure presentAtoms ⊆ rhsAtoms (any present axis must reach output). *)
+(* ------------------------------------------------------------------ *)
+
+materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
+  Module[{rhsAtoms, repeats, acc = arr, order, srcOrder, outDims},
+    rhsAtoms = If[rhsTerms === {}, {},
+      Join @@ Table[rearrangeAtoms[t], {t, rhsTerms}]];
+    repeats = Select[rhsAtoms, ! MemberQ[presentAtoms, #] &];
+    (* Broadcast each repeat axis on as a new leading axis. *)
+    Do[acc = ConstantArray[acc, atomSize[r, env]], {r, repeats}];
+    (* Scalar output: nothing to permute or recompose. *)
+    If[rhsAtoms === {}, Return[First @ Flatten @ {acc}]];
+    (* acc's axes after the broadcasts: Reverse[repeats] then presentAtoms. *)
+    order = Join[Reverse[repeats], presentAtoms];
+    srcOrder = Flatten[FirstPosition[order, #] & /@ rhsAtoms];
+    If[Length[srcOrder] > 1, acc = Transpose[acc, InversePermutation[srcOrder]]];
+    outDims = (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ rhsTerms;
+    ArrayReshape[acc, outDims]];

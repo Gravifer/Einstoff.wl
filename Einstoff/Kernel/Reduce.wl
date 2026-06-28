@@ -10,9 +10,11 @@
    5.2, ex 5); a bare dropped axis is the einops way (`a b -> a`) — both reduce
    here, since the operator is unambiguously a reduction.  A bracketed axis
    *kept* on the RHS is the feed-to-elementary-op path (not reduction), rejected.
+   An output-only axis is repetition (SPEC 5.5) — reduce, then broadcast it on,
+   via the shared materializeOutput (e.g. einx.sum("a [b] -> a c", x, c=3)).
 
-   Shared helpers (descParts, reduceAtoms, rearrangeAtoms, atomSize) live in
-   Lowering.wl. *)
+   Shared helpers (descParts, reduceAtoms, rearrangeAtoms, atomSize,
+   materializeOutput) live in Lowering.wl. *)
 
 PackageExported[{EinstoffReduce}]
 
@@ -48,7 +50,7 @@ SetAttributes[EinstoffReduce, HoldFirst];
 EinstoffReduce[desc_, tensors_, bindings_List : {}, reducerSpec_ : Total] :=
   Module[{parts, lhs, rhs, inShapes, shp, env, x, reducer,
           lhsTagged, lhsAtoms, lhsBr, rhsAtoms, reducedPos, keptOrder,
-          decompDims, xr, xred, srcOrder, xt, outDims},
+          decompDims, xr, xred, result},
     parts = descParts[Hold[desc]];
     If[parts === $Failed,
       Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
@@ -77,15 +79,8 @@ EinstoffReduce[desc_, tensors_, bindings_List : {}, reducerSpec_ : Total] :=
     If[rhsAtoms === $Failed, Return[$Failed]];
     lhsAtoms = lhsTagged[[All, 1]]; lhsBr = lhsTagged[[All, 2]];
 
-    (* Every RHS atom must come from the (kept) LHS — a new output axis would be
-       repeat, not reduce. *)
-    If[! SubsetQ[lhsAtoms, rhsAtoms],
-      Message[Einstoff::unsupp,
-        "an output axis is not present on the input — introducing an axis is \
-repeat, not reduce"];
-      Return[$Failed]];
-
-    (* Reduced atoms = LHS atoms absent on RHS (1-indexed positions). *)
+    (* Reduced atoms = LHS atoms absent on RHS (1-indexed positions).  RHS-only
+       atoms are not reduced — they are repetition axes, materialized below. *)
     reducedPos = Select[Range@Length[lhsAtoms], ! MemberQ[rhsAtoms, lhsAtoms[[#]]] &];
 
     (* A bracketed axis kept on the RHS is the feed-to-elementary-op path, not a
@@ -106,16 +101,13 @@ elementary op is a separate path, not reduction"];
     xr = ArrayReshape[x, decompDims];
     xred = If[reducedPos === {}, xr, ArrayReduce[reducer, xr, reducedPos]];
 
-    (* All axes reduced -> scalar; nothing left to permute or recompose. *)
-    If[Length[reducedPos] === Length[lhsAtoms], Return[xred]];
-
-    (* Surviving atoms, in their LHS-relative order (= xred's axis order). *)
+    (* Surviving atoms, in their LHS-relative order (= xred's axis order); then
+       materialize repeats, permute to RHS order, and recompose. *)
     keptOrder = Delete[lhsAtoms, List /@ reducedPos];
-    srcOrder = Flatten[FirstPosition[keptOrder, #] & /@ rhsAtoms];
-    xt = If[Length[srcOrder] <= 1, xred,
-            Transpose[xred, InversePermutation[srcOrder]]];
-    outDims = Catch[
-      (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ First[rhs]];
-    If[outDims === $Failed, Return[$Failed]];
-    ArrayReshape[xt, outDims]
+    result = Catch[materializeOutput[xred, keptOrder, First[rhs], env]];
+    If[result === $Failed,
+      Message[Einstoff::unsat,
+        "an output axis size is unbound (a repeated axis needs a binding)"];
+      Return[$Failed]];
+    result
   ];
