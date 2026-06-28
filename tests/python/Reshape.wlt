@@ -126,32 +126,54 @@ VerificationTest[
 
 (* --- repetition (SPEC 5.5) --- *)
 
-(* einx.id repeat 'a -> a c', c=3  <->  {{a_}} :> {{a, c}}, {c -> 3} *)
+(* repeat 'a -> a c', c=3  <->  {{a_}} :> {{a, c}}, {c -> 3} — einx and einops *)
 VerificationTest[
   Einstoff[ArrayReshape][{{a_}} :> {{a, c}}, {Range[4]}, {c -> 3}],
   pyRef["einx", "a -> a c", {4}, <|"c" -> 3|>],
   TestID -> "xval-einx-repeat"
 ];
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_}} :> {{a, c}}, {Range[4]}, {c -> 3}],
+  pyRef["einops.repeat", "a -> a c", {4}, <|"c" -> 3|>],
+  TestID -> "xval-einops-repeat-1d"
+];
 
-(* einops.repeat 'a b -> a b c', c=2  <->  {{a_,b_}} :> {{a, b, c}}, {c -> 2} *)
+(* 'a b -> a b c', c=2  <->  {{a_,b_}} :> {{a, b, c}}, {c -> 2} — both backends:
+   einops needs einops.repeat (rearrange cannot introduce axes); einx.id is uniform. *)
 VerificationTest[
   Einstoff[ArrayReshape][{{a_, b_}} :> {{a, b, c}}, {ArrayReshape[Range[6], {2, 3}]}, {c -> 2}],
   pyRef["einops.repeat", "a b -> a b c", {2, 3}, <|"c" -> 2|>],
   TestID -> "xval-einops-repeat"
 ];
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_, b_}} :> {{a, b, c}}, {ArrayReshape[Range[6], {2, 3}]}, {c -> 2}],
+  pyRef["einx", "a b -> a b c", {2, 3}, <|"c" -> 2|>],
+  TestID -> "xval-einx-repeat-2d"
+];
 
-(* explicit-integer repeat 'a -> a 2'  <->  {{a_}} :> {{a, 2}} *)
+(* explicit-integer repeat 'a -> a 2'  <->  {{a_}} :> {{a, 2}} — einx and einops *)
 VerificationTest[
   Einstoff[ArrayReshape][{{a_}} :> {{a, 2}}, {Range[4]}],
   pyRef["einx", "a -> a 2", {4}],
   TestID -> "xval-einx-repeat-integer"
 ];
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_}} :> {{a, 2}}, {Range[4]}],
+  pyRef["einops.repeat", "a -> a 2", {4}],
+  TestID -> "xval-einops-repeat-integer"
+];
 
-(* repeat inside an output composite 'a -> (a c)', c=3  <->  {{a_}} :> {{a \[CircleTimes] c}} *)
+(* repeat inside an output composite 'a -> (a c)', c=3  <->  {{a_}} :> {{a \[CircleTimes] c}}
+   — einx and einops *)
 VerificationTest[
   Einstoff[ArrayReshape][{{a_}} :> {{CircleTimes[a, c]}}, {Range[4]}, {c -> 3}],
   pyRef["einx", "a -> (a c)", {4}, <|"c" -> 3|>],
   TestID -> "xval-einx-repeat-merge"
+];
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_}} :> {{CircleTimes[a, c]}}, {Range[4]}, {c -> 3}],
+  pyRef["einops.repeat", "a -> (a c)", {4}, <|"c" -> 3|>],
+  TestID -> "xval-einops-repeat-merge"
 ];
 
 EndTestSection[];
