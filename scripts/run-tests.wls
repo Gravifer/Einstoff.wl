@@ -106,6 +106,19 @@ millisOf[q_] := Round[QuantityMagnitude[UnitConvert[q, "Seconds"]] * 1000];
    python/Reshape.wlt are distinguishable. *)
 fileLabel[file_] := FileNameJoin[Drop[FileNameSplit[file], Length[FileNameSplit[testsDir]]]];
 
+(* ---- shared Python session --------------------------------------------
+   Spawn ONE ExternalEvaluate session here and expose it as Einstoff`Tests`$PySession
+   so every tests/python/*.wlt reuses it: many short-lived ZMQ sessions per kernel
+   are unstable (intermittent 0xC0000005), one shared session is not. Each .wlt
+   falls back to its own session when this is unset (e.g. a bare TestReport). *)
+
+Einstoff`Tests`$PySession = None;
+If[wantPython,
+  With[{exe = FileNameJoin[{root, ".venv", "Scripts", "python.exe"}]},
+    If[FileExistsQ[exe],
+      Einstoff`Tests`$PySession = Quiet @ Check[
+        StartExternalSession[<|"System" -> "Python", "Executable" -> exe|>], None]]]];
+
 (* ---- run --------------------------------------------------------------- *)
 
 totalPass = 0; totalFail = 0;
@@ -149,6 +162,10 @@ Scan[
             Print["           expected: ", tro["ExpectedOutput"]]]],
         results]]],
   testFiles];
+
+(* Tear down the shared session we spawned (the .wlt files leave it alone). *)
+If[Head[Einstoff`Tests`$PySession] === ExternalSessionObject,
+  Quiet @ DeleteObject[Einstoff`Tests`$PySession]];
 
 Print[""];
 Print["==== ", totalPass, " passed, ", totalFail, " failed (",

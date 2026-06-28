@@ -18,11 +18,16 @@ pyRoot =
     ParentDirectory[PacletObject["Einstoff"]["Location"]]];
 pyExe = FileNameJoin[{pyRoot, ".venv", "Scripts", "python.exe"}];
 
-pySession = $Failed;
+(* Reuse the runner's shared session if it spawned one (one ZMQ session per kernel
+   is stable, many are not); otherwise spawn our own so the file still runs under a
+   bare TestReport, and own only that teardown. *)
+pyOwned = Head[Einstoff`Tests`$PySession] =!= ExternalSessionObject;
+pySession = If[pyOwned,
+  Quiet @ Check[
+    If[FileExistsQ[pyExe],
+      StartExternalSession[<|"System" -> "Python", "Executable" -> pyExe|>], $Failed], $Failed],
+  Einstoff`Tests`$PySession];
 pythonReady = TrueQ @ Quiet @ Check[
-  FileExistsQ[pyExe] &&
-  (pySession =
-     StartExternalSession[<|"System" -> "Python", "Executable" -> pyExe|>]) =!= $Failed &&
   Head[pySession] === ExternalSessionObject &&
   ExternalEvaluate[pySession, "import numpy, einx; True"] === True,
   False];
@@ -99,4 +104,4 @@ VerificationTest[
 EndTestSection[];
 (* ======================================================================== *)
 
-If[Head[pySession] === ExternalSessionObject, Quiet @ DeleteObject[pySession]];
+If[pyOwned && Head[pySession] === ExternalSessionObject, Quiet @ DeleteObject[pySession]];
