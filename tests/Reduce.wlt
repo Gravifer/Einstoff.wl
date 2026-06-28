@@ -28,20 +28,28 @@ VerificationTest[
   TestID -> "reduce-bare-sum"
 ];
 
-(* 3. Reducer -> Mean. *)
+(* 3. Mean reducer (positional, no bindings). *)
 VerificationTest[
   With[{x = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[ArrayReduce][{{a_, b_}} :> {{a}}, {x}, Reducer -> Mean]],
+    Einstoff[ArrayReduce][{{a_, b_}} :> {{a}}, {x}, Mean]],
   Mean /@ ArrayReshape[Range[12], {3, 4}],
   TestID -> "reduce-mean"
 ];
 
-(* 4. Reducer -> Max. *)
+(* 4. Max reducer (positional, no bindings). *)
 VerificationTest[
   With[{x = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[ArrayReduce][{{a_, b_}} :> {{a}}, {x}, Reducer -> Max]],
+    Einstoff[ArrayReduce][{{a_, b_}} :> {{a}}, {x}, Max]],
   Max /@ ArrayReshape[Range[12], {3, 4}],
   TestID -> "reduce-max"
+];
+
+(* 4b. Reducer given a convenience string ("max"). *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[12], {3, 4}]},
+    Einstoff[ArrayReduce][{{a_, b_}} :> {{a}}, {x}, "max"]],
+  Max /@ ArrayReshape[Range[12], {3, 4}],
+  TestID -> "reduce-max-string"
 ];
 
 (* 5. Reduce then permute survivors: 'a b [c] -> b a'. *)

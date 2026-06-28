@@ -70,14 +70,14 @@ VerificationTest[
 
 (* einops max 'a b -> a'  <->  {{a_,b_}} :> {{a}}, Reducer -> Max *)
 VerificationTest[
-  Einstoff[ArrayReduce][{{a_, b_}} :> {{a}}, {ArrayReshape[Range[12], {3, 4}]}, Reducer -> Max],
+  Einstoff[ArrayReduce][{{a_, b_}} :> {{a}}, {ArrayReshape[Range[12], {3, 4}]}, Max],
   pyReduce["einops", "max", "a b -> a", {3, 4}],
   TestID -> "xval-einops-max"
 ];
 
-(* einx max 'a [b] -> a'  <->  {{a_, [b_]}} :> {{a}}, Reducer -> Max *)
+(* einx max 'a [b] -> a'  <->  {{a_, [b_]}} :> {{a}}, Max reducer *)
 VerificationTest[
-  Einstoff[ArrayReduce][{{a_, Slot[b_]}} :> {{a}}, {ArrayReshape[Range[12], {3, 4}]}, Reducer -> Max],
+  Einstoff[ArrayReduce][{{a_, Slot[b_]}} :> {{a}}, {ArrayReshape[Range[12], {3, 4}]}, Max],
   pyReduce["einx", "max", "a [b] -> a", {3, 4}],
   TestID -> "xval-einx-max"
 ];

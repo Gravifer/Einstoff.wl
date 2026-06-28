@@ -27,21 +27,25 @@ dropped axis is the einops style. desc is held.";
 Einstoff[ArrayReduce] := EinstoffReduce;
 Einstoff["Reduce"] := EinstoffReduce;
 
-(* Resolve the Reducer option value to a list-reducing function.  Accepts a
-   raw function (Total, Mean, Max, Min, ...) or a few convenience strings. *)
-reduceFunction[f_] := f /. {
-  "Sum" | "Total" | "Add" :> Total,
-  "Mean" | "Average" :> Mean,
-  "Max" :> Max, "Min" :> Min,
-  "Prod" | "Product" | "Times" :> Function[l, Times @@ l]};
-
-Options[EinstoffReduce] = {Reducer -> Total};
+(* Resolve a reducer spec to a list-reducing function.  Accepts a raw function
+   (Total, Mean, Max, Min, ...) as-is, or a convenience string matched
+   case-insensitively (einops uses lowercase: "sum", "mean", "max", ...). *)
+reduceFunction[s_String] := Replace[ToLowerCase[s], {
+  "sum" | "total" | "add" -> Total,
+  "mean" | "average" -> Mean,
+  "max" -> Max, "min" -> Min,
+  "prod" | "product" | "times" -> (Times @@ # &),
+  _ -> s}];
+reduceFunction[f_] := f;
 
 SetAttributes[EinstoffReduce, HoldFirst];
 
-(* bindings is constrained to a List so that a trailing Reducer -> … option is
-   never mis-captured as the bindings argument (CLAUDE.md). *)
-EinstoffReduce[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
+(* The reducer is a *positional* argument, not an option (avoid OptionsPattern
+   clustering).  bindings is List-guarded, so a non-List 3rd argument is taken
+   as the reducer — giving both Einstoff[ArrayReduce][desc, tensors, reducer]
+   and Einstoff[ArrayReduce][desc, tensors, bindings, reducer], with desc still
+   held (a hold attribute does not survive currying through a compound head). *)
+EinstoffReduce[desc_, tensors_, bindings_List : {}, reducerSpec_ : Total] :=
   Module[{parts, lhs, rhs, inShapes, shp, env, x, reducer,
           lhsTagged, lhsAtoms, lhsBr, rhsAtoms, reducedPos, keptOrder,
           decompDims, xr, xred, srcOrder, xt, outDims},
@@ -58,7 +62,7 @@ EinstoffReduce[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
         "ArrayReduce lowering supports exactly one input and one output tensor"];
       Return[$Failed]];
 
-    reducer = reduceFunction[OptionValue[EinstoffReduce, {opts}, Reducer]];
+    reducer = reduceFunction[reducerSpec];
 
     inShapes = Dimensions /@ tensors;
     shp = EinstoffShapes[desc, inShapes, bindings];
