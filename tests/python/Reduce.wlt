@@ -98,6 +98,16 @@ VerificationTest[
   TestID -> "xval-einx-sum-merge"
 ];
 
+(* --- reduce then repeat (SPEC 5.5) --- *)
+
+(* einx sum then repeat 'a [b] -> a c', c=3
+   <->  {{a_, [b_]}} :> {{a, c}}, {c -> 3} *)
+VerificationTest[
+  Einstoff[ArrayReduce][{{a_, Slot[b_]}} :> {{a, c}}, {ArrayReshape[Range[12], {4, 3}]}, {c -> 3}],
+  pyReduce["einx", "sum", "a [b] -> a c", {4, 3}, <|"c" -> 3|>],
+  TestID -> "xval-einx-sum-repeat"
+];
+
 EndTestSection[];
 (* ======================================================================== *)
 

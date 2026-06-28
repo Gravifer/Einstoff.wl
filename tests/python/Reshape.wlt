@@ -59,6 +59,9 @@ pyRef[backend_, pattern_, dims_List, kwargs_ : <||>] :=
     call = Switch[backend,
       "einops", "einops.rearrange(x, " <> ToString[pattern, InputForm] <>
                   If[kw === "", "", ", " <> kw] <> ")",
+      (* einops.rearrange cannot introduce axes; repetition needs einops.repeat *)
+      "einops.repeat", "einops.repeat(x, " <> ToString[pattern, InputForm] <>
+                  If[kw === "", "", ", " <> kw] <> ")",
       "einx",   "einx.id(" <> ToString[pattern, InputForm] <> ", x" <>
                   If[kw === "", "", ", " <> kw] <> ")"];
     ExternalEvaluate[pySession,
@@ -119,6 +122,36 @@ VerificationTest[
     {{a_, CircleTimes[b_, c_]}} :> {{CircleTimes[b, a], c}}, {ArrayReshape[Range[32], {4, 8}]}, {b -> 2}],
   pyRef["einx", "a (b c) -> (b a) c", {4, 8}, <|"b" -> 2|>],
   TestID -> "xval-einx-split-permute-merge"
+];
+
+(* --- repetition (SPEC 5.5) --- *)
+
+(* einx.id repeat 'a -> a c', c=3  <->  {{a_}} :> {{a, c}}, {c -> 3} *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_}} :> {{a, c}}, {Range[4]}, {c -> 3}],
+  pyRef["einx", "a -> a c", {4}, <|"c" -> 3|>],
+  TestID -> "xval-einx-repeat"
+];
+
+(* einops.repeat 'a b -> a b c', c=2  <->  {{a_,b_}} :> {{a, b, c}}, {c -> 2} *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_, b_}} :> {{a, b, c}}, {ArrayReshape[Range[6], {2, 3}]}, {c -> 2}],
+  pyRef["einops.repeat", "a b -> a b c", {2, 3}, <|"c" -> 2|>],
+  TestID -> "xval-einops-repeat"
+];
+
+(* explicit-integer repeat 'a -> a 2'  <->  {{a_}} :> {{a, 2}} *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_}} :> {{a, 2}}, {Range[4]}],
+  pyRef["einx", "a -> a 2", {4}],
+  TestID -> "xval-einx-repeat-integer"
+];
+
+(* repeat inside an output composite 'a -> (a c)', c=3  <->  {{a_}} :> {{a \[CircleTimes] c}} *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_}} :> {{CircleTimes[a, c]}}, {Range[4]}, {c -> 3}],
+  pyRef["einx", "a -> (a c)", {4}, <|"c" -> 3|>],
+  TestID -> "xval-einx-repeat-merge"
 ];
 
 EndTestSection[];

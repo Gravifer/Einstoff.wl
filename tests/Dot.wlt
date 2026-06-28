@@ -8,7 +8,7 @@
 
 BeginTestSection["Einstoff`Lowering`Dot"];
 
-ClearAll[a, b, c, d];
+ClearAll[a, b, c, d, r];
 
 (* ===================== einsum-style contraction (einx.dot) ========= *)
 

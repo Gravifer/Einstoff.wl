@@ -11,7 +11,7 @@
    python suites to keep each .wlt self-contained; factor into a shared harness
    if this duplication grows. *)
 
-ClearAll[a, b, c, d];
+ClearAll[a, b, c, d, r];
 
 pyRoot =
   If[ValueQ[Einstoff`Tests`$Root], Einstoff`Tests`$Root,
@@ -28,16 +28,20 @@ pythonReady = TrueQ @ Quiet @ Check[
   False];
 
 pyDims[l_List] := "[" <> StringRiffle[ToString /@ l, ", "] <> "]";
+pyKwargs[kw_Association] := StringRiffle[KeyValueMap[#1 <> "=" <> ToString[#2] &, kw], ", "];
 
-(* pyDot[pattern, {dims1, dims2}]: build both operands from their dims recipes
-   inside Python, apply einx.dot, return WL int lists. The einx pattern <-> the
+(* pyDot[pattern, dims1, dims2, kwargs]: build both operands from their dims
+   recipes inside Python, apply einx.dot, return WL int lists. kwargs supply any
+   out-of-band axis sizes (e.g. a repetition axis). The einx pattern <-> the
    Wolfram desc equivalence is reasoned out of band. *)
-pyDot[pattern_, dims1_List, dims2_List] :=
-  ExternalEvaluate[pySession,
-    "import numpy as np, einx\n" <>
-    "x = (1 + np.arange(" <> ToString[Times @@ dims1] <> ")).reshape(" <> pyDims[dims1] <> ")\n" <>
-    "y = (1 + np.arange(" <> ToString[Times @@ dims2] <> ")).reshape(" <> pyDims[dims2] <> ")\n" <>
-    "np.asarray(einx.dot(" <> ToString[pattern, InputForm] <> ", x, y)).tolist()"];
+pyDot[pattern_, dims1_List, dims2_List, kwargs_ : <||>] :=
+  Module[{kw = pyKwargs[kwargs]},
+    ExternalEvaluate[pySession,
+      "import numpy as np, einx\n" <>
+      "x = (1 + np.arange(" <> ToString[Times @@ dims1] <> ")).reshape(" <> pyDims[dims1] <> ")\n" <>
+      "y = (1 + np.arange(" <> ToString[Times @@ dims2] <> ")).reshape(" <> pyDims[dims2] <> ")\n" <>
+      "np.asarray(einx.dot(" <> ToString[pattern, InputForm] <> ", x, y" <>
+        If[kw === "", "", ", " <> kw] <> ")).tolist()"]];
 
 (* ======================================================================== *)
 BeginTestSection["Einstoff`CrossValidation`Dot", pythonReady];
@@ -79,6 +83,17 @@ VerificationTest[
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}],
   pyDot["a b, b c -> (a c)", {2, 3}, {3, 4}],
   TestID -> "xval-dot-contract-merge"
+];
+
+(* --- contract then repeat (SPEC 5.5) --- *)
+
+(* einx.dot then repeat 'a [b], [b] c -> a c r', r=2
+   <->  {{a_,[b_]},{[b],c_}} :> {{a, c, r}}, {r -> 2} *)
+VerificationTest[
+  Einstoff[Dot][{{a_, Slot[b_]}, {Slot[b], c_}} :> {{a, c, r}},
+    {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}, {r -> 2}],
+  pyDot["a [b], [b] c -> a c r", {2, 3}, {3, 4}, <|"r" -> 2|>],
+  TestID -> "xval-dot-repeat"
 ];
 
 EndTestSection[];
