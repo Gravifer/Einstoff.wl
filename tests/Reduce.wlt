@@ -101,11 +101,12 @@ VerificationTest[
   TestID -> "reduce-reject-kept-bracket"
 ];
 
-(* 11. A new output axis (not on input) is repeat, not reduce. *)
+(* 11. A new output axis is repetition (SPEC 5.5); without a binding it is
+   unsatisfiable and rejected. *)
 VerificationTest[
   Quiet @ Einstoff[ArrayReduce][{{a_, Slot[b_]}} :> {{a, c}}, {ArrayReshape[Range[12], {3, 4}]}],
   $Failed,
-  TestID -> "reduce-reject-new-axis"
+  TestID -> "reduce-reject-unbound-repeat"
 ];
 
 (* 12. Unsatisfiable desc (rank mismatch) returns $Failed. *)
@@ -127,6 +128,24 @@ VerificationTest[
   Quiet @ Einstoff[ArrayReduce][{{a_, Slot[b_]}, {c_}} :> {{a, c}}, {ArrayReshape[Range[12], {3, 4}], Range[5]}],
   $Failed,
   TestID -> "reduce-reject-multitensor"
+];
+
+(* ===================== reduce then repeat (SPEC 5.5) ============== *)
+
+(* 15. Reduce b, then broadcast into a new axis c: 'a [b] -> a c', c=3. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[12], {4, 3}]},
+    Einstoff[ArrayReduce][{{a_, Slot[b_]}} :> {{a, c}}, {x}, {c -> 3}]],
+  Table[Total[ArrayReshape[Range[12], {4, 3}], {2}][[i]], {i, 4}, {j, 3}],
+  TestID -> "reduce-then-repeat"
+];
+
+(* 16. Reduce all axes, then broadcast the scalar into a vector: '[a] [b] -> c'. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[12], {4, 3}]},
+    Einstoff[ArrayReduce][{{Slot[a_], Slot[b_]}} :> {{c}}, {x}, {c -> 3}]],
+  ConstantArray[Total[Range[12]], 3],
+  TestID -> "reduce-all-then-repeat"
 ];
 
 EndTestSection[];

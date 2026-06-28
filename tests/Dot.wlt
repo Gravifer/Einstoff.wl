@@ -92,12 +92,12 @@ VerificationTest[
   TestID -> "dot-reject-within-drop"
 ];
 
-(* 11. A new output axis (not on either input) is repeat, not contraction. *)
+(* 11. A new output axis is repetition (SPEC 5.5); unbound it is rejected. *)
 VerificationTest[
-  Quiet @ Einstoff[Dot][{{a_, b_}, {b, c_}} :> {{a, d}},
+  Quiet @ Einstoff[Dot][{{a_, b_}, {b, c_}} :> {{a, c, d}},
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}],
   $Failed,
-  TestID -> "dot-reject-new-axis"
+  TestID -> "dot-reject-unbound-repeat"
 ];
 
 (* 12. Unsatisfiable desc (shared axis size disagrees) returns $Failed. *)
@@ -106,6 +106,17 @@ VerificationTest[
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[20], {5, 4}]}],
   $Failed,
   TestID -> "dot-reject-unsat"
+];
+
+(* ===================== contract then repeat (SPEC 5.5) =========== *)
+
+(* 13. Matmul, then broadcast the result into a new axis r: 'a [b], [b] c -> a c r', r=2. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
+    Einstoff[Dot][{{a_, Slot[b_]}, {Slot[b], c_}} :> {{a, c, r}}, {x, y}, {r -> 2}]],
+  With[{mm = ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}]},
+    Table[mm[[i, j]], {i, 2}, {j, 4}, {k, 2}]],
+  TestID -> "dot-then-repeat"
 ];
 
 EndTestSection[];

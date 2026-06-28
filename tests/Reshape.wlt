@@ -95,4 +95,56 @@ VerificationTest[
   TestID -> "lower-reject-multitensor"
 ];
 
+(* ===================== repetition (SPEC 5.5) ====================== *)
+
+(* 11. Repeat a vector along a new trailing axis: 'a -> a c', c=3. *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_}} :> {{a, c}}, {Range[4]}, {c -> 3}],
+  Table[Range[4][[i]], {i, 4}, {j, 3}],
+  TestID -> "repeat-trailing"
+];
+
+(* 12. Repeat + permute: 'a -> c a', c=3 (new axis leads). *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_}} :> {{c, a}}, {Range[4]}, {c -> 3}],
+  ConstantArray[Range[4], 3],
+  TestID -> "repeat-leading"
+];
+
+(* 13. einops.repeat 2D -> 3D: 'a b -> a b c', c=2. *)
+VerificationTest[
+  With[{m = Partition[Range[6], 3]},
+    Einstoff[ArrayReshape][{{a_, b_}} :> {{a, b, c}}, {m}, {c -> 2}]],
+  Table[Partition[Range[6], 3][[i, j]], {i, 2}, {j, 3}, {k, 2}],
+  TestID -> "repeat-einops-2d-3d"
+];
+
+(* 14. An unbound repeat axis (no binding) is unsatisfiable. *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{a_}} :> {{a, c}}, {Range[4]}],
+  $Failed,
+  TestID -> "repeat-reject-unbound"
+];
+
+(* 15. An explicit integer axis on the output is repetition: 'a -> a 2'. *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_}} :> {{a, 2}}, {Range[4]}],
+  Table[Range[4][[i]], {i, 4}, {j, 2}],
+  TestID -> "repeat-output-integer"
+];
+
+(* 16. A repeat axis inside an output composite: 'a -> (a c)', c=3. *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_}} :> {{CircleTimes[a, c]}}, {Range[4]}, {c -> 3}],
+  Flatten @ Table[Range[4][[i]], {i, 4}, {j, 3}],
+  TestID -> "repeat-merge"
+];
+
+(* 17. Repeat axis as the leading composite factor: 'a -> (c a)', c=3. *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_}} :> {{CircleTimes[c, a]}}, {Range[4]}, {c -> 3}],
+  Flatten @ ConstantArray[Range[4], 3],
+  TestID -> "repeat-merge-leading"
+];
+
 EndTestSection[];
