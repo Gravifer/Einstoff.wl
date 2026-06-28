@@ -6,9 +6,15 @@
      quiet / -q / --quiet      one summary line per file (+ any failures)
      verbose / -v / --verbose  also show per-test time and the test input
 
+   Opt-in groups:
+     python / --python         also run tests/python/*.wlt (einx/einops
+                               cross-validation via ExternalEvaluate; excluded
+                               by default so the WL-only loop stays fast)
+
    Invoke either way:
-     wolframscript -script scripts/run-tests.wls -q      (dash flags, clean)
-     wolframscript -file   scripts/run-tests.wls quiet   (plain words)
+     wolframscript -script scripts/run-tests.wls -q          (dash flags, clean)
+     wolframscript -file   scripts/run-tests.wls quiet        (plain words)
+     wolframscript -script scripts/run-tests.wls python -v    (with x-validation)
 
    NB: only `-script` sets up $ScriptCommandLine with the trailing args
    verbatim, so dash flags survive there. `wolframscript -file` instead strips
@@ -31,6 +37,11 @@ Needs["MUnit`"];
 PacletDirectoryLoad[root];
 Needs["Einstoff`"];
 
+(* Export the project root so headless .wlt files (e.g. the python
+   cross-validation suite) can locate sibling resources like .venv without a
+   notebook context. Harmless for the WL-only suites. *)
+Einstoff`Tests`$Root = root;
+
 (* ---- verbosity from the command line ----------------------------------
    Dash flags (-v/--verbose/-q/--quiet) are parsed with the CommandLineParse
    resource function — each parsed entry is
@@ -52,6 +63,8 @@ verbosity = Which[
   asked[{"-q", "--quiet"}, {"quiet", "q"}], 0,
   True, 1];
 
+wantPython = asked[{"--python"}, {"python"}];
+
 (* Under `-script` $CommandLine carries the literal -script token; under -file
    it is the raw wolfram.exe launch (...-mathlink) with no -script. Warn when
    -file strips dash flags. NB wolframscript routes $Messages to stdout, so for
@@ -63,12 +76,18 @@ If[! MemberQ[$CommandLine, "-script"],
     "stripped before the script and have no effect. Use a plain-word level ",
     "(quiet|verbose), or invoke with `-script` to pass dash flags.\n"]];
 
-(* ---- test discovery ---------------------------------------------------- *)
+(* ---- test discovery ----------------------------------------------------
+   The default glob over tests/ is non-recursive, so tests/python/*.wlt is
+   excluded unless --python (or the plain word `python`) is given. *)
 
-testFiles = Sort @ FileNames["*.wlt", FileNameJoin[{root, "tests"}]];
+testsDir = FileNameJoin[{root, "tests"}];
+testFiles = Sort @ FileNames["*.wlt", testsDir];
+If[wantPython,
+  testFiles = Join[testFiles,
+    Sort @ FileNames["*.wlt", FileNameJoin[{testsDir, "python"}]]]];
 
 If[testFiles === {},
-  Print["no tests/*.wlt files found under ", FileNameJoin[{root, "tests"}]];
+  Print["no tests/*.wlt files found under ", testsDir];
   Exit[1]];
 
 (* Human-readable id for a single TestResultObject, falling back to its
