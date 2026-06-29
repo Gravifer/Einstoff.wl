@@ -41,8 +41,12 @@ PackageScoped[{descParts, rearrangeAtoms, atomSize, reduceAtoms, materializeOutp
 (* (released) rhs shape lists.  Returns $Failed if desc isn't lhs :> rhs. *)
 (* ------------------------------------------------------------------ *)
 
+(* CirclePlus is associative; canonicalize a ⊕ (b ⊕ c) to a flat summand list so
+   the direct-sum paths see one CirclePlus with all summands (order preserved —
+   CirclePlus is not Orderless). Mirrors flattenDirectSum in the shape layer. *)
 descParts[h : Hold[_Rule | _RuleDelayed]] :=
-  {Extract[h, {1, 1}], ReleaseHold @ Extract[h, {1, 2}, Hold]};
+  {Extract[h, {1, 1}], ReleaseHold @ Extract[h, {1, 2}, Hold]} //.
+    CirclePlus[x___, CirclePlus[y___], z___] :> CirclePlus[x, y, z];
 descParts[_] := $Failed;
 
 (* ------------------------------------------------------------------ *)

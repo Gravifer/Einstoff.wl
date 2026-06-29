@@ -51,10 +51,21 @@ with \"ok\" and either \"env\" or \"reason\".";
 SetAttributes[EinstoffParse, HoldFirst];
 EinstoffParse[desc_] := parseDesc[Hold[desc]];
 
+(* CirclePlus (direct sum) is associative: a ⊕ (b ⊕ c) == a ⊕ b ⊕ c. WL gives
+   CirclePlus no attributes (neither Flat nor Orderless), so it does not collapse
+   the nesting on its own — we canonicalize it here. Flattening preserves order
+   (CirclePlus is not Orderless), which direct sum requires. Applied to the LHS so
+   the matcher (solveComposite) sees a flat list of summands; the RHS is resolved
+   through evalOutShape's CirclePlus -> Plus, and Plus is already Flat. *)
+flattenDirectSum[expr_] :=
+  expr //. CirclePlus[x___, CirclePlus[y___], z___] :> CirclePlus[x, y, z];
+
 parseDesc[h : Hold[_RuleDelayed]] :=
-  <|"LHS" -> Extract[h, {1, 1}], "RHS" -> Extract[h, {1, 2}, Hold]|>;
+  <|"LHS" -> flattenDirectSum @ Extract[h, {1, 1}],
+    "RHS" -> Extract[h, {1, 2}, Hold]|>;
 parseDesc[h : Hold[_Rule]] :=
-  <|"LHS" -> Extract[h, {1, 1}], "RHS" -> Extract[h, {1, 2}, Hold],
+  <|"LHS" -> flattenDirectSum @ Extract[h, {1, 1}],
+    "RHS" -> Extract[h, {1, 2}, Hold],
     "Warning" -> "prefer :> (RuleDelayed) over -> for desc"|>;
 parseDesc[_] := <|"LHS" -> $Failed, "RHS" -> $Failed|>;
 

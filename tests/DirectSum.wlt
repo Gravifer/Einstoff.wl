@@ -169,4 +169,34 @@ VerificationTest[
   TestID -> "split-reject-underdetermined"
 ];
 
+(* ===================== nested CirclePlus (associativity) ========= *)
+(* CirclePlus is associative: a ⊕ (b ⊕ c) flattens to a ⊕ b ⊕ c (order preserved,
+   since CirclePlus is not Orderless). Both directions canonicalize the nesting. *)
+
+(* 21. Right-nested concat 'm a, m b, m c -> m (a + (b + c))' === flat 3-way. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[2], {2, 1}], y = ArrayReshape[Range[4], {2, 2}], z = ArrayReshape[Range[6], {2, 3}]},
+    Einstoff[ArrayReshape][{{m_, a_}, {m_, b_}, {m_, c_}} :> {{m, CirclePlus[a, CirclePlus[b, c]]}}, {x, y, z}]],
+  Join[ArrayReshape[Range[2], {2, 1}], ArrayReshape[Range[4], {2, 2}], ArrayReshape[Range[6], {2, 3}], 2],
+  TestID -> "concat-nested-right"
+];
+
+(* 22. Left-nested concat 'm a, m b, m c -> m ((a + b) + c)' === flat 3-way. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[2], {2, 1}], y = ArrayReshape[Range[4], {2, 2}], z = ArrayReshape[Range[6], {2, 3}]},
+    Einstoff[ArrayReshape][{{m_, a_}, {m_, b_}, {m_, c_}} :> {{m, CirclePlus[CirclePlus[a, b], c]}}, {x, y, z}]],
+  Join[ArrayReshape[Range[2], {2, 1}], ArrayReshape[Range[4], {2, 2}], ArrayReshape[Range[6], {2, 3}], 2],
+  TestID -> "concat-nested-left"
+];
+
+(* 23. Nested split 'b (q + (a + k)) -> b q, b a, b k', q=2, a=3 === flat 3-way. *)
+VerificationTest[
+  With[{w = ArrayReshape[Range[20], {2, 10}]},
+    Einstoff[ArrayReshape][{{b_, CirclePlus[q_, CirclePlus[a_, k_]]}} :> {{b, q}, {b, a}, {b, k}},
+      {w}, {q -> 2, a -> 3}]],
+  With[{w = ArrayReshape[Range[20], {2, 10}]},
+    {Take[w, All, {1, 2}], Take[w, All, {3, 5}], Take[w, All, {6, 10}]}],
+  TestID -> "split-nested"
+];
+
 EndTestSection[];

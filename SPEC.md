@@ -372,9 +372,17 @@ puts `+` in `id`) and routed by where the CirclePlus appears:
   `List` of arrays (the multi-output path).
 
 `Einstoff[Join]` (RHS-only) and `Einstoff[Split]` (LHS-only) are the same machinery
-under a directional guard. **Deferred:** nested/composite summands (`(a⊗b + c)`),
-bracketed direct sum (`Slot[CirclePlus[…]]`), >1 CirclePlus per shape. Plan:
-`docs/plans/circleplus-direct-sum.md`.
+under a directional guard. **Nested** direct sums are canonicalized by associativity
+(`a ⊕ (b ⊕ c)` → `a ⊕ b ⊕ c`, order preserved since CirclePlus is not Orderless;
+`flattenDirectSum` in the shape layer + `descParts`), so both directions accept them.
+
+**Deferred:** *composite* summands (a `CircleTimes` inside the direct sum, e.g.
+`(a⊗b) ⊕ c`) — concat already resolves at the shape layer (the summand is only
+evaluated, `CirclePlus→Plus`/`CircleTimes→Times`), but **split** is blocked in the
+matcher: `solveOne[Plus, …]` (Parsing.wl) solves only a single scalar remainder and
+treats a `CircleTimes` summand as opaque; solving `a·b + c = d` is a real solver
+extension. Also deferred: bracketed direct sum (`Slot[CirclePlus[…]]`) and >1
+CirclePlus per shape. Plan: `docs/plans/circleplus-direct-sum.md`.
 
 **Other deferred lowering items** (rejected loudly today, not mis-compiled):
 variable-arity bracket ellipsis `Slot[___]` (ex6); named-ellipsis / `Repeated[...]`
