@@ -43,6 +43,13 @@ Einstoff["Join"] := EinstoffJoin;
 Einstoff[Split] := EinstoffSplit;
 Einstoff["Split"] := EinstoffSplit;
 
+(* A valid direct-sum summand: an axis name (bare or a binding pattern), an
+   integer, or a CircleTimes product of those. A Slot (bracketed direct sum) or
+   any other head is not supported. Shared by the concat and split handlers. *)
+directSumSummandQ[s_] :=
+  MatchQ[s, _Symbol | _Integer | Verbatim[Pattern][_Symbol, Verbatim[Blank[]]]] ||
+    (Head[s] === CircleTimes && AllTrue[List @@ s, directSumSummandQ]);
+
 (* ------------------------------------------------------------------ *)
 (* Concat handler.  Called with the held desc (so EinstoffShapes still   *)
 (* holds it), the operand tensors, and bindings.  lhs/rhs are re-parsed   *)
@@ -77,11 +84,12 @@ directSumConcat[desc_, tensors_, bindings_List] :=
     summands = List @@ cp;
     k = Length[summands];
 
-    (* Each summand must be a bare name or integer (no nested composite yet). *)
-    If[! AllTrue[summands, MatchQ[#, _Symbol | _Integer] &],
+    (* Each summand must be a name, integer, or product of those (a CircleTimes
+       block); a Slot (bracketed direct sum) is not supported. *)
+    If[! AllTrue[summands, directSumSummandQ],
       Message[Einstoff::unsupp,
-        "each direct-sum summand must be a bound axis name or an integer \
-(composite summands are not supported yet)"];
+        "each direct-sum summand must be an axis name, an integer, or a product \
+of those (bracketed direct sums are not supported yet)"];
       Return[$Failed]];
 
     (* k operands, one per summand (positional: summand i <- operand i). *)

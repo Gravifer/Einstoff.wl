@@ -376,13 +376,17 @@ under a directional guard. **Nested** direct sums are canonicalized by associati
 (`a ⊕ (b ⊕ c)` → `a ⊕ b ⊕ c`, order preserved since CirclePlus is not Orderless;
 `flattenDirectSum` in the shape layer + `descParts`), so both directions accept them.
 
-**Deferred:** *composite* summands (a `CircleTimes` inside the direct sum, e.g.
-`(a⊗b) ⊕ c`) — concat already resolves at the shape layer (the summand is only
-evaluated, `CirclePlus→Plus`/`CircleTimes→Times`), but **split** is blocked in the
-matcher: `solveOne[Plus, …]` (Parsing.wl) solves only a single scalar remainder and
-treats a `CircleTimes` summand as opaque; solving `a·b + c = d` is a real solver
-extension. Also deferred: bracketed direct sum (`Slot[CirclePlus[…]]`) and >1
-CirclePlus per shape. Plan: `docs/plans/circleplus-direct-sum.md`.
+**Composite summands** (a `CircleTimes` block inside the direct sum, e.g.
+`(a⊗b) ⊕ c`) are supported on **concat** (the block is just another term aligned by
+`materializeOutput` and `Join`'d). **Split** with a composite summand is the
+remaining short-term TODO: it is blocked in the matcher — `solveOne[Plus, …]`
+(Parsing.wl) solves only a single scalar remainder and treats a `CircleTimes`
+summand as opaque. The fix is to let the matcher resolve a composite summand whose
+factors are all bound (treat its product as known); since we have the Mathematica
+CAS, use `Reduce`/`Solve` over positive integers rather than hand-rolled remainder
+logic (this can even uniquely resolve cases einx rejects, and report genuine
+ambiguity cleanly). **Also deferred:** bracketed direct sum (`Slot[CirclePlus[…]]`)
+and >1 CirclePlus per shape. Plan: `docs/plans/circleplus-direct-sum.md`.
 
 **Other deferred lowering items** (rejected loudly today, not mis-compiled):
 variable-arity bracket ellipsis `Slot[___]` (ex6); named-ellipsis / `Repeated[...]`

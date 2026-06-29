@@ -37,6 +37,17 @@ Decisions locked with the user:
   treat `CirclePlus` as the concat-axis marker, separate from both `CircleTimes`
   (product) and `Slot` (bracket).
 
+## Composite-summand split — use the CAS
+
+For the deferred composite-summand split (`(a⊗b) ⊕ c` on the LHS), the matcher
+must solve e.g. `a·b + c = d` over positive integers. We have the full Mathematica
+CAS — use `Reduce`/`Solve` over `Integers` with positivity constraints rather than
+hand-rolling `solveOne`'s single-remainder logic. This is simpler *and* stronger:
+where the CAS proves a unique positive-integer solution we can resolve cases einx
+rejects, and `Reduce` cleanly reports genuine ambiguity (multiple solutions →
+underdetermined). Scope to where binding the composite's factors makes it
+determined; surface a clear "underdetermined" message otherwise.
+
 ## Approach (concat path)
 
 New file **`Einstoff/Kernel/DirectSum.wl`** holding the shared direct-sum handler

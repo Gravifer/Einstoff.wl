@@ -33,11 +33,11 @@ pythonReady = TrueQ @ Quiet @ Check[
 
 pyDims[l_List] := "[" <> StringRiffle[ToString /@ l, ", "] <> "]";
 
-(* pyConcat[pattern, {dimsList...}]: build each operand from its dims recipe inside
-   Python (x0, x1, …), apply einx.id, return WL int lists. A dims of {} builds a
-   0-d scalar operand. *)
-pyConcat[pattern_, dimsList_List] :=
-  Module[{setup, args},
+(* pyConcat[pattern, {dimsList...}, kwargs]: build each operand from its dims recipe
+   inside Python (x0, x1, …), apply einx.id with any out-of-band axis sizes, return
+   WL int lists. A dims of {} builds a 0-d scalar operand. *)
+pyConcat[pattern_, dimsList_List, kwargs_ : <||>] :=
+  Module[{setup, args, kw},
     setup = StringJoin @ MapIndexed[
       With[{nm = "x" <> ToString[First[#2] - 1], d = #1},
         If[d === {},
@@ -46,9 +46,11 @@ pyConcat[pattern_, dimsList_List] :=
             pyDims[d] <> ")\n"]] &,
       dimsList];
     args = StringRiffle[Table["x" <> ToString[i], {i, 0, Length[dimsList] - 1}], ", "];
+    kw = StringRiffle[KeyValueMap[#1 <> "=" <> ToString[#2] &, kwargs], ", "];
     ExternalEvaluate[pySession,
       "import numpy as np, einx\n" <> setup <>
-      "np.asarray(einx.id(" <> ToString[pattern, InputForm] <> ", " <> args <> ")).tolist()"]];
+      "np.asarray(einx.id(" <> ToString[pattern, InputForm] <> ", " <> args <>
+        If[kw === "", "", ", " <> kw] <> ")).tolist()"]];
 
 (* pySplit[pattern, dims, kwargs]: build one operand from `dims`, apply the einx.id
    split, and return the tuple of output arrays as a WL list of int lists. *)
@@ -93,6 +95,15 @@ VerificationTest[
     {ArrayReshape[Range[2], {2, 1}], ArrayReshape[Range[4], {2, 2}], ArrayReshape[Range[6], {2, 3}]}],
   pyConcat["m a, m b, m c -> m (a + b + c)", {{2, 1}, {2, 2}, {2, 3}}],
   TestID -> "xval-concat-three-way"
+];
+
+(* composite summand 'm (a b), m c -> m ((a b) + c)', a=2
+   <->  {{m_, a_ ⊗ b_}, {m_, c_}} :> {{m, (a ⊗ b) ⊕ c}} *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{m_, CircleTimes[a_, b_]}, {m_, c_}} :> {{m, CirclePlus[CircleTimes[a, b], c]}},
+    {ArrayReshape[Range[12], {2, 6}], ArrayReshape[Range[8], {2, 4}]}, {a -> 2}],
+  pyConcat["m (a b), m c -> m ((a b) + c)", {{2, 6}, {2, 4}}, <|"a" -> 2|>],
+  TestID -> "xval-concat-composite"
 ];
 
 (* --- splitting (einx `+` on LHS, returns a tuple of outputs) --- *)

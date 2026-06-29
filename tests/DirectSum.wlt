@@ -199,4 +199,43 @@ VerificationTest[
   TestID -> "split-nested"
 ];
 
+(* ===================== composite summands (concat) =============== *)
+(* A direct-sum summand may be a product block (a CircleTimes), e.g. (a⊗b) ⊕ c,
+   on the *concat* side (CirclePlus on the RHS). Split with a composite summand is
+   still deferred (it needs a matcher extension; see SPEC §9). *)
+
+(* 24. Composite block whose operand is pre-merged: 'm (a b), m c -> m ((a b) + c)', a=2. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[12], {2, 6}], y = ArrayReshape[Range[8], {2, 4}]},
+    Einstoff[ArrayReshape][{{m_, CircleTimes[a_, b_]}, {m_, c_}} :> {{m, CirclePlus[CircleTimes[a, b], c]}},
+      {x, y}, {a -> 2}]],
+  Join[ArrayReshape[Range[12], {2, 6}], ArrayReshape[Range[8], {2, 4}], 2],
+  TestID -> "concat-composite-merged-operand"
+];
+
+(* 25. Composite block whose operand has separate axes: 'm a b, m c -> m ((a b) + c)'. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[12], {2, 2, 3}], y = ArrayReshape[Range[8], {2, 4}]},
+    Einstoff[ArrayReshape][{{m_, a_, b_}, {m_, c_}} :> {{m, CirclePlus[CircleTimes[a, b], c]}}, {x, y}]],
+  Join[ArrayReshape[Range[12], {2, 6}], ArrayReshape[Range[8], {2, 4}], 2],
+  TestID -> "concat-composite-split-operand"
+];
+
+(* 26. Composite block in the second position: 'm c, m (a b) -> m (c + (a b))', a=2. *)
+VerificationTest[
+  With[{y = ArrayReshape[Range[8], {2, 4}], x = ArrayReshape[Range[12], {2, 6}]},
+    Einstoff[ArrayReshape][{{m_, c_}, {m_, CircleTimes[a_, b_]}} :> {{m, CirclePlus[c, CircleTimes[a, b]]}},
+      {y, x}, {a -> 2}]],
+  Join[ArrayReshape[Range[8], {2, 4}], ArrayReshape[Range[12], {2, 6}], 2],
+  TestID -> "concat-composite-second"
+];
+
+(* 27. A bracketed (Slot) summand is not a product block -> rejected. *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{m_, Slot[a_]}, {m_, c_}} :> {{m, CirclePlus[Slot[a], c]}},
+    {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[8], {2, 4}]}],
+  $Failed,
+  TestID -> "concat-reject-slot-summand"
+];
+
 EndTestSection[];
