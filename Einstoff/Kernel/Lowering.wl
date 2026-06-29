@@ -7,6 +7,7 @@
      Reshape.wl   Einstoff[ArrayReshape] / EinstoffRearrange
      Reduce.wl    Einstoff[ArrayReduce]  / EinstoffReduce
      Dot.wl       Einstoff[Dot]          / EinstoffDot
+     DirectSum.wl Einstoff[Join]/[Split] / EinstoffJoin (CirclePlus concat/split)
 
    This hub holds what they share: the public `Einstoff` operator symbol and its
    messages, and the cross-file-private (`PackageScope`) helpers for desc parsing
@@ -23,15 +24,16 @@ PackageExported[{Einstoff}]
 Einstoff::usage =
   "Einstoff[op] yields the Einstoff operator implementing op: \
 Einstoff[ArrayReshape] (rearrange/reshape), Einstoff[ArrayReduce] (reduction), \
-Einstoff[Dot] (einsum-style contraction). Applied as \
-Einstoff[op][desc, tensors, bindings, opts].";
+Einstoff[Dot] (einsum-style contraction), Einstoff[Join] (direct-sum \
+concatenation). Applied as Einstoff[op][desc, tensors, bindings, opts].";
 
 (* Shared diagnostics for every lowering path. *)
 Einstoff::unsupp = "`1`";
 Einstoff::unsat =
   "description is not satisfiable against the given tensor(s): `1`";
 
-PackageScoped[{descParts, rearrangeAtoms, atomSize, reduceAtoms, materializeOutput}]
+PackageScoped[{descParts, rearrangeAtoms, atomSize, reduceAtoms, materializeOutput,
+  hasCirclePlus, directSumConcat}]
 
 (* ------------------------------------------------------------------ *)
 (* desc parsing.  Operators are HoldFirst and pass Hold[desc] in, so the *)
@@ -63,6 +65,10 @@ rearrangeAtoms[other_] := (
 
 atomSize[n_Integer, _] := n;
 atomSize[s_, env_] := Lookup[env, s, Throw[$Failed]];
+
+(* Does any shape in `shapes` contain a CirclePlus (direct-sum) term?  Used to
+   route a desc into the direct-sum path and to guard Join/Split direction. *)
+hasCirclePlus[shapes_] := ! FreeQ[shapes, CirclePlus];
 
 (* Bracket-aware decomposition: like rearrangeAtoms but unwraps Slot[...]
    brackets, returning {atom, bracketedQ} pairs.  NB Table/List@@ rather than

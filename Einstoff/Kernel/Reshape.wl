@@ -34,6 +34,14 @@ EinstoffRearrange[desc_, tensors_, bindings_List : {}] :=
       Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
       Return[$Failed]];
     {lhs, rhs} = parts;
+    (* Direct sum: einx folds `+` into id. A CirclePlus on the RHS is
+       concatenation (delegate); on the LHS it is splitting (phase 2). *)
+    If[hasCirclePlus[rhs], Return[directSumConcat[desc, tensors, bindings]]];
+    If[hasCirclePlus[lhs],
+      Message[Einstoff::unsupp,
+        "direct-sum splitting (CirclePlus on the LHS -> multiple outputs) is not \
+implemented yet"];
+      Return[$Failed]];
     If[! MatchQ[tensors, {__}],
       Message[Einstoff::unsupp,
         "tensors must be a non-empty list of arrays"]; Return[$Failed]];

@@ -358,14 +358,18 @@ Implemented and cross-validated against einx/einops: the matcher / shape resolve
 (rearrange/reshape), `Einstoff[ArrayReduce]` (reduce), `Einstoff[Dot]`
 (contraction), and uniform repetition (§5.5).
 
-**Short-term TODO — `CirclePlus` (direct sum / concatenation).** Lower the
-direct-sum axis `(a + b)`: **concatenation** when CirclePlus is on the RHS
-(`{op1, op2, …} :> {{… a ⊕ b …}}` via `Join[…, n]`; ex4) and **splitting** when it
-is on the LHS (`{{… a ⊕ b …}} :> {out1, out2, …}` via `Take` → multi-output; ex3).
-Folded into `Einstoff[ArrayReshape]`, with `Einstoff[Join]` / `Einstoff[Split]` as
-the same machinery under a directional guard (RHS-only / LHS-only CirclePlus). The
-shape layer already resolves CirclePlus; only lowering is needed. **Concat first,
-split next.** Working plan: `docs/plans/circleplus-direct-sum.md`.
+**`CirclePlus` (direct sum) — concat done, split pending.** The direct-sum axis
+`(a + b)` lowers two ways. **Concatenation** (CirclePlus on the RHS,
+`{op1, op2, …} :> {{… a ⊕ b …}}` via `Join[…, n]`; ex4) is **implemented and
+cross-validated** against einx — folded into `Einstoff[ArrayReshape]`, with
+`Einstoff[Join]` as the same machinery under a guard (CirclePlus on the RHS only).
+Each operand is aligned to the output shape with its summand block (reusing
+`materializeOutput`, so a scalar operand / integer summand broadcasts) and the
+blocks are `Join`'d along the concat axis. **Splitting** (CirclePlus on the LHS,
+`{{… a ⊕ b …}} :> {out1, out2, …}` via `Take` → multi-output; ex3) is the remaining
+**short-term TODO** — `Einstoff[Split]` and the LHS-CirclePlus branch of
+`Einstoff[ArrayReshape]` reject with a clear "not yet" today. Working plan:
+`docs/plans/circleplus-direct-sum.md`.
 
 **Other deferred lowering items** (rejected loudly today, not mis-compiled):
 variable-arity bracket ellipsis `Slot[___]` (ex6); named-ellipsis / `Repeated[...]`
