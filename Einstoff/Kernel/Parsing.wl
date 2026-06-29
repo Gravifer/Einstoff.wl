@@ -92,57 +92,61 @@ unify[n_, d_, env_] :=
 (* Composite (CircleTimes / CirclePlus) resolution against one dim.    *)
 (* ------------------------------------------------------------------ *)
 
-(* Classify a single factor against the current env. *)
-resolveFactor[f_, env_] :=
+(* Map one composite factor to {expr, namedVars, anonVars}: a symbolic size with
+   knowns substituted from env, each unbound axis left as its own symbol (named) or
+   a fresh positive-integer placeholder (anon, for `_`). A CircleTimes factor
+   recurses, distributing into a product — this is what lets a direct-sum summand
+   itself be a product block, e.g. (a b) ⊕ c. An unsupported head yields $opaque. *)
+factorToExpr[f_, env_] :=
   Which[
-    IntegerQ[f], {"known", f},
+    IntegerQ[f], {f, {}, {}},
     MatchQ[f, Verbatim[Pattern][_Symbol, Verbatim[Blank][]]],
-      With[{n = f[[1]]}, If[KeyExistsQ[env, n], {"known", env[n]}, {"unknown", n}]],
-    MatchQ[f, Verbatim[Blank[]]], {"anon"},
-    Head[f] === Slot && Length[f] === 1, resolveFactor[First[f], env],
-    Head[f] === Symbol, If[KeyExistsQ[env, f], {"known", env[f]}, {"unknown", f}],
-    True, {"opaque"}];
+      With[{n = f[[1]]}, If[KeyExistsQ[env, n], {env[n], {}, {}}, {n, {n}, {}}]],
+    MatchQ[f, Verbatim[Blank[]]], With[{u = Unique["anon$"]}, {u, {}, {u}}],
+    Head[f] === Slot && Length[f] === 1, factorToExpr[First[f], env],
+    Head[f] === Symbol, If[KeyExistsQ[env, f], {env[f], {}, {}}, {f, {f}, {}}],
+    Head[f] === CircleTimes,
+      Module[{subs = Table[factorToExpr[g, env], {g, List @@ f}]},
+        If[MemberQ[subs, $opaque], $opaque,
+          {Times @@ subs[[All, 1]], Join @@ subs[[All, 2]], Join @@ subs[[All, 3]]}]],
+    True, $opaque];
 
-solveOne[Times, knowns_, d_] :=
-  With[{p = Times @@ knowns},
-    If[p =!= 0 && IntegerQ[d/p] && d/p >= 1, d/p,
-      (Sow["product " <> ToString[d] <> " is not divisible by the known \
-factor product " <> ToString[p]]; $Failed)]];
-
-solveOne[Plus, knowns_, d_] :=
-  With[{r = d - (Plus @@ knowns)},
-    If[IntegerQ[r] && r >= 1, r,
-      (Sow["direct-sum remainder " <> ToString[r] <>
-           " must be a positive integer"]; $Failed)]];
-
+(* Resolve a CircleTimes (product) or CirclePlus (direct sum) term against one
+   tensor dimension `d`. The factor sizes form an equation `op[…] == d`; the
+   Mathematica CAS solves it over positive integers (Solve/Integers). A unique
+   solution binds the named axes; multiple solutions are underdetermined; none is a
+   mismatch. This subsumes the former single-unknown analytic logic and also
+   handles product summands and any system the integers pin down uniquely. *)
 solveComposite[op_, factors_, d_, env_, rest_, drest_] :=
-  Module[{res, knowns, unknowns, anon, opaque, solved, e2},
-    (* NB: Table, not `& /@`. A factor can be Slot[...]; routing it through an
-       anonymous Function would reinterpret it as a Function slot (SPEC 7.2). *)
-    res = Table[resolveFactor[f, env], {f, factors}];
-    knowns = Cases[res, {"known", v_} :> v];
-    unknowns = Cases[res, {"unknown", n_} :> n];
-    anon = Count[res, {"anon"}];
-    opaque = Count[res, {"opaque"}];
+  Module[{parsed, exprs, named, anon, allVars, eqn, sols, sol, e2},
+    (* Table, not `&/@`: a factor can be Slot[...], which an anonymous Function
+       would capture as its own argument slot (SPEC 7.2). *)
+    parsed = Table[factorToExpr[f, env], {f, factors}];
+    If[MemberQ[parsed, $opaque],
+      Sow["unsupported factor inside " <> ToString[op] <> " composition"];
+      Return[{}]];
+    exprs = parsed[[All, 1]];
+    named = DeleteDuplicates[Join @@ parsed[[All, 2]]];
+    anon = Join @@ parsed[[All, 3]];
+    allVars = Join[named, anon];
+    eqn = (op @@ exprs) == d;
+    If[allVars === {},
+      Return[If[TrueQ[eqn], matchTerms[rest, drest, env],
+        (Sow[ToString[op] <> " composition " <> ToString[op @@ exprs] <>
+             " != tensor dimension " <> ToString[d]]; {})]]];
+    sols = Quiet @ Solve[eqn && And @@ (# >= 1 & /@ allVars), allVars, Integers];
     Which[
-      opaque > 0,
-        (Sow["unsupported factor inside " <> ToString[op] <>
-             " composition"]; {}),
-      Length[unknowns] + anon === 0,
-        If[(op @@ knowns) === d, matchTerms[rest, drest, env],
-          (Sow[ToString[op] <> " composition " <> ToString[op @@ knowns] <>
-               " != tensor dimension " <> ToString[d]]; {})],
-      Length[unknowns] + anon === 1,
-        (solved = solveOne[op, knowns, d];
-         If[solved === $Failed, {},
-           If[anon === 1,
-             matchTerms[rest, drest, env],            (* anonymous: no bind *)
-             (e2 = unify[First[unknowns], solved, env];
-              If[e2 === $Failed, {}, matchTerms[rest, drest, e2]])]]),
+      ! MatchQ[sols, {__List}],
+        (Sow[ToString[op] <> " composition has no positive-integer solution for \
+dimension " <> ToString[d]]; {}),
+      Length[sols] > 1,
+        (Sow["underdetermined " <> ToString[op] <> " composition (multiple \
+positive-integer solutions; supply more bindings)"]; {}),
       True,
-        (Sow["underdetermined " <> ToString[op] <> " composition: " <>
-             ToString[Length[unknowns] + anon] <>
-             " unknown factors (supply more bindings)"]; {})]];
+        (sol = First[sols];
+         e2 = env;
+         Do[e2 = unify[v, v /. sol, e2], {v, named}];
+         If[e2 === $Failed, {}, matchTerms[rest, drest, e2]])]];
 
 (* ------------------------------------------------------------------ *)
 (* Core backtracking matcher: a list of dimension terms against a list *)

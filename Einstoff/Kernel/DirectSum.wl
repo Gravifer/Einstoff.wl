@@ -153,15 +153,16 @@ directSumSplit[desc_, tensors_, bindings_List] :=
       Return[$Failed]];
     n = cpos[[1, 1]];                       (* concat axis = that term's position *)
     cp = inShape[[n]];
-    (* On the LHS the summands are binding patterns (q_); reduce to their names so
-       sizing/ReplacePart see bare symbols, as on the concat (RHS) side. *)
-    summands = Replace[List @@ cp, Verbatim[Pattern][x_, _] :> x, {1}];
+    (* On the LHS the summands are binding patterns (q_, or patterns inside a
+       product block); reduce to bare names at every level so sizing/ReplacePart
+       see bare symbols, as on the concat (RHS) side. *)
+    summands = (List @@ cp) //. Verbatim[Pattern][x_, _] :> x;
     k = Length[summands];
 
-    If[! AllTrue[summands, MatchQ[#, _Symbol | _Integer] &],
+    If[! AllTrue[summands, directSumSummandQ],
       Message[Einstoff::unsupp,
-        "each direct-sum summand must be a bound axis name or an integer \
-(composite summands are not supported yet)"];
+        "each direct-sum summand must be an axis name, an integer, or a product \
+of those (bracketed direct sums are not supported yet)"];
       Return[$Failed]];
 
     (* k outputs, one per summand (positional: summand i -> output i). *)
@@ -180,7 +181,9 @@ directSumSplit[desc_, tensors_, bindings_List] :=
     x = First[tensors];
     ndims = Length[inShape];
     outs = Catch @ Module[{sz, en, st},
-      sz = atomSize[#, env] & /@ summands;
+      (* block size of a summand = product over its atoms (a product block (a b)
+         contributes a*b to the concat axis). *)
+      sz = (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ summands;
       en = Accumulate[sz]; st = en - sz + 1;       (* contiguous block bounds *)
       Table[
         Module[{block, terms, atoms, dims},

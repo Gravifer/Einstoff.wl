@@ -132,6 +132,15 @@ VerificationTest[
   TestID -> "xval-split-three-way"
 ];
 
+(* composite-block split 'm ((a b) + c) -> m (a b), m c', a=2, b=3 (determined)
+   <->  {{m_, (a_ ⊗ b_) ⊕ c_}} :> {{m, a ⊗ b}, {m, c}} *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{m_, CirclePlus[CircleTimes[a_, b_], c_]}} :> {{m, CircleTimes[a, b]}, {m, c}},
+    {ArrayReshape[Range[20], {2, 10}]}, {a -> 2, b -> 3}],
+  pySplit["m ((a b) + c) -> m (a b), m c", {2, 10}, <|"a" -> 2, "b" -> 3|>],
+  TestID -> "xval-split-composite"
+];
+
 EndTestSection[];
 (* ======================================================================== *)
 

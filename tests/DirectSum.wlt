@@ -238,4 +238,48 @@ VerificationTest[
   TestID -> "concat-reject-slot-summand"
 ];
 
+(* ===================== composite summands (split) =============== *)
+(* Splitting a product block needs the block's factors bound so the matcher can
+   determine the remaining summand. The CAS (Solve over positive integers) handles
+   the arithmetic — and resolves any system the integers pin uniquely (see #31). *)
+
+(* 28. Split a product block: 'm ((a b) + c) -> m (a b), m c', a=2, b=3 (=> c=4). *)
+VerificationTest[
+  With[{z = ArrayReshape[Range[20], {2, 10}]},
+    Einstoff[ArrayReshape][{{m_, CirclePlus[CircleTimes[a_, b_], c_]}} :> {{m, CircleTimes[a, b]}, {m, c}},
+      {z}, {a -> 2, b -> 3}]],
+  With[{z = ArrayReshape[Range[20], {2, 10}]},
+    {Take[z, All, {1, 6}], Take[z, All, {7, 10}]}],
+  TestID -> "split-composite"
+];
+
+(* 29. Split a product block, expanding it to separate output axes:
+   'm ((a b) + c) -> m a b, m c', a=2, b=3. *)
+VerificationTest[
+  With[{z = ArrayReshape[Range[20], {2, 10}]},
+    Einstoff[ArrayReshape][{{m_, CirclePlus[CircleTimes[a_, b_], c_]}} :> {{m, a, b}, {m, c}},
+      {z}, {a -> 2, b -> 3}]],
+  With[{z = ArrayReshape[Range[20], {2, 10}]},
+    {ArrayReshape[Take[z, All, {1, 6}], {2, 2, 3}], Take[z, All, {7, 10}]}],
+  TestID -> "split-composite-expand"
+];
+
+(* 30. Composite split underdetermined (only a bound, 2b + c = 10) is rejected. *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{m_, CirclePlus[CircleTimes[a_, b_], c_]}} :> {{m, a, b}, {m, c}},
+    {ArrayReshape[Range[20], {2, 10}]}, {a -> 2}],
+  $Failed,
+  TestID -> "split-composite-reject-underdetermined"
+];
+
+(* 31. The CAS uniquely resolves a system einx rejects: 'm (a + b) -> m a, m b'
+   with no bindings and an axis of size 2 forces a = b = 1. *)
+VerificationTest[
+  With[{w = ArrayReshape[Range[4], {2, 2}]},
+    Einstoff[ArrayReshape][{{m_, CirclePlus[a_, b_]}} :> {{m, a}, {m, b}}, {w}]],
+  With[{w = ArrayReshape[Range[4], {2, 2}]},
+    {Take[w, All, {1, 1}], Take[w, All, {2, 2}]}],
+  TestID -> "split-cas-unique"
+];
+
 EndTestSection[];

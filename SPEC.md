@@ -377,16 +377,17 @@ under a directional guard. **Nested** direct sums are canonicalized by associati
 `flattenDirectSum` in the shape layer + `descParts`), so both directions accept them.
 
 **Composite summands** (a `CircleTimes` block inside the direct sum, e.g.
-`(a⊗b) ⊕ c`) are supported on **concat** (the block is just another term aligned by
-`materializeOutput` and `Join`'d). **Split** with a composite summand is the
-remaining short-term TODO: it is blocked in the matcher — `solveOne[Plus, …]`
-(Parsing.wl) solves only a single scalar remainder and treats a `CircleTimes`
-summand as opaque. The fix is to let the matcher resolve a composite summand whose
-factors are all bound (treat its product as known); since we have the Mathematica
-CAS, use `Reduce`/`Solve` over positive integers rather than hand-rolled remainder
-logic (this can even uniquely resolve cases einx rejects, and report genuine
-ambiguity cleanly). **Also deferred:** bracketed direct sum (`Slot[CirclePlus[…]]`)
-and >1 CirclePlus per shape. Plan: `docs/plans/circleplus-direct-sum.md`.
+`(a⊗b) ⊕ c`) are supported in **both** directions. The matcher
+(`solveComposite` in Parsing.wl) builds the factor-size equation `op[…] == d` and
+hands it to the Mathematica CAS — `Solve` over positive integers — so a unique
+solution binds the axes, multiple solutions are reported underdetermined, and none
+is a mismatch. This both subsumes the old single-unknown analytic logic and lets us
+*uniquely resolve systems einx rejects* (e.g. `m (a + b)` with an axis of size 2
+forces `a = b = 1`). On concat the block is just another term aligned by
+`materializeOutput` and `Join`'d; on split the block size is the product over its
+atoms (`Take` slice, then reshape). **Still deferred:** bracketed direct sum
+(`Slot[CirclePlus[…]]`) and >1 CirclePlus per shape. Plan:
+`docs/plans/circleplus-direct-sum.md`.
 
 **Other deferred lowering items** (rejected loudly today, not mis-compiled):
 variable-arity bracket ellipsis `Slot[___]` (ex6); named-ellipsis / `Repeated[...]`
