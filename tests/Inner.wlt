@@ -1,0 +1,78 @@
+(* ::Package:: *)
+
+(* Tests for the generalized contraction Einstoff[Inner][mul, add] (cf. WL Inner).
+   Dot is the (Times, Plus) case; other (mul, add) have no einx equivalent and are
+   checked against native WL Inner. One file per lowering path under tests/.
+   Run via: wolframscript -script scripts/run-tests.wls
+   BeginTestSection/EndTestSection are MUnit markers; the runner loads MUnit`. *)
+
+BeginTestSection["Einstoff`Lowering`Inner"];
+
+ClearAll[a, b, c, d, m, n];
+
+(* 1. Inner[Times, Plus] is exactly Dot (matmul). *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
+    Einstoff[Inner][Times, Plus][{{a_, b_}, {b_, c_}} :> {{a, c}}, {x, y}]],
+  ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}],
+  TestID -> "inner-times-plus-is-dot"
+];
+
+(* 2. ...and agrees with Einstoff[Dot] on the same desc. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
+    Einstoff[Inner][Times, Plus][{{a_, b_}, {b_, c_}} :> {{a, c}}, {x, y}] ===
+      Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c}}, {x, y}]],
+  True,
+  TestID -> "inner-agrees-with-dot"
+];
+
+(* 3. Tropical (min-plus) contraction === native Inner[Plus, _, _, Min]. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
+    Einstoff[Inner][Plus, Min][{{a_, b_}, {b_, c_}} :> {{a, c}}, {x, y}]],
+  Inner[Plus, ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}], Min],
+  TestID -> "inner-tropical-min-plus"
+];
+
+(* 4. Max-product contraction === native Inner[Times, _, _, Max]. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
+    Einstoff[Inner][Times, Max][{{a_, b_}, {b_, c_}} :> {{a, c}}, {x, y}]],
+  Inner[Times, ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}], Max],
+  TestID -> "inner-max-product"
+];
+
+(* 5. Batched tropical 'n a b, n b c -> n a c'. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[24], {2, 3, 4}], y = ArrayReshape[Range[40], {2, 4, 5}]},
+    Einstoff[Inner][Plus, Min][{{n_, a_, b_}, {n_, b_, c_}} :> {{n, a, c}}, {x, y}]],
+  MapThread[Inner[Plus, #1, #2, Min] &,
+    {ArrayReshape[Range[24], {2, 3, 4}], ArrayReshape[Range[40], {2, 4, 5}]}],
+  TestID -> "inner-batched-tropical"
+];
+
+(* 6. Variadic tropical 3-chain 'a b, b c, c d -> a d' (semiring => associative). *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}], z = ArrayReshape[Range[8], {4, 2}]},
+    Einstoff[Inner][Plus, Min][{{a_, b_}, {b_, c_}, {c_, d_}} :> {{a, d}}, {x, y, z}]],
+  Inner[Plus, Inner[Plus, ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}], Min],
+    ArrayReshape[Range[8], {4, 2}], Min],
+  TestID -> "inner-variadic-tropical"
+];
+
+(* 7. Tropical outer product 'a, b -> a b' (no contraction; add over one element). *)
+VerificationTest[
+  Einstoff[Inner][Plus, Min][{{a_}, {b_}} :> {{a, b}}, {Range[2], Range[3]}],
+  Outer[Plus, Range[2], Range[3]],
+  TestID -> "inner-tropical-outer"
+];
+
+(* 8. One input tensor is rejected (contraction needs >= 2). *)
+VerificationTest[
+  Quiet @ Einstoff[Inner][Times, Plus][{{a_, b_}} :> {{a, b}}, {ArrayReshape[Range[6], {2, 3}]}],
+  $Failed,
+  TestID -> "inner-reject-one-tensor"
+];
+
+EndTestSection[];

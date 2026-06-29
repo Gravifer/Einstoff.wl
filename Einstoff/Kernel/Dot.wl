@@ -1,9 +1,14 @@
 (* ::Package:: *)
 
-(* Dot path: Einstoff[Dot] / EinstoffDot (einx.dot — einsum-style contraction).
+(* Contraction path: Einstoff[Dot] and its generalization Einstoff[Inner].
 
-   N-ary Einstein summation over two or more operands. An atomic axis is:
-     contracted  if it is absent from the output (summed over),
+   Einstoff[Dot] is einsum-style contraction (einx.dot): sum of products. It is the
+   (Times, Plus) special case of Einstoff[Inner][mul, add], which contracts with an
+   arbitrary "multiply" mul and "combine" add (cf. WL Inner — Dot == Inner[Times, _,
+   _, Plus]).  Inner is curried: Einstoff[Inner][mul, add][desc, tensors, bindings].
+
+   N-ary over two or more operands. An atomic axis is:
+     contracted  if it is absent from the output (combined over),
      kept         if it is on the output — batch (shared across operands) or free.
    Brackets (Slot[...]) are the einx way to mark contracted axes; they are unwrapped
    here, since whether an axis contracts already follows from "shared & not on the
@@ -11,35 +16,44 @@
 
    Lowering — pairwise left fold. `contractPair` contracts two atomic-axis tensors,
    keeping a given set of axes, by classifying their axes into batch B / contract K /
-   free M,N, reshaping to [B,M,K] and [B,K,N], and MapThread[Dot] -> [B,M,N]. The
-   fold contracts operand 1·2, then ·3, … ; at each step the *kept* set is the global
-   output axes plus every axis still used by a later operand, so an axis is summed
-   only once nothing downstream needs it. The single remaining tensor is permuted /
-   recomposed onto the output shape by the shared materializeOutput (which also
-   broadcasts any output-only repetition axis, SPEC 5.5 — e.g.
-   einx.dot("a [b], [b] c -> a c r", x, y, r=3)).
+   free M,N, reshaping to [B,M,K] and [B,K,N], and a batched generalized inner
+   product (MapThread of Inner[mul, …, add], or Dot for the Times/Plus fast path)
+   -> [B,M,N]. The fold contracts operand 1·2, then ·3, … ; at each step the *kept*
+   set is the global output axes plus every axis a later operand still needs, so an
+   axis is combined only once nothing downstream needs it. For a semiring (mul, add)
+   — (Times,Plus), tropical (Plus,Min), … — the fold is associative; the left-to-
+   right order is the defined semantics regardless. The single remaining tensor is
+   permuted/recomposed onto the output by the shared materializeOutput (which also
+   broadcasts any output-only repetition axis, SPEC 5.5).
 
    An axis appearing in only one operand and neither kept nor shared would be a
    within-operand reduction before contraction — rejected (use ArrayReduce). A
-   CirclePlus or variable-arity bracket ellipsis in a Dot shape is also rejected.
-   Shared helpers live in Lowering.wl. *)
+   CirclePlus or variable-arity bracket ellipsis in a contraction shape is also
+   rejected. Shared helpers live in Lowering.wl. *)
 
-PackageExported[{EinstoffDot}]
+PackageExported[{EinstoffDot, EinstoffInner}]
 
 EinstoffDot::usage =
   "EinstoffDot[desc, tensors, bindings] realizes an einsum-style contraction \
-(einx.dot) of two or more tensors: axes shared between operands and absent from \
-the output are contracted (summed), shared axes kept on the output are batch \
-dims, and one-sided output axes are free. Lowers to a pairwise fold of \
-ArrayReshape/Transpose/Dot. desc is held.";
+(einx.dot) of two or more tensors: shared axes absent from the output are summed, \
+shared output axes are batch dims, one-sided output axes are free. It is the \
+Times/Plus case of EinstoffInner.";
+
+EinstoffInner::usage =
+  "EinstoffInner[mul, add][desc, tensors, bindings] generalizes EinstoffDot: it \
+contracts with an arbitrary elementwise mul and combiner add (cf. WL Inner) — e.g. \
+{Times, Plus} is Dot, {Plus, Min} is min-plus (tropical) contraction. Curried in \
+(mul, add).";
 
 Einstoff[Dot] := EinstoffDot;
 Einstoff["Dot"] := EinstoffDot;
+Einstoff[Inner] := EinstoffInner;
+Einstoff["Inner"] := EinstoffInner;
 
-(* Contract two atomic-axis tensors, keeping the axes in `keep`; return
-   {tensor, labels} with the result reshaped to its atomic axes (labels order
-   B,M,N). Emits a message and Throws $Failed on a within-operand drop. *)
-contractPair[t1_, l1_, t2_, l2_, keep_, env_] :=
+(* Contract two atomic-axis tensors with combiner (mul, add), keeping the axes in
+   `keep`; return {tensor, labels} reshaped to atomic axes (label order B,M,N).
+   Emits a message and Throws $Failed on a within-operand drop. *)
+contractPair[mul_, add_, t1_, l1_, t2_, l2_, keep_, env_] :=
   Module[{both, b, k, m, n, sz, prod, x1, x2, p1, p2, x1r, x2r, mm, lab},
     sz[atoms_] := atomSize[#, env] & /@ atoms;
     prod[atoms_] := Times @@ sz[atoms];
@@ -63,14 +77,19 @@ within-operand reduction before contraction is not supported (use ArrayReduce)"]
     (* a scalar operand (no axes) becomes the 1x1x1 block {{{v}}} *)
     x1r = If[l1 === {}, ArrayReshape[{t1}, {1, 1, 1}], ArrayReshape[x1, {prod[b], prod[m], prod[k]}]];
     x2r = If[l2 === {}, ArrayReshape[{t2}, {1, 1, 1}], ArrayReshape[x2, {prod[b], prod[k], prod[n]}]];
-    mm = MapThread[Dot, {x1r, x2r}];          (* {prodB, prodM, prodN} *)
+    (* batched generalized inner product -> {prodB, prodM, prodN};
+       Dot is the optimized Times/Plus path. *)
+    mm = If[mul === Times && add === Plus,
+      MapThread[Dot, {x1r, x2r}],
+      MapThread[Inner[mul, #1, #2, add] &, {x1r, x2r}]];
     lab = Join[b, m, n];
     {If[lab === {}, First @ Flatten[mm], ArrayReshape[mm, sz[lab]]], lab}];
 
-(* desc is NOT held (uniform convention): a globally bound axis symbol substitutes
-   — a bound integer reads as a literal dimension, illegal values rejected
-   downstream; Pattern still holds each binding `name_` and `:>` holds the RHS. *)
-EinstoffDot[desc_, tensors_, bindings_List : {}] :=
+(* The shared lowering, parameterized by the (mul, add) combiner.  desc is NOT held
+   (uniform convention): a globally bound axis symbol substitutes — a bound integer
+   reads as a literal dimension, illegal values rejected downstream; Pattern still
+   holds each binding `name_` and `:>` holds the RHS. *)
+innerLower[mul_, add_, desc_, tensors_, bindings_] :=
   Module[{parts, lhs, rhs, shp, env, labs, outA, result},
     parts = descParts[Hold[desc]];
     If[parts === $Failed,
@@ -79,12 +98,13 @@ EinstoffDot[desc_, tensors_, bindings_List : {}] :=
     {lhs, rhs} = parts;
     If[! MatchQ[tensors, {_, __}],
       Message[Einstoff::unsupp,
-        "Dot needs at least two input tensors (use ArrayReduce/ArrayReshape for one)"];
+        "contraction needs at least two input tensors (use ArrayReduce/ArrayReshape \
+for one)"];
       Return[$Failed]];
     If[! MatchQ[lhs, {__List}] || ! MatchQ[rhs, {_List}] ||
        Length[lhs] =!= Length[tensors],
       Message[Einstoff::unsupp,
-        "Dot needs one input shape per tensor and exactly one output shape"];
+        "contraction needs one input shape per tensor and exactly one output shape"];
       Return[$Failed]];
 
     shp = EinstoffShapes[desc, Dimensions /@ tensors, bindings];
@@ -103,9 +123,15 @@ EinstoffDot[desc_, tensors_, bindings_List : {}] :=
     result = Catch @ Module[{accT = First[tensors], accL = First[labs], keep},
       Do[
         keep = Union[outA, Join @@ labs[[i + 1 ;;]]];
-        {accT, accL} = contractPair[accT, accL, tensors[[i]], labs[[i]], keep, env],
+        {accT, accL} = contractPair[mul, add, accT, accL, tensors[[i]], labs[[i]], keep, env],
         {i, 2, Length[tensors]}];
       materializeOutput[accT, accL, First[rhs], env]];
     If[result === $Failed, Return[$Failed]];
     result
   ];
+
+EinstoffDot[desc_, tensors_, bindings_List : {}] :=
+  innerLower[Times, Plus, desc, tensors, bindings];
+
+EinstoffInner[mul_, add_][desc_, tensors_, bindings_List : {}] :=
+  innerLower[mul, add, desc, tensors, bindings];

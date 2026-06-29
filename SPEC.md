@@ -355,11 +355,25 @@ than an assumption.
 
 Implemented and cross-validated against einx/einops: the matcher / shape resolver
 (`EinstoffShapes`), and the lowering paths `Einstoff[ArrayReshape]`
-(rearrange/reshape), `Einstoff[ArrayReduce]` (reduce), `Einstoff[Dot]`
-(einsum contraction over **N ≥ 2 operands** via a pairwise left fold —
-`contractPair` keeps the global output axes plus anything a later operand still
-needs, so an axis is summed only once nothing downstream uses it), and uniform
-repetition (§5.5).
+(rearrange/reshape), `Einstoff[ArrayReduce][reducer]` (reduce, reducer curried),
+`Einstoff[Dot]` (einsum contraction over **N ≥ 2 operands** via a pairwise left
+fold — `contractPair` keeps the global output axes plus anything a later operand
+still needs, so an axis is summed only once nothing downstream uses it), and
+uniform repetition (§5.5).
+
+`Einstoff[Inner][mul, add]` generalizes `Dot` (= `Inner[Times, Plus]`): the same
+fold with the batched inner product using an arbitrary multiply `mul` and combiner
+`add` (cf. WL `Inner`; e.g. `{Plus, Min}` is min-plus/tropical contraction). The
+`Times/Plus` case keeps the native `Dot` fast path. Only that case maps to
+`einx.dot` for cross-validation; other combiners are checked against native WL
+`Inner`. For a semiring `(mul, add)` the N-ary fold is associative; the
+left-to-right order is the defined semantics otherwise.
+
+The reducer and `(mul, add)` are **curried** into the operator
+(`Einstoff[ArrayReduce][Total][…]`, `Einstoff[Inner][mul, add][…]`); no operator
+holds `desc` (uniform convention — §2 note), so a globally bound axis symbol
+substitutes (a bound integer reads as a literal dimension; illegal values are
+rejected by the matcher).
 
 **`CirclePlus` (direct sum) — implemented and cross-validated.** The direct-sum
 axis `(a + b)` lowers two ways, both folded into `Einstoff[ArrayReshape]` (einx

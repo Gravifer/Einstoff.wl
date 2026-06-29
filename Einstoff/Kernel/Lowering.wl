@@ -5,8 +5,8 @@
    Each lowering path (operator) lives in its own file under Kernel/:
 
      Reshape.wl   Einstoff[ArrayReshape] / EinstoffRearrange
-     Reduce.wl    Einstoff[ArrayReduce]  / EinstoffReduce
-     Dot.wl       Einstoff[Dot]          / EinstoffDot
+     Reduce.wl    Einstoff[ArrayReduce]  / EinstoffReduce  (curried in the reducer)
+     Dot.wl       Einstoff[Dot]/[Inner]  / EinstoffDot, EinstoffInner (Inner curried)
      DirectSum.wl Einstoff[Join]/[Split] / EinstoffJoin (CirclePlus concat/split)
 
    This hub holds what they share: the public `Einstoff` operator symbol and its
@@ -23,9 +23,10 @@ PackageExported[{Einstoff}]
 
 Einstoff::usage =
   "Einstoff[op] yields the Einstoff operator implementing op: \
-Einstoff[ArrayReshape] (rearrange/reshape), Einstoff[ArrayReduce] (reduction), \
-Einstoff[Dot] (einsum-style contraction), Einstoff[Join] (direct-sum \
-concatenation). Applied as Einstoff[op][desc, tensors, bindings, opts].";
+Einstoff[ArrayReshape] (rearrange/reshape), Einstoff[ArrayReduce][reducer] \
+(reduction), Einstoff[Dot] (einsum contraction) and its generalization \
+Einstoff[Inner][mul, add], Einstoff[Join]/[Split] (direct sum). Applied as \
+op[desc, tensors, bindings]; the reducer and (mul, add) are curried.";
 
 (* Shared diagnostics for every lowering path. *)
 Einstoff::unsupp = "`1`";
