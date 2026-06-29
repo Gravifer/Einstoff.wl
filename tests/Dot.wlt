@@ -8,7 +8,7 @@
 
 BeginTestSection["Einstoff`Lowering`Dot"];
 
-ClearAll[a, b, c, d, r];
+ClearAll[a, b, c, d, e, n, r];
 
 (* ===================== einsum-style contraction (einx.dot) ========= *)
 
@@ -117,6 +117,58 @@ VerificationTest[
   With[{mm = ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}]},
     Table[mm[[i, j]], {i, 2}, {j, 4}, {k, 2}]],
   TestID -> "dot-then-repeat"
+];
+
+(* ===================== variadic (N operands) ===================== *)
+
+(* 14. Three-operand chain 'a b, b c, c d -> a d' === iterated native Dot. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}], z = ArrayReshape[Range[20], {4, 5}]},
+    Einstoff[Dot][{{a_, b_}, {b_, c_}, {c_, d_}} :> {{a, d}}, {x, y, z}]],
+  ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}] . ArrayReshape[Range[20], {4, 5}],
+  TestID -> "dot-three-chain"
+];
+
+(* 15. Four-operand chain 'a b, b c, c d, d e -> a e'. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}],
+        z = ArrayReshape[Range[20], {4, 5}], w = ArrayReshape[Range[10], {5, 2}]},
+    Einstoff[Dot][{{a_, b_}, {b_, c_}, {c_, d_}, {d_, e_}} :> {{a, e}}, {x, y, z, w}]],
+  ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}] .
+    ArrayReshape[Range[20], {4, 5}] . ArrayReshape[Range[10], {5, 2}],
+  TestID -> "dot-four-chain"
+];
+
+(* 16. Bracketed three-operand chain 'a [b], [b] [c], [c] d -> a d'. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}], z = ArrayReshape[Range[20], {4, 5}]},
+    Einstoff[Dot][{{a_, Slot[b_]}, {Slot[b], Slot[c_]}, {Slot[c], d_}} :> {{a, d}}, {x, y, z}]],
+  ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}] . ArrayReshape[Range[20], {4, 5}],
+  TestID -> "dot-three-chain-bracketed"
+];
+
+(* 17. Batched three-operand 'n a b, n b c, n c d -> n a d'. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[24], {2, 3, 4}], y = ArrayReshape[Range[40], {2, 4, 5}], z = ArrayReshape[Range[20], {2, 5, 2}]},
+    Einstoff[Dot][{{n_, a_, b_}, {n_, b_, c_}, {n_, c_, d_}} :> {{n, a, d}}, {x, y, z}]],
+  MapThread[Dot[#1, #2, #3] &,
+    {ArrayReshape[Range[24], {2, 3, 4}], ArrayReshape[Range[40], {2, 4, 5}], ArrayReshape[Range[20], {2, 5, 2}]}],
+  TestID -> "dot-batched-three"
+];
+
+(* 18. Scalar intermediate 'a, a, b -> b' = (x·y) * z, exercising the fold's
+   scalar-operand path. *)
+VerificationTest[
+  Einstoff[Dot][{{a_}, {a_}, {b_}} :> {{b}}, {Range[3], Range[3], Range[4]}],
+  (Range[3] . Range[3]) Range[4],
+  TestID -> "dot-scalar-intermediate"
+];
+
+(* 19. One input tensor is rejected (Dot needs >= 2). *)
+VerificationTest[
+  Quiet @ Einstoff[Dot][{{a_, b_}} :> {{a, b}}, {ArrayReshape[Range[6], {2, 3}]}],
+  $Failed,
+  TestID -> "dot-reject-one-tensor"
 ];
 
 EndTestSection[];

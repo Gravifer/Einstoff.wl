@@ -356,7 +356,10 @@ than an assumption.
 Implemented and cross-validated against einx/einops: the matcher / shape resolver
 (`EinstoffShapes`), and the lowering paths `Einstoff[ArrayReshape]`
 (rearrange/reshape), `Einstoff[ArrayReduce]` (reduce), `Einstoff[Dot]`
-(contraction), and uniform repetition (§5.5).
+(einsum contraction over **N ≥ 2 operands** via a pairwise left fold —
+`contractPair` keeps the global output axes plus anything a later operand still
+needs, so an axis is summed only once nothing downstream uses it), and uniform
+repetition (§5.5).
 
 **`CirclePlus` (direct sum) — implemented and cross-validated.** The direct-sum
 axis `(a + b)` lowers two ways, both folded into `Einstoff[ArrayReshape]` (einx

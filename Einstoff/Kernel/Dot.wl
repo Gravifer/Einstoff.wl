@@ -2,63 +2,88 @@
 
 (* Dot path: Einstoff[Dot] / EinstoffDot (einx.dot — einsum-style contraction).
 
-   Two-tensor Einstein summation.  Each LHS axis is classified by where it
-   appears:
+   N-ary Einstein summation over two or more operands. An atomic axis is:
+     contracted  if it is absent from the output (summed over),
+     kept         if it is on the output — batch (shared across operands) or free.
+   Brackets (Slot[...]) are the einx way to mark contracted axes; they are unwrapped
+   here, since whether an axis contracts already follows from "shared & not on the
+   output" (SPEC 5.2, ex 10).
 
-     batch  (B)  in both operands AND on the output  — paired, not contracted
-     contr  (K)  in both operands, NOT on the output  — summed over (the dot)
-     free1  (M)  in operand 1 only, on the output
-     free2  (N)  in operand 2 only, on the output
+   Lowering — pairwise left fold. `contractPair` contracts two atomic-axis tensors,
+   keeping a given set of axes, by classifying their axes into batch B / contract K /
+   free M,N, reshaping to [B,M,K] and [B,K,N], and MapThread[Dot] -> [B,M,N]. The
+   fold contracts operand 1·2, then ·3, … ; at each step the *kept* set is the global
+   output axes plus every axis still used by a later operand, so an axis is summed
+   only once nothing downstream needs it. The single remaining tensor is permuted /
+   recomposed onto the output shape by the shared materializeOutput (which also
+   broadcasts any output-only repetition axis, SPEC 5.5 — e.g.
+   einx.dot("a [b], [b] c -> a c r", x, y, r=3)).
 
-   Brackets (`Slot[...]`) are the einx way to mark the contracted axes; they are
-   simply unwrapped here, since the classification above already determines which
-   axes contract — a shared, non-output axis (SPEC 5.2, ex 10).
-
-   Lowering: reshape each operand to its atomic axes, transpose operand 1 to
-   [B, M, K] and operand 2 to [B, K, N], flatten each group so the operands
-   become 3-D [b, m, k] / [b, k, n], batched-matmul with MapThread[Dot], then
-   permute/recompose the [B, M, N] result onto the output shape.  prod of an
-   empty axis group is 1, so outer products (no K), missing batch, and one-sided
-   free axes all fall out of the same code.
-
-   An output-only axis (on neither operand) is repetition (SPEC 5.5): the
-   contraction result is broadcast along it, via the shared materializeOutput
-   (e.g. einx.dot("a [b], [b] c -> a c r", x, y, r=3)).
-
-   First cut: exactly two input tensors, one output; every non-output axis must
-   be a shared (contracted) axis — a single-operand axis dropped before the
-   contraction (within-operand reduction) is rejected, as is a CirclePlus or a
-   variable-arity bracket ellipsis.  Shared helpers live in Lowering.wl. *)
+   An axis appearing in only one operand and neither kept nor shared would be a
+   within-operand reduction before contraction — rejected (use ArrayReduce). A
+   CirclePlus or variable-arity bracket ellipsis in a Dot shape is also rejected.
+   Shared helpers live in Lowering.wl. *)
 
 PackageExported[{EinstoffDot}]
 
 EinstoffDot::usage =
   "EinstoffDot[desc, tensors, bindings] realizes an einsum-style contraction \
-(einx.dot) of two tensors: axes shared between the operands and absent from the \
-output are contracted (summed), shared axes kept on the output are batch dims, \
-and one-sided output axes are free. Lowers to ArrayReshape/Transpose/Dot. desc \
-is held.";
+(einx.dot) of two or more tensors: axes shared between operands and absent from \
+the output are contracted (summed), shared axes kept on the output are batch \
+dims, and one-sided output axes are free. Lowers to a pairwise fold of \
+ArrayReshape/Transpose/Dot. desc is held.";
 
 Einstoff[Dot] := EinstoffDot;
 Einstoff["Dot"] := EinstoffDot;
 
+(* Contract two atomic-axis tensors, keeping the axes in `keep`; return
+   {tensor, labels} with the result reshaped to its atomic axes (labels order
+   B,M,N). Emits a message and Throws $Failed on a within-operand drop. *)
+contractPair[t1_, l1_, t2_, l2_, keep_, env_] :=
+  Module[{both, b, k, m, n, sz, prod, x1, x2, p1, p2, x1r, x2r, mm, lab},
+    sz[atoms_] := atomSize[#, env] & /@ atoms;
+    prod[atoms_] := Times @@ sz[atoms];
+    both = Intersection[l1, l2];
+    b = Select[l1, MemberQ[both, #] && MemberQ[keep, #] &];     (* batch   *)
+    k = Select[l1, MemberQ[both, #] && ! MemberQ[keep, #] &];   (* contract *)
+    m = Select[l1, ! MemberQ[l2, #] && MemberQ[keep, #] &];     (* free 1  *)
+    n = Select[l2, ! MemberQ[l1, #] && MemberQ[keep, #] &];     (* free 2  *)
+    If[AnyTrue[l1, ! MemberQ[l2, #] && ! MemberQ[keep, #] &] ||
+       AnyTrue[l2, ! MemberQ[l1, #] && ! MemberQ[keep, #] &],
+      Message[Einstoff::unsupp,
+        "an input axis appears in only one operand and is dropped — a \
+within-operand reduction before contraction is not supported (use ArrayReduce)"];
+      Throw[$Failed]];
+    x1 = If[l1 === {}, t1, ArrayReshape[t1, sz[l1]]];
+    x2 = If[l2 === {}, t2, ArrayReshape[t2, sz[l2]]];
+    p1 = Flatten[FirstPosition[l1, #] & /@ Join[b, m, k]];
+    p2 = Flatten[FirstPosition[l2, #] & /@ Join[b, k, n]];
+    If[Length[p1] > 1, x1 = Transpose[x1, InversePermutation[p1]]];
+    If[Length[p2] > 1, x2 = Transpose[x2, InversePermutation[p2]]];
+    (* a scalar operand (no axes) becomes the 1x1x1 block {{{v}}} *)
+    x1r = If[l1 === {}, ArrayReshape[{t1}, {1, 1, 1}], ArrayReshape[x1, {prod[b], prod[m], prod[k]}]];
+    x2r = If[l2 === {}, ArrayReshape[{t2}, {1, 1, 1}], ArrayReshape[x2, {prod[b], prod[k], prod[n]}]];
+    mm = MapThread[Dot, {x1r, x2r}];          (* {prodB, prodM, prodN} *)
+    lab = Join[b, m, n];
+    {If[lab === {}, First @ Flatten[mm], ArrayReshape[mm, sz[lab]]], lab}];
+
 SetAttributes[EinstoffDot, HoldFirst];
 
 EinstoffDot[desc_, tensors_, bindings_List : {}] :=
-  Module[{parts, lhs, rhs, shp, env, op1, op2, outA, both, b, k, m, n,
-          sz, prod, t1, t2, perm1, perm2, t1r, t2r, res, present, result},
+  Module[{parts, lhs, rhs, shp, env, labs, outA, result},
     parts = descParts[Hold[desc]];
     If[parts === $Failed,
       Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
       Return[$Failed]];
     {lhs, rhs} = parts;
-    If[! MatchQ[tensors, {_, _}],
+    If[! MatchQ[tensors, {_, __}],
       Message[Einstoff::unsupp,
-        "Dot lowering currently supports exactly two input tensors"];
+        "Dot needs at least two input tensors (use ArrayReduce/ArrayReshape for one)"];
       Return[$Failed]];
-    If[! MatchQ[lhs, {_List, _List}] || ! MatchQ[rhs, {_List}],
+    If[! MatchQ[lhs, {__List}] || ! MatchQ[rhs, {_List}] ||
+       Length[lhs] =!= Length[tensors],
       Message[Einstoff::unsupp,
-        "Dot lowering needs two input shapes and one output shape"];
+        "Dot needs one input shape per tensor and exactly one output shape"];
       Return[$Failed]];
 
     shp = EinstoffShapes[desc, Dimensions /@ tensors, bindings];
@@ -67,58 +92,19 @@ EinstoffDot[desc_, tensors_, bindings_List : {}] :=
     env = shp["Bindings"];
 
     (* Atomic axes of each operand (brackets unwrapped) and of the output. *)
-    op1 = Catch[(Join @@ Table[reduceAtoms[t], {t, lhs[[1]]}])[[All, 1]]];
-    op2 = Catch[(Join @@ Table[reduceAtoms[t], {t, lhs[[2]]}])[[All, 1]]];
-    If[op1 === $Failed || op2 === $Failed, Return[$Failed]];
+    labs = Catch[Table[
+      (Join @@ Table[reduceAtoms[t], {t, lhs[[j]]}])[[All, 1]], {j, Length[lhs]}]];
     outA = Catch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
-    If[outA === $Failed, Return[$Failed]];
+    If[labs === $Failed || outA === $Failed, Return[$Failed]];
 
-    both = Intersection[op1, op2];
-    b = Select[op1, MemberQ[both, #] && MemberQ[outA, #] &];   (* batch  *)
-    k = Select[op1, MemberQ[both, #] && ! MemberQ[outA, #] &]; (* contr  *)
-    m = Select[op1, ! MemberQ[op2, #] && MemberQ[outA, #] &];  (* free 1 *)
-    n = Select[op2, ! MemberQ[op1, #] && MemberQ[outA, #] &];  (* free 2 *)
-
-    (* A single-operand axis that is dropped would be a within-operand reduction
-       before the contraction — not supported in this first cut. *)
-    If[AnyTrue[op1, ! MemberQ[op2, #] && ! MemberQ[outA, #] &] ||
-       AnyTrue[op2, ! MemberQ[op1, #] && ! MemberQ[outA, #] &],
-      Message[Einstoff::unsupp,
-        "an input axis appears in only one operand and is dropped — a \
-within-operand reduction before contraction is not supported yet"];
-      Return[$Failed]];
-    (* An output axis on neither operand is allowed — it is a repetition axis,
-       broadcast onto the contraction result by materializeOutput (SPEC 5.5). *)
-
-    sz[atoms_] := atomSize[#, env] & /@ atoms;
-    prod[atoms_] := Times @@ sz[atoms];   (* 1 for an empty group *)
-
-    res = Catch[
-      t1 = ArrayReshape[tensors[[1]], sz[op1]];
-      t2 = ArrayReshape[tensors[[2]], sz[op2]];
-      (* operand 1 -> [B, M, K] ; operand 2 -> [B, K, N] *)
-      perm1 = Flatten[FirstPosition[op1, #] & /@ Join[b, m, k]];
-      perm2 = Flatten[FirstPosition[op2, #] & /@ Join[b, k, n]];
-      If[Length[perm1] > 1, t1 = Transpose[t1, InversePermutation[perm1]]];
-      If[Length[perm2] > 1, t2 = Transpose[t2, InversePermutation[perm2]]];
-      t1r = ArrayReshape[t1, {prod[b], prod[m], prod[k]}];
-      t2r = ArrayReshape[t2, {prod[b], prod[k], prod[n]}];
-      MapThread[Dot, {t1r, t2r}]   (* -> {prod[b], prod[m], prod[n]} *)
-    ];
-    If[res === $Failed,
-      Message[Einstoff::unsat, "an axis size is unbound"]; Return[$Failed]];
-
-    (* res has atomic axes [B, M, N] (flattened to {prodB, prodM, prodN}).
-       Recompose to atomic axes, then materialize repeats / permute / reshape
-       onto the output shape.  Empty [B,M,N] means a scalar contraction. *)
-    present = Join[b, m, n];
-    result = Catch[
-      materializeOutput[
-        If[present === {}, First @ Flatten[res], ArrayReshape[res, sz[present]]],
-        present, First[rhs], env]];
-    If[result === $Failed,
-      Message[Einstoff::unsat,
-        "an output axis size is unbound (a repeated axis needs a binding)"];
-      Return[$Failed]];
+    (* Pairwise left fold: contract operand i into the accumulator, keeping the
+       global output axes plus anything a later operand still needs. *)
+    result = Catch @ Module[{accT = First[tensors], accL = First[labs], keep},
+      Do[
+        keep = Union[outA, Join @@ labs[[i + 1 ;;]]];
+        {accT, accL} = contractPair[accT, accL, tensors[[i]], labs[[i]], keep, env],
+        {i, 2, Length[tensors]}];
+      materializeOutput[accT, accL, First[rhs], env]];
+    If[result === $Failed, Return[$Failed]];
     result
   ];

@@ -48,6 +48,19 @@ pyDot[pattern_, dims1_List, dims2_List, kwargs_ : <||>] :=
       "np.asarray(einx.dot(" <> ToString[pattern, InputForm] <> ", x, y" <>
         If[kw === "", "", ", " <> kw] <> ")).tolist()"]];
 
+(* pyDotN[pattern, {dims0, dims1, …}]: build N operands x0,x1,… from their dims
+   recipes inside Python and apply einx.dot. *)
+pyDotN[pattern_, dimsList_List] :=
+  Module[{setup, args},
+    setup = StringJoin @ MapIndexed[
+      With[{nm = "x" <> ToString[First[#2] - 1], d = #1},
+        nm <> " = (1 + np.arange(" <> ToString[Times @@ d] <> ")).reshape(" <>
+          pyDims[d] <> ")\n"] &, dimsList];
+    args = StringRiffle[Table["x" <> ToString[i], {i, 0, Length[dimsList] - 1}], ", "];
+    ExternalEvaluate[pySession,
+      "import numpy as np, einx\n" <> setup <>
+      "np.asarray(einx.dot(" <> ToString[pattern, InputForm] <> ", " <> args <> ")).tolist()"]];
+
 (* ======================================================================== *)
 BeginTestSection["Einstoff`CrossValidation`Dot", pythonReady];
 
@@ -99,6 +112,24 @@ VerificationTest[
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}, {r -> 2}],
   pyDot["a [b], [b] c -> a c r", {2, 3}, {3, 4}, <|"r" -> 2|>],
   TestID -> "xval-dot-repeat"
+];
+
+(* --- variadic (N operands) --- *)
+
+(* three-operand chain 'a b, b c, c d -> a d' *)
+VerificationTest[
+  Einstoff[Dot][{{a_, b_}, {b_, c_}, {c_, d_}} :> {{a, d}},
+    {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}], ArrayReshape[Range[20], {4, 5}]}],
+  pyDotN["a b, b c, c d -> a d", {{2, 3}, {3, 4}, {4, 5}}],
+  TestID -> "xval-dot-three-chain"
+];
+
+(* batched three-operand 'n a b, n b c, n c d -> n a d' *)
+VerificationTest[
+  Einstoff[Dot][{{n_, a_, b_}, {n_, b_, c_}, {n_, c_, d_}} :> {{n, a, d}},
+    {ArrayReshape[Range[24], {2, 3, 4}], ArrayReshape[Range[40], {2, 4, 5}], ArrayReshape[Range[20], {2, 5, 2}]}],
+  pyDotN["n a b, n b c, n c d -> n a d", {{2, 3, 4}, {2, 4, 5}, {2, 5, 2}}],
+  TestID -> "xval-dot-batched-three"
 ];
 
 EndTestSection[];
