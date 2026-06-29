@@ -80,22 +80,6 @@ VerificationTest[
   TestID -> "concat-reject-join-lhs"
 ];
 
-(* 9. Einstoff[Split] (CirclePlus on the LHS) is not implemented yet. *)
-VerificationTest[
-  Quiet @ Einstoff[Split][{{m_, CirclePlus[a_, b_]}} :> {{m, a}, {m, b}},
-    {ArrayReshape[Range[14], {2, 7}]}, {a -> 3}],
-  $Failed,
-  TestID -> "concat-reject-split-todo"
-];
-
-(* 10. A LHS CirclePlus routed through ArrayReshape is split -> not yet. *)
-VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{m_, CirclePlus[a_, b_]}} :> {{m, a}, {m, b}},
-    {ArrayReshape[Range[14], {2, 7}]}, {a -> 3}],
-  $Failed,
-  TestID -> "concat-reject-reshape-split"
-];
-
 (* 11. Operand/summand count mismatch (2 summands, 1 tensor) is rejected. *)
 VerificationTest[
   Quiet @ Einstoff[ArrayReshape][{{m_, a_}, {m_, b_}} :> {{m, CirclePlus[a, b]}},
@@ -110,6 +94,79 @@ VerificationTest[
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}],
   $Failed,
   TestID -> "concat-reject-unsat"
+];
+
+(* ===================== splitting (einx `+` on LHS) ================ *)
+
+(* 13. Split into two outputs 'b (q + k) -> b q, b k', q=3 (SPEC ex3)
+   === native Take of the two contiguous blocks. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[20], {2, 10}]},
+    Einstoff[ArrayReshape][{{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}}, {x}, {q -> 3}]],
+  With[{x = ArrayReshape[Range[20], {2, 10}]},
+    {Take[x, All, {1, 3}], Take[x, All, {4, 10}]}],
+  TestID -> "split-two-way"
+];
+
+(* 14. Split along axis 1: '(q + k) m -> q m, k m', q=2. *)
+VerificationTest[
+  With[{y = ArrayReshape[Range[20], {5, 4}]},
+    Einstoff[ArrayReshape][{{CirclePlus[q_, k_], m_}} :> {{q, m}, {k, m}}, {y}, {q -> 2}]],
+  With[{y = ArrayReshape[Range[20], {5, 4}]},
+    {Take[y, {1, 2}, All], Take[y, {3, 5}, All]}],
+  TestID -> "split-axis1"
+];
+
+(* 15. Three-way split 'b (p + q + r) -> b p, b q, b r', p=2, q=3. *)
+VerificationTest[
+  With[{z = ArrayReshape[Range[20], {2, 10}]},
+    Einstoff[ArrayReshape][{{b_, CirclePlus[p_, q_, r_]}} :> {{b, p}, {b, q}, {b, r}},
+      {z}, {p -> 2, q -> 3}]],
+  With[{z = ArrayReshape[Range[20], {2, 10}]},
+    {Take[z, All, {1, 2}], Take[z, All, {3, 5}], Take[z, All, {6, 10}]}],
+  TestID -> "split-three-way"
+];
+
+(* 16. Split then permute a block: 'b (q + k) -> q b, b k', q=3. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[20], {2, 10}]},
+    Einstoff[ArrayReshape][{{b_, CirclePlus[q_, k_]}} :> {{q, b}, {b, k}}, {x}, {q -> 3}]],
+  With[{x = ArrayReshape[Range[20], {2, 10}]},
+    {Transpose[Take[x, All, {1, 3}]], Take[x, All, {4, 10}]}],
+  TestID -> "split-then-permute"
+];
+
+(* 17. Einstoff[Split] is the same machinery as the ArrayReshape LHS-CirclePlus branch. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[20], {2, 10}]},
+    Einstoff[Split][{{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}}, {x}, {q -> 3}]],
+  With[{x = ArrayReshape[Range[20], {2, 10}]},
+    {Take[x, All, {1, 3}], Take[x, All, {4, 10}]}],
+  TestID -> "split-operator"
+];
+
+(* 18. Einstoff[Split] with CirclePlus on the RHS (that is a concat) is rejected. *)
+VerificationTest[
+  Quiet @ Einstoff[Split][{{m_, a_}, {m_, b_}} :> {{m, CirclePlus[a, b]}},
+    {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[8], {2, 4}]}],
+  $Failed,
+  TestID -> "split-reject-rhs"
+];
+
+(* 19. Output/summand count mismatch (2 summands, 1 output) is rejected. *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{b_, CirclePlus[q_, k_]}} :> {{b, q}},
+    {ArrayReshape[Range[20], {2, 10}]}, {q -> 3}],
+  $Failed,
+  TestID -> "split-reject-count"
+];
+
+(* 20. Underdetermined direct sum (no summand bound) is unsatisfiable. *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}},
+    {ArrayReshape[Range[20], {2, 10}]}],
+  $Failed,
+  TestID -> "split-reject-underdetermined"
 ];
 
 EndTestSection[];

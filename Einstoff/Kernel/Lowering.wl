@@ -33,7 +33,7 @@ Einstoff::unsat =
   "description is not satisfiable against the given tensor(s): `1`";
 
 PackageScoped[{descParts, rearrangeAtoms, atomSize, reduceAtoms, materializeOutput,
-  hasCirclePlus, directSumConcat}]
+  hasCirclePlus, directSumConcat, directSumSplit}]
 
 (* ------------------------------------------------------------------ *)
 (* desc parsing.  Operators are HoldFirst and pass Hold[desc] in, so the *)

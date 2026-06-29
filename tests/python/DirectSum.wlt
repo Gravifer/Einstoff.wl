@@ -50,6 +50,16 @@ pyConcat[pattern_, dimsList_List] :=
       "import numpy as np, einx\n" <> setup <>
       "np.asarray(einx.id(" <> ToString[pattern, InputForm] <> ", " <> args <> ")).tolist()"]];
 
+(* pySplit[pattern, dims, kwargs]: build one operand from `dims`, apply the einx.id
+   split, and return the tuple of output arrays as a WL list of int lists. *)
+pySplit[pattern_, dims_List, kwargs_Association] :=
+  Module[{kw = StringRiffle[KeyValueMap[#1 <> "=" <> ToString[#2] &, kwargs], ", "]},
+    ExternalEvaluate[pySession,
+      "import numpy as np, einx\n" <>
+      "x = (1 + np.arange(" <> ToString[Times @@ dims] <> ")).reshape(" <> pyDims[dims] <> ")\n" <>
+      "[np.asarray(o).tolist() for o in einx.id(" <> ToString[pattern, InputForm] <>
+        ", x" <> If[kw === "", "", ", " <> kw] <> ")]"]];
+
 (* ======================================================================== *)
 BeginTestSection["Einstoff`CrossValidation`DirectSum", pythonReady];
 
@@ -83,6 +93,32 @@ VerificationTest[
     {ArrayReshape[Range[2], {2, 1}], ArrayReshape[Range[4], {2, 2}], ArrayReshape[Range[6], {2, 3}]}],
   pyConcat["m a, m b, m c -> m (a + b + c)", {{2, 1}, {2, 2}, {2, 3}}],
   TestID -> "xval-concat-three-way"
+];
+
+(* --- splitting (einx `+` on LHS, returns a tuple of outputs) --- *)
+
+(* split 'm (a + b) -> m a, m b', a=3  <->  {{m_, a_ ⊕ b_}} :> {{m, a}, {m, b}} *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{m_, CirclePlus[a_, b_]}} :> {{m, a}, {m, b}},
+    {ArrayReshape[Range[20], {2, 10}]}, {a -> 3}],
+  pySplit["m (a + b) -> m a, m b", {2, 10}, <|"a" -> 3|>],
+  TestID -> "xval-split-two-way"
+];
+
+(* split along axis 1 '(a + b) m -> a m, b m', a=2 *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{CirclePlus[a_, b_], m_}} :> {{a, m}, {b, m}},
+    {ArrayReshape[Range[20], {5, 4}]}, {a -> 2}],
+  pySplit["(a + b) m -> a m, b m", {5, 4}, <|"a" -> 2|>],
+  TestID -> "xval-split-axis1"
+];
+
+(* three-way split 'm (a + b + c) -> m a, m b, m c', a=2, b=3 *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{m_, CirclePlus[a_, b_, c_]}} :> {{m, a}, {m, b}, {m, c}},
+    {ArrayReshape[Range[20], {2, 10}]}, {a -> 2, b -> 3}],
+  pySplit["m (a + b + c) -> m a, m b, m c", {2, 10}, <|"a" -> 2, "b" -> 3|>],
+  TestID -> "xval-split-three-way"
 ];
 
 EndTestSection[];

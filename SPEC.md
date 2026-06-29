@@ -358,17 +358,22 @@ Implemented and cross-validated against einx/einops: the matcher / shape resolve
 (rearrange/reshape), `Einstoff[ArrayReduce]` (reduce), `Einstoff[Dot]`
 (contraction), and uniform repetition (§5.5).
 
-**`CirclePlus` (direct sum) — concat done, split pending.** The direct-sum axis
-`(a + b)` lowers two ways. **Concatenation** (CirclePlus on the RHS,
-`{op1, op2, …} :> {{… a ⊕ b …}}` via `Join[…, n]`; ex4) is **implemented and
-cross-validated** against einx — folded into `Einstoff[ArrayReshape]`, with
-`Einstoff[Join]` as the same machinery under a guard (CirclePlus on the RHS only).
-Each operand is aligned to the output shape with its summand block (reusing
-`materializeOutput`, so a scalar operand / integer summand broadcasts) and the
-blocks are `Join`'d along the concat axis. **Splitting** (CirclePlus on the LHS,
-`{{… a ⊕ b …}} :> {out1, out2, …}` via `Take` → multi-output; ex3) is the remaining
-**short-term TODO** — `Einstoff[Split]` and the LHS-CirclePlus branch of
-`Einstoff[ArrayReshape]` reject with a clear "not yet" today. Working plan:
+**`CirclePlus` (direct sum) — implemented and cross-validated.** The direct-sum
+axis `(a + b)` lowers two ways, both folded into `Einstoff[ArrayReshape]` (einx
+puts `+` in `id`) and routed by where the CirclePlus appears:
+
+- **Concatenation** (CirclePlus on the RHS, `{op1, …, opk} :> {{… a ⊕ b …}}`; ex4):
+  each operand is aligned to the output shape with its own summand block (reusing
+  `materializeOutput`, so a scalar operand / integer summand broadcasts — einx's
+  `b c, -> b (c + 1)` with 42) and the blocks are `Join`'d along the concat axis.
+- **Splitting** (CirclePlus on the LHS, `{{… a ⊕ b …}} :> {out1, …, outk}`; ex3):
+  the concat axis is sliced into contiguous blocks (`Take`, output *i* ← summand
+  *i*, left-to-right) and each block is rearranged to its output shape; returns a
+  `List` of arrays (the multi-output path).
+
+`Einstoff[Join]` (RHS-only) and `Einstoff[Split]` (LHS-only) are the same machinery
+under a directional guard. **Deferred:** nested/composite summands (`(a⊗b + c)`),
+bracketed direct sum (`Slot[CirclePlus[…]]`), >1 CirclePlus per shape. Plan:
 `docs/plans/circleplus-direct-sum.md`.
 
 **Other deferred lowering items** (rejected loudly today, not mis-compiled):

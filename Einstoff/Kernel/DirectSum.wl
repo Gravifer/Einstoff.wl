@@ -14,7 +14,9 @@
      the blocks are Join'd along the concat axis. IMPLEMENTED.
 
    * Split — CirclePlus on the LHS: `{{ … a ⊕ b … }} :> {out1, out2, …}`. One input
-     axis of size Σ sliced (Take) into multiple output tensors. NOT YET (phase 2).
+     axis of size Σ sliced (Take, contiguous left-to-right: output i ← summand i)
+     into multiple output tensors; each slice is then rearranged to its output
+     shape (reusing materializeOutput). Returns a List of arrays. IMPLEMENTED.
 
    Surface: folded into Einstoff[ArrayReshape] (einx puts `+` in `id`); the desc is
    routed here when it contains a CirclePlus. Einstoff[Join] and Einstoff[Split] are
@@ -32,8 +34,9 @@ axis (einx `+`): the desc must carry a CirclePlus on the RHS only, e.g. \
 {{m_, a_}, {m_, b_}} :> {{m, a \\[CirclePlus] b}}. desc is held.";
 
 EinstoffSplit::usage =
-  "EinstoffSplit[desc, tensors, bindings] splits a tensor along a direct-sum axis \
-into multiple outputs (einx `+` on the LHS). Not yet implemented.";
+  "EinstoffSplit[desc, tensors, bindings] splits one tensor along a direct-sum \
+axis into multiple outputs (einx `+` on the LHS), e.g. \
+{{m_, a_ \\[CirclePlus] b_}} :> {{m, a}, {m, b}} returns {arr1, arr2}. desc is held.";
 
 Einstoff[Join] := EinstoffJoin;
 Einstoff["Join"] := EinstoffJoin;
@@ -112,6 +115,84 @@ directSumConcat[desc_, tensors_, bindings_List] :=
   ];
 
 (* ------------------------------------------------------------------ *)
+(* Split handler.  CirclePlus on the LHS of a single input shape: slice the *)
+(* concat axis into contiguous blocks (output i <- summand i, left-to-right) *)
+(* and rearrange each block to its output shape.  Returns a List of arrays.  *)
+(* ------------------------------------------------------------------ *)
+
+SetAttributes[directSumSplit, HoldFirst];
+
+directSumSplit[desc_, tensors_, bindings_List] :=
+  Module[{parts, lhs, rhs, inShape, cpos, cp, summands, k, shp, env, x,
+          ndims, n, sizes, ends, starts, outs},
+    parts = descParts[Hold[desc]];
+    If[parts === $Failed,
+      Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
+      Return[$Failed]];
+    {lhs, rhs} = parts;
+
+    (* Exactly one input shape with exactly one top-level CirclePlus term. *)
+    If[! MatchQ[lhs, {_List}] || Length[tensors] =!= 1,
+      Message[Einstoff::unsupp,
+        "direct-sum splitting takes exactly one input tensor"];
+      Return[$Failed]];
+    inShape = First[lhs];
+    cpos = Position[inShape, _CirclePlus, {1}];
+    If[Length[cpos] =!= 1 || hasCirclePlus[Delete[inShape, cpos]],
+      Message[Einstoff::unsupp,
+        "splitting supports exactly one top-level CirclePlus on the input \
+(nested or multiple direct sums are not supported yet)"];
+      Return[$Failed]];
+    n = cpos[[1, 1]];                       (* concat axis = that term's position *)
+    cp = inShape[[n]];
+    (* On the LHS the summands are binding patterns (q_); reduce to their names so
+       sizing/ReplacePart see bare symbols, as on the concat (RHS) side. *)
+    summands = Replace[List @@ cp, Verbatim[Pattern][x_, _] :> x, {1}];
+    k = Length[summands];
+
+    If[! AllTrue[summands, MatchQ[#, _Symbol | _Integer] &],
+      Message[Einstoff::unsupp,
+        "each direct-sum summand must be a bound axis name or an integer \
+(composite summands are not supported yet)"];
+      Return[$Failed]];
+
+    (* k outputs, one per summand (positional: summand i -> output i). *)
+    If[! MatchQ[rhs, {___List}] || Length[rhs] =!= k,
+      Message[Einstoff::unsupp,
+        "direct-sum splitting needs one output per summand: the input has " <>
+          ToString[k] <> " summand(s) but " <> ToString[Length[rhs]] <>
+          " output shape(s) were given"];
+      Return[$Failed]];
+
+    shp = EinstoffShapes[desc, Dimensions /@ tensors, bindings];
+    If[! TrueQ[shp["Satisfiable"]],
+      Message[Einstoff::unsat, shp["Reason"]]; Return[$Failed]];
+    env = shp["Bindings"];
+
+    x = First[tensors];
+    ndims = Length[inShape];
+    outs = Catch @ Module[{sz, en, st},
+      sz = atomSize[#, env] & /@ summands;
+      en = Accumulate[sz]; st = en - sz + 1;       (* contiguous block bounds *)
+      Table[
+        Module[{block, terms, atoms, dims},
+          (* slice block i along axis n; All on every other axis *)
+          block = Take[x, Sequence @@ Table[
+            If[d === n, {st[[i]], en[[i]]}, All], {d, ndims}]];
+          terms = ReplacePart[inShape, n -> summands[[i]]];
+          atoms = If[terms === {}, {}, Join @@ (rearrangeAtoms /@ terms)];
+          dims = atomSize[#, env] & /@ atoms;
+          materializeOutput[
+            If[dims === {}, block, ArrayReshape[block, dims]], atoms, rhs[[i]], env]],
+        {i, k}]];
+    If[outs === $Failed,
+      Message[Einstoff::unsat,
+        "an axis size is unbound while slicing a direct-sum block"];
+      Return[$Failed]];
+    outs
+  ];
+
+(* ------------------------------------------------------------------ *)
 (* Public operators.                                                   *)
 (* ------------------------------------------------------------------ *)
 
@@ -142,12 +223,15 @@ EinstoffSplit[desc_, tensors_, bindings_List : {}] :=
     If[parts === $Failed,
       Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
       Return[$Failed]];
+    (* Guard: Split is the input direct sum — CirclePlus on the LHS only. *)
+    If[hasCirclePlus[parts[[2]]],
+      Message[Einstoff::unsupp,
+        "Einstoff[Split] splits an input direct sum: CirclePlus must appear on the \
+input (LHS), not the output (RHS) — use Einstoff[Join] for an output direct sum"];
+      Return[$Failed]];
     If[! hasCirclePlus[parts[[1]]],
       Message[Einstoff::unsupp,
         "Einstoff[Split] needs a direct-sum (CirclePlus) axis on the input (LHS)"];
       Return[$Failed]];
-    Message[Einstoff::unsupp,
-      "direct-sum splitting (CirclePlus on the LHS -> multiple outputs) is not \
-implemented yet"];
-    $Failed
+    directSumSplit[desc, tensors, bindings]
   ];
