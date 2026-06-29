@@ -67,8 +67,9 @@ within-operand reduction before contraction is not supported (use ArrayReduce)"]
     lab = Join[b, m, n];
     {If[lab === {}, First @ Flatten[mm], ArrayReshape[mm, sz[lab]]], lab}];
 
-SetAttributes[EinstoffDot, HoldFirst];
-
+(* desc is NOT held (uniform convention): a globally bound axis symbol substitutes
+   — a bound integer reads as a literal dimension, illegal values rejected
+   downstream; Pattern still holds each binding `name_` and `:>` holds the RHS. *)
 EinstoffDot[desc_, tensors_, bindings_List : {}] :=
   Module[{parts, lhs, rhs, shp, env, labs, outA, result},
     parts = descParts[Hold[desc]];

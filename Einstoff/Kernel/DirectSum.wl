@@ -207,7 +207,8 @@ of those (bracketed direct sums are not supported yet)"];
 (* Public operators.                                                   *)
 (* ------------------------------------------------------------------ *)
 
-SetAttributes[EinstoffJoin, HoldFirst];
+(* desc not held (uniform convention); the internal directSum* / EinstoffShapes
+   layer still holds it for structural resolution. *)
 EinstoffJoin[desc_, tensors_, bindings_List : {}] :=
   Module[{parts},
     parts = descParts[Hold[desc]];
@@ -227,7 +228,6 @@ not the input (LHS) — use Einstoff[Split] for an input direct sum"];
     directSumConcat[desc, tensors, bindings]
   ];
 
-SetAttributes[EinstoffSplit, HoldFirst];
 EinstoffSplit[desc_, tensors_, bindings_List : {}] :=
   Module[{parts},
     parts = descParts[Hold[desc]];

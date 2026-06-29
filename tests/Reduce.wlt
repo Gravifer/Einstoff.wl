@@ -1,6 +1,7 @@
 (* ::Package:: *)
 
 (* Tests for the reduce lowering path (Einstoff[ArrayReduce]).
+   The reducer is curried: Einstoff[ArrayReduce][reducer][desc, tensors, bindings].
    One file per lowering path under tests/; cf. Reshape.wlt.
    Run via: wolframscript -script scripts/run-tests.wls
    BeginTestSection/EndTestSection are MUnit markers; the runner loads MUnit`
@@ -15,7 +16,7 @@ ClearAll[a, b, c, d];
 (* 1. einx-style bracket sum 'a [b] -> a' === native sum over axis 2. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[ArrayReduce][{{a_, Slot[b_]}} :> {{a}}, {x}]],
+    Einstoff[ArrayReduce][Total][{{a_, Slot[b_]}} :> {{a}}, {x}]],
   Total[ArrayReshape[Range[12], {3, 4}], {2}],
   TestID -> "reduce-bracket-sum"
 ];
@@ -23,23 +24,23 @@ VerificationTest[
 (* 2. einops-style bare drop 'a b -> a' reduces too (no bracket needed). *)
 VerificationTest[
   With[{x = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[ArrayReduce][{{a_, b_}} :> {{a}}, {x}]],
+    Einstoff[ArrayReduce][Total][{{a_, b_}} :> {{a}}, {x}]],
   Total[ArrayReshape[Range[12], {3, 4}], {2}],
   TestID -> "reduce-bare-sum"
 ];
 
-(* 3. Mean reducer (positional, no bindings). *)
+(* 3. Mean reducer. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[ArrayReduce][{{a_, b_}} :> {{a}}, {x}, Mean]],
+    Einstoff[ArrayReduce][Mean][{{a_, b_}} :> {{a}}, {x}]],
   Mean /@ ArrayReshape[Range[12], {3, 4}],
   TestID -> "reduce-mean"
 ];
 
-(* 4. Max reducer (positional, no bindings). *)
+(* 4. Max reducer. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[ArrayReduce][{{a_, b_}} :> {{a}}, {x}, Max]],
+    Einstoff[ArrayReduce][Max][{{a_, b_}} :> {{a}}, {x}]],
   Max /@ ArrayReshape[Range[12], {3, 4}],
   TestID -> "reduce-max"
 ];
@@ -47,7 +48,7 @@ VerificationTest[
 (* 4b. Reducer given a convenience string ("max"). *)
 VerificationTest[
   With[{x = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[ArrayReduce][{{a_, b_}} :> {{a}}, {x}, "max"]],
+    Einstoff[ArrayReduce]["max"][{{a_, b_}} :> {{a}}, {x}]],
   Max /@ ArrayReshape[Range[12], {3, 4}],
   TestID -> "reduce-max-string"
 ];
@@ -55,7 +56,7 @@ VerificationTest[
 (* 5. Reduce then permute survivors: 'a b [c] -> b a'. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[24], {2, 3, 4}]},
-    Einstoff[ArrayReduce][{{a_, b_, Slot[c_]}} :> {{b, a}}, {x}]],
+    Einstoff[ArrayReduce][Total][{{a_, b_, Slot[c_]}} :> {{b, a}}, {x}]],
   Transpose[Total[ArrayReshape[Range[24], {2, 3, 4}], {3}]],
   TestID -> "reduce-then-permute"
 ];
@@ -63,7 +64,7 @@ VerificationTest[
 (* 6. Reduce then merge survivors: 'a b [c] -> (a b)'. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[24], {2, 3, 4}]},
-    Einstoff[ArrayReduce][{{a_, b_, Slot[c_]}} :> {{CircleTimes[a, b]}}, {x}]],
+    Einstoff[ArrayReduce][Total][{{a_, b_, Slot[c_]}} :> {{CircleTimes[a, b]}}, {x}]],
   Flatten[Total[ArrayReshape[Range[24], {2, 3, 4}], {3}]],
   TestID -> "reduce-then-merge"
 ];
@@ -71,7 +72,7 @@ VerificationTest[
 (* 7. All axes reduced -> scalar. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[ArrayReduce][{{Slot[a_], Slot[b_]}} :> {{}}, {x}]],
+    Einstoff[ArrayReduce][Total][{{Slot[a_], Slot[b_]}} :> {{}}, {x}]],
   Total[Range[12]],
   TestID -> "reduce-full-scalar"
 ];
@@ -79,7 +80,7 @@ VerificationTest[
 (* 8. Reduce a bracketed composite '(c d)' as a whole, d=2. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[18], {3, 6}]},
-    Einstoff[ArrayReduce][{{a_, Slot[CircleTimes[c_, d_]]}} :> {{a}}, {x}, {d -> 2}]],
+    Einstoff[ArrayReduce][Total][{{a_, Slot[CircleTimes[c_, d_]]}} :> {{a}}, {x}, {d -> 2}]],
   Total[ArrayReshape[Range[18], {3, 6}], {2}],
   TestID -> "reduce-composite-axis"
 ];
@@ -87,7 +88,7 @@ VerificationTest[
 (* 9. Output dims of reduce-then-permute are correct. *)
 VerificationTest[
   Dimensions @ With[{x = ArrayReshape[Range[24], {2, 3, 4}]},
-    Einstoff[ArrayReduce][{{a_, b_, Slot[c_]}} :> {{b, a}}, {x}]],
+    Einstoff[ArrayReduce][Total][{{a_, b_, Slot[c_]}} :> {{b, a}}, {x}]],
   {3, 2},
   TestID -> "reduce-then-permute-dims"
 ];
@@ -96,7 +97,7 @@ VerificationTest[
 
 (* 10. A bracketed axis kept on output is the feed-to-elementary path, not reduce. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReduce][{{a_, Slot[b_]}} :> {{a, b}}, {ArrayReshape[Range[12], {3, 4}]}],
+  Quiet @ Einstoff[ArrayReduce][Total][{{a_, Slot[b_]}} :> {{a, b}}, {ArrayReshape[Range[12], {3, 4}]}],
   $Failed,
   TestID -> "reduce-reject-kept-bracket"
 ];
@@ -104,28 +105,28 @@ VerificationTest[
 (* 11. A new output axis is repetition (SPEC 5.5); without a binding it is
    unsatisfiable and rejected. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReduce][{{a_, Slot[b_]}} :> {{a, c}}, {ArrayReshape[Range[12], {3, 4}]}],
+  Quiet @ Einstoff[ArrayReduce][Total][{{a_, Slot[b_]}} :> {{a, c}}, {ArrayReshape[Range[12], {3, 4}]}],
   $Failed,
   TestID -> "reduce-reject-unbound-repeat"
 ];
 
 (* 12. Unsatisfiable desc (rank mismatch) returns $Failed. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReduce][{{a_, b_, Slot[c_]}} :> {{a, b}}, {ArrayReshape[Range[12], {3, 4}]}],
+  Quiet @ Einstoff[ArrayReduce][Total][{{a_, b_, Slot[c_]}} :> {{a, b}}, {ArrayReshape[Range[12], {3, 4}]}],
   $Failed,
   TestID -> "reduce-reject-unsat"
 ];
 
 (* 13. Variable-arity bracket ellipsis is out of scope for now. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReduce][{{a_, Slot[___], c_}} :> {{a, c}}, {ArrayReshape[Range[24], {2, 3, 4}]}],
+  Quiet @ Einstoff[ArrayReduce][Total][{{a_, Slot[___], c_}} :> {{a, c}}, {ArrayReshape[Range[24], {2, 3, 4}]}],
   $Failed,
   TestID -> "reduce-reject-ellipsis"
 ];
 
 (* 14. Multi-tensor input is rejected. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReduce][{{a_, Slot[b_]}, {c_}} :> {{a, c}}, {ArrayReshape[Range[12], {3, 4}], Range[5]}],
+  Quiet @ Einstoff[ArrayReduce][Total][{{a_, Slot[b_]}, {c_}} :> {{a, c}}, {ArrayReshape[Range[12], {3, 4}], Range[5]}],
   $Failed,
   TestID -> "reduce-reject-multitensor"
 ];
@@ -135,7 +136,7 @@ VerificationTest[
 (* 15. Reduce b, then broadcast into a new axis c: 'a [b] -> a c', c=3. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[12], {4, 3}]},
-    Einstoff[ArrayReduce][{{a_, Slot[b_]}} :> {{a, c}}, {x}, {c -> 3}]],
+    Einstoff[ArrayReduce][Total][{{a_, Slot[b_]}} :> {{a, c}}, {x}, {c -> 3}]],
   Table[Total[ArrayReshape[Range[12], {4, 3}], {2}][[i]], {i, 4}, {j, 3}],
   TestID -> "reduce-then-repeat"
 ];
@@ -143,9 +144,38 @@ VerificationTest[
 (* 16. Reduce all axes, then broadcast the scalar into a vector: '[a] [b] -> c'. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[12], {4, 3}]},
-    Einstoff[ArrayReduce][{{Slot[a_], Slot[b_]}} :> {{c}}, {x}, {c -> 3}]],
+    Einstoff[ArrayReduce][Total][{{Slot[a_], Slot[b_]}} :> {{c}}, {x}, {c -> 3}]],
   ConstantArray[Total[Range[12]], 3],
   TestID -> "reduce-all-then-repeat"
+];
+
+(* ===================== desc is not held (a feature) ============== *)
+(* No operator holds desc, so a bare reference whose symbol is globally bound is
+   substituted: a bound integer reads as a literal dimension; an illegal value is
+   rejected by the existing checks. (Binding `name_` are still Pattern-held.) *)
+
+(* 17. A globally bound integer reads as a literal axis size. *)
+VerificationTest[
+  Block[{k = 4}, With[{x = ArrayReshape[Range[12], {3, 4}]},
+    Einstoff[ArrayReduce][Total][{{a_, k}} :> {{a}}, {x}]]],
+  Total[ArrayReshape[Range[12], {3, 4}], {2}],
+  TestID -> "reduce-global-literal-dim"
+];
+
+(* 18. A globally bound integer that disagrees with the tensor is rejected. *)
+VerificationTest[
+  Block[{k = 5}, Quiet @ With[{x = ArrayReshape[Range[12], {3, 4}]},
+    Einstoff[ArrayReduce][Total][{{a_, k}} :> {{a}}, {x}]]],
+  $Failed,
+  TestID -> "reduce-global-dim-mismatch"
+];
+
+(* 19. A globally bound non-size value is rejected by the existing checks. *)
+VerificationTest[
+  Block[{k = "oops"}, Quiet @ With[{x = ArrayReshape[Range[12], {3, 4}]},
+    Einstoff[ArrayReduce][Total][{{a_, k}} :> {{a}}, {x}]]],
+  $Failed,
+  TestID -> "reduce-global-illegal"
 ];
 
 EndTestSection[];

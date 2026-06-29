@@ -1,10 +1,20 @@
 (* ::Package:: *)
 
 (* Reduce path: Einstoff[ArrayReduce] / EinstoffReduce (einx reduction ops /
-   einops.reduce).  The rearrange pipeline with a reduction inserted after the
-   decompose step: axes present on the LHS but absent on the RHS are reduced
-   away with a user reducer (option Reducer, default Total) via ArrayReduce,
-   then the surviving axes are permuted/recomposed exactly as in EinstoffRearrange.
+   einops.reduce).  The reducer is curried into the operator —
+   Einstoff[ArrayReduce][reducer][desc, tensors, bindings] — so it reads like the
+   einx entry points (sum/mean/…).  The rearrange pipeline with a reduction
+   inserted after the decompose step: axes present on the LHS but absent on the
+   RHS are reduced away with the reducer via ArrayReduce, then the surviving axes
+   are permuted/recomposed exactly as in EinstoffRearrange.
+
+   NB the curried form means desc is NOT held (a hold attribute cannot survive a
+   compound head, EinstoffReduce[reducer][…]) — and that is fine, even useful:
+   Pattern holds each binding `name_` and RuleDelayed (`:>`) holds the RHS, so only
+   a *bare* reference whose symbol is globally bound gets substituted; a symbol
+   bound to an integer then reads as a literal dimension, and anything not a valid
+   size is rejected by the existing satisfiability checks (cf. the uniform "desc is
+   an ordinary expression" convention — no operator holds desc).
 
    Bracketed (`Slot[...]`) axes are the einx way to mark the reduced axes (SPEC
    5.2, ex 5); a bare dropped axis is the einops way (`a b -> a`) — both reduce
@@ -19,12 +29,12 @@
 PackageExported[{EinstoffReduce}]
 
 EinstoffReduce::usage =
-  "EinstoffReduce[desc, tensors, bindings] realizes a reduction (einx reduction \
-ops / einops.reduce) of a single tensor: axes present on the LHS but absent on \
-the RHS are reduced away with the Reducer option (default Total) via \
-ArrayReduce, and the surviving axes are permuted/recomposed as in \
-EinstoffRearrange. Bracketed (Slot) axes mark the einx reduction style; a bare \
-dropped axis is the einops style. desc is held.";
+  "EinstoffReduce[reducer][desc, tensors, bindings] realizes a reduction (einx \
+reduction ops / einops.reduce) of a single tensor: axes present on the LHS but \
+absent on the RHS are reduced away with reducer (a function such as Total/Mean/\
+Max, or a name like \"sum\"/\"mean\"/\"max\") via ArrayReduce, and the surviving \
+axes are permuted/recomposed as in EinstoffRearrange. Bracketed (Slot) axes mark \
+the einx reduction style; a bare dropped axis is the einops style.";
 
 Einstoff[ArrayReduce] := EinstoffReduce;
 Einstoff["Reduce"] := EinstoffReduce;
@@ -40,14 +50,9 @@ reduceFunction[s_String] := Replace[ToLowerCase[s], {
   _ -> s}];
 reduceFunction[f_] := f;
 
-SetAttributes[EinstoffReduce, HoldFirst];
-
-(* The reducer is a *positional* argument, not an option (avoid OptionsPattern
-   clustering).  bindings is List-guarded, so a non-List 3rd argument is taken
-   as the reducer — giving both Einstoff[ArrayReduce][desc, tensors, reducer]
-   and Einstoff[ArrayReduce][desc, tensors, bindings, reducer], with desc still
-   held (a hold attribute does not survive currying through a compound head). *)
-EinstoffReduce[desc_, tensors_, bindings_List : {}, reducerSpec_ : Total] :=
+(* Curried: Einstoff[ArrayReduce][reducer] is the operator, applied to
+   [desc, tensors, bindings]. A subvalue of EinstoffReduce. *)
+EinstoffReduce[reducerSpec_][desc_, tensors_, bindings_List : {}] :=
   Module[{parts, lhs, rhs, inShapes, shp, env, x, reducer,
           lhsTagged, lhsAtoms, lhsBr, rhsAtoms, reducedPos, keptOrder,
           decompDims, xr, xred, result},

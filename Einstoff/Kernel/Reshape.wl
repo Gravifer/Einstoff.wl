@@ -24,8 +24,10 @@ Einstoff[ArrayReshape] := EinstoffRearrange;
 Einstoff["Reshape"] := EinstoffRearrange;
 Einstoff["Rearrange"] := EinstoffRearrange;
 
-SetAttributes[EinstoffRearrange, HoldFirst];
-
+(* desc is NOT held (uniform convention across operators): Pattern holds each
+   binding `name_` and `:>` holds the RHS, so only a bare reference to a globally
+   bound symbol is substituted — a bound integer reads as a literal dimension, and
+   anything not a valid size is rejected downstream. *)
 EinstoffRearrange[desc_, tensors_, bindings_List : {}] :=
   Module[{parts, lhs, rhs, inShapes, shp, env, x,
           lhsAtoms, rhsAtoms, decompDims, result},
