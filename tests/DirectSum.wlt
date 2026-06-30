@@ -308,4 +308,25 @@ VerificationTest[
   TestID -> "split-integer-summand-oversized-reject"
 ];
 
+(* 35. ...nor can a size > 1 literal summand be PRESERVED as {b, 2}: a literal axis is
+   anonymous and has no carryable identity, so it cannot be matched between input and
+   output — exactly as einx rejects 'b (q + 2) -> b q, b 2' ("input axes {unnamed} must
+   appear in the output").  Only size-1 (unit) literals are special (tests 32-33). *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[10], {2, 5}]},
+    Quiet @ Einstoff[ArrayReshape][{{b_, CirclePlus[q_, 2]}} :> {{b, q}, {b, 2}}, {x}, {q -> 3}]],
+  $Failed,
+  TestID -> "split-integer-summand-preserve-reject"
+];
+
+(* 36. The escape hatch is to NAME the summand, giving it an identity to carry:
+   'b (q + k) -> b q, b k' with k = 2 works (einx accepts this), as the basic split. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[10], {2, 5}]},
+    Einstoff[ArrayReshape][{{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}}, {x}, {q -> 3, k -> 2}]],
+  With[{x = ArrayReshape[Range[10], {2, 5}]},
+    {Take[x, All, {1, 3}], Take[x, All, {4, 5}]}],
+  TestID -> "split-named-summand-carries"
+];
+
 EndTestSection[];
