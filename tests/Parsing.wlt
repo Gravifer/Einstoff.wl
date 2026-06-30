@@ -80,7 +80,7 @@ VerificationTest[
 (* 11. Gather with bracketed immediate:  b [h w] c, b i [2] -> b i c *)
 VerificationTest[
   out @ Einstoff`EinstoffShapes[
-    {{b_, Slot[h_, w_], c_}, {b, i_, Slot[2]}} :> {{b, i, c}},
+    {{b_, Slot[h_], Slot[w_], c_}, {b, i_, Slot[2]}} :> {{b, i, c}},
     {{8, 16, 16, 3}, {8, 5, 2}}],
   {{8, 5, 3}},
   TestID -> "ex11-gather-immediate"
@@ -146,7 +146,7 @@ VerificationTest[
 (* bracketed-immediate mismatch: [2] but tensor dim is 5 *)
 VerificationTest[
   sat @ Einstoff`EinstoffShapes[
-    {{b_, Slot[h_, w_], c_}, {b, i_, Slot[2]}} :> {{b, i, c}},
+    {{b_, Slot[h_], Slot[w_], c_}, {b, i_, Slot[2]}} :> {{b, i, c}},
     {{8, 16, 16, 3}, {8, 5, 5}}],
   False,
   TestID -> "unsat-immediate-mismatch"
