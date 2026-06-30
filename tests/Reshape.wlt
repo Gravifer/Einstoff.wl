@@ -165,4 +165,20 @@ VerificationTest[
   TestID -> "reject-negative-output-integer"
 ];
 
+(* 21. Duplicate literal output axes BROADCAST as distinct anonymous axes (Option A,
+   einx-faithful: 'a -> a 2 2' => (a,2,2)). *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_}} :> {{a, 2, 2}}, {Range[3]}],
+  Table[Range[3][[i]], {i, 3}, {j, 2}, {k, 2}],
+  TestID -> "repeat-duplicate-literal"
+];
+
+(* 22. A literal-integer INPUT axis cannot be carried to the output (it has no
+   identity to permute — cf. einx rejecting 'a 2 -> a 2'); that is a drop = reduce. *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{a_, 2}} :> {{2, a}}, {ArrayReshape[Range[6], {3, 2}]}],
+  $Failed,
+  TestID -> "reject-literal-carry"
+];
+
 EndTestSection[];

@@ -53,15 +53,16 @@ EinstoffEinsum[desc_, tensors_, bindings_List : {}] :=
     rhsAtoms = Catch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
     If[opAtoms === $Failed || rhsAtoms === $Failed, Return[$Failed]];
 
-    (* einsum has no repetition: every output atom — a named axis OR a literal integer
-       immediate — must appear on some input.  A literal output integer not present on
-       the input is a broadcast (Reshape.wlt treats output integers as repetition), so
-       it is rejected here too. *)
+    (* einsum has no repetition / broadcast: every output atom must be a NAMED axis that
+       appears on some input.  A literal integer on the output is always a new broadcast
+       axis under Massage (Option A), and numpy.einsum has no integer subscripts at all,
+       so any output integer is rejected here regardless of the input; a named axis not
+       on the input is repetition and likewise rejected. *)
     allLhs = Join @@ opAtoms;
-    If[AnyTrue[rhsAtoms, ! MemberQ[allLhs, #] &],
+    If[AnyTrue[rhsAtoms, IntegerQ[#] || ! MemberQ[allLhs, #] &],
       Message[Einstoff::unsupp,
-        "einsum cannot introduce a new output axis (that is repetition / broadcast \
-— use Einstoff[\"Massage\"])"];
+        "einsum cannot introduce a new output axis — a literal integer axis, or a name \
+absent from every input, is repetition / broadcast (use Einstoff[\"Massage\"])"];
       Return[$Failed]];
 
     Which[

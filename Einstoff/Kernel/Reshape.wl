@@ -79,11 +79,16 @@ EinstoffMassage[desc_, tensors_, bindings_List : {}] :=
     sc = Catch[selfContract[First[tensors], lhsAtoms, rhsAtoms, env]];
     If[sc === $Failed, Return[$Failed]];
     {xc, atomsc} = sc;
-    (* A surviving (non-contracted) input axis absent from the output is reduce. *)
-    If[! SubsetQ[rhsAtoms, atomsc],
+    (* Every surviving (non-contracted) input axis must be carried to the output.  A
+       named axis is carried iff it appears on the RHS; a literal-integer input axis can
+       NEVER be carried (output literals are fresh broadcast axes — cf. einx rejecting
+       'a 2 -> a 2'), so a surviving input integer is treated as a drop.  A dropped axis
+       is reduce, not rearrange/contract. *)
+    If[AnyTrue[atomsc, IntegerQ[#] || ! MemberQ[rhsAtoms, #] &],
       Message[Einstoff::unsupp,
         "an input axis is dropped on the output — that is reduce, not \
-rearrange/contract (use Einstoff[ArrayReduce])"];
+rearrange/contract (a literal integer input axis also cannot be carried to the \
+output); use Einstoff[ArrayReduce]"];
       Return[$Failed]];
 
     result = Catch[materializeOutput[xc, atomsc, First[rhs], env]];

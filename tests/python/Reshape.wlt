@@ -168,6 +168,14 @@ VerificationTest[
   TestID -> "xval-einops-repeat-integer"
 ];
 
+(* duplicate explicit-integer repeat 'a -> a 2 2'  <->  {{a_}} :> {{a, 2, 2}}
+   (Option A, einx-faithful: two distinct anonymous size-2 broadcast axes) *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_}} :> {{a, 2, 2}}, {Range[4]}],
+  pyRef["einx", "a -> a 2 2", {4}],
+  TestID -> "xval-einx-repeat-double-literal"
+];
+
 (* repeat inside an output composite 'a -> (a c)', c=3  <->  {{a_}} :> {{a \[CircleTimes] c}}
    — einx and einops *)
 VerificationTest[

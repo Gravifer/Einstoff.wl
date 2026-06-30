@@ -139,27 +139,41 @@ supported subset yet)"];
 (* ------------------------------------------------------------------ *)
 
 materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
-  Module[{rhsAtoms, repeats, acc = arr, order, srcOrder, outDims},
-    rhsAtoms = If[rhsTerms === {}, {},
-      Join @@ Table[rearrangeAtoms[t], {t, rhsTerms}]];
-    (* Every output atom must resolve to a *positive integer* size.  atomSize Throws
-       on an unbound name; a name bound to 0 / a negative / a non-integer, or a literal
+  Module[{env2 = env, rhsTerms2, rhsAtoms, repeats, acc = arr, order, srcOrder, outDims},
+    (* Option A (einx-faithful): give each literal-integer OUTPUT axis a unique
+       anonymous identity, sized to its value.  A literal output integer is a repetition
+       (a new broadcast) axis, and two equal literals (e.g. 'a 2 2') are DISTINCT axes —
+       matching einx, which broadcasts 'a -> a 2 2' to (...,2,2).  An *input* literal
+       stays the bare integer, so it can never be carried to the output (its drop is
+       caught upstream) — exactly as einx rejects 'a 2 -> a 2'. *)
+    rhsTerms2 = Replace[rhsTerms,
+      n_Integer :> With[{u = Unique["lit$"]}, env2 = Append[env2, u -> n]; u],
+      {0, Infinity}];
+    rhsAtoms = If[rhsTerms2 === {}, {},
+      Join @@ Table[rearrangeAtoms[t], {t, rhsTerms2}]];
+    (* Backstop: after literal uniquification any remaining duplicate is a real identity
+       collision — a repeated NAME — which would make the FirstPosition layout below
+       ambiguous; reject rather than leak an unevaluated ArrayReshape.  (Named output
+       dups are normally rejected upstream; this covers any caller that bypasses that.) *)
+    If[! DuplicateFreeQ[rhsAtoms], Throw[$Failed]];
+    (* Every output atom must resolve to a *positive integer* size.  atomSize Throws on
+       an unbound name; a name bound to 0 / a negative / a non-integer, or a literal
        <= 0 immediate, is rejected here.  EinstoffShapes validates this for the paths
        that go through it; callers that bypass it (Massage sizes via EinstoffMatch to
        allow a within-tensor repeat) rely on this guard so bad dims cannot reach
        ArrayReshape and leak as an unevaluated expression. *)
-    If[! AllTrue[rhsAtoms, With[{s = atomSize[#, env]}, IntegerQ[s] && s >= 1] &],
+    If[! AllTrue[rhsAtoms, With[{s = atomSize[#, env2]}, IntegerQ[s] && s >= 1] &],
       Throw[$Failed]];
     repeats = Select[rhsAtoms, ! MemberQ[presentAtoms, #] &];
     (* Broadcast each repeat axis on as a new leading axis. *)
-    Do[acc = ConstantArray[acc, atomSize[r, env]], {r, repeats}];
+    Do[acc = ConstantArray[acc, atomSize[r, env2]], {r, repeats}];
     (* Scalar output: nothing to permute or recompose. *)
     If[rhsAtoms === {}, Return[First @ Flatten @ {acc}]];
     (* acc's axes after the broadcasts: Reverse[repeats] then presentAtoms. *)
     order = Join[Reverse[repeats], presentAtoms];
     srcOrder = Flatten[FirstPosition[order, #] & /@ rhsAtoms];
     If[Length[srcOrder] > 1, acc = Transpose[acc, InversePermutation[srcOrder]]];
-    outDims = (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ rhsTerms;
+    outDims = (Times @@ (atomSize[#, env2] & /@ rearrangeAtoms[#])) & /@ rhsTerms2;
     ArrayReshape[acc, outDims]];
 
 (* ------------------------------------------------------------------ *)

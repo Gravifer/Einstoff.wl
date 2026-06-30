@@ -100,4 +100,12 @@ VerificationTest[
   TestID -> "einsum-reject-literal-repetition-multi"
 ];
 
+(* 13. einsum rejects ANY literal output axis, even one matching an input literal
+   (numpy.einsum has no integer subscripts; a literal output is broadcast, not einsum). *)
+VerificationTest[
+  Quiet @ Einstoff["einsum"][{{a_, 2}} :> {{a, 2}}, {ArrayReshape[Range[6], {3, 2}]}],
+  $Failed,
+  TestID -> "einsum-reject-literal-on-input"
+];
+
 EndTestSection[];
