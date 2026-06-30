@@ -4,10 +4,14 @@
 
    Each lowering path (operator) lives in its own file under Kernel/:
 
-     Reshape.wl   Einstoff[ArrayReshape] / EinstoffRearrange
+     Reshape.wl   Einstoff["Massage"]    / EinstoffMassage (univalent engine:
+                  Einstoff[ArrayReshape] alias; rearrange/repeat/direct-sum +
+                  within-tensor pairwise contraction)
      Reduce.wl    Einstoff[ArrayReduce]  / EinstoffReduce  (curried in the reducer)
      Map.wl       Einstoff[Map]          / EinstoffMap     (curried in the map fn)
      Dot.wl       Einstoff[Dot]/[Inner]  / EinstoffDot, EinstoffInner (Inner curried)
+     Einsum.wl    Einstoff["einsum"]     / EinstoffEinsum  (dispatch: 1 tensor ->
+                  Massage, >=2 -> Dot fold; pairwise-contraction subset)
      DirectSum.wl Einstoff[Join]/[Split] / EinstoffJoin (CirclePlus concat/split)
 
    This hub holds what they share: the public `Einstoff` operator symbol and its
@@ -23,13 +27,15 @@
 PackageExported[{Einstoff}]
 
 Einstoff::usage =
-  "Einstoff[op] yields the Einstoff operator implementing op: \
-Einstoff[ArrayReshape] (rearrange/reshape), Einstoff[ArrayReduce][reducer] \
-(reduction), Einstoff[Map][f] (shape-preserving elementary op along a bracketed \
-axis — flip/sort/softmax/…), Einstoff[Dot] (einsum contraction) and its \
-generalization Einstoff[Inner][mul, add], Einstoff[Join]/[Split] (direct sum). \
-Applied as op[desc, tensors, bindings]; the reducer, map fn and (mul, add) are \
-curried.";
+  "Einstoff[op] yields the Einstoff operator implementing op: Einstoff[\"Massage\"] \
+(the permissive single-tensor engine: rearrange/reshape, repetition, direct sum, and \
+within-tensor pairwise contraction), Einstoff[ArrayReshape] (currently a Massage \
+alias), Einstoff[ArrayReduce][reducer] (reduction), Einstoff[Map][f] (shape-preserving \
+elementary op along a bracketed axis — flip/sort/softmax/…), Einstoff[Dot] (einsum \
+contraction) and its generalization Einstoff[Inner][mul, add], Einstoff[\"einsum\"] \
+(the pairwise-contraction subset, within- and cross-tensor), Einstoff[Join]/[Split] \
+(direct sum). Applied as op[desc, tensors, bindings]; the reducer, map fn and \
+(mul, add) are curried.";
 
 (* Shared diagnostics for every lowering path. *)
 Einstoff::unsupp = "`1`";
