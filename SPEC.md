@@ -347,22 +347,26 @@ there is no multi-arg `Slot` to guard against, because we never emit one.
 
 ### 7.4 Robustness gaps surfaced by code review (2026-06-30)
 
-A review flagged latent robustness issues; the validated ones, with current behaviour
-confirmed empirically (none breaks the test suite — they turn *malformed input* into
-silent wrong output or fragile invariants):
+A review flagged latent robustness issues; behaviour confirmed empirically. The two
+silent-wrong-output ones are **fixed** (2026-06-30); the rest remain open (none breaks
+the suite — they are fragile invariants / maintainability smells):
 
-- **Unknown reducer / map string silently misbehaves** (`reduceFunction` Reduce.wl,
-  `mapFunction` Map.wl). A typo like `Einstoff[ArrayReduce]["summ"]` falls through as
-  the bare string and is applied as a function — the result is unevaluated `summ[{…}]`
-  garbage, *not* `$Failed`. (Map rejects it only by accident, via its shape-preservation
-  check.) Fix: reject an unknown string immediately with a clear message. **High value,
-  cheap.**
-- **Duplicate output axis names produce silent garbage** (`materializeOutput`
-  `FirstPosition`, Lowering.wl; same idiom in Dot.wl `contractPair`, Map.wl).
-  `{{a_}} :> {{a, c, c}}` resolves shapes (Satisfiable, `{3,2,2}`) but lowering builds
-  `InversePermutation[{3,1,1}]` — not a permutation — so the op returns an unevaluated
-  `ArrayReshape[Transpose[…]]` rather than a value or a clean error. Fix: validate that
-  axis names are unique per shape (and reject duplicates up front).
+- ✅ **Unknown reducer / map string** (`reduceFunction` Reduce.wl, `mapFunction` Map.wl)
+  — *fixed.* A typo like `Einstoff[ArrayReduce]["summ"]` used to fall through as the bare
+  string and be applied as a function (`summ[{…}]` garbage). Both resolvers now return
+  `Missing["Unknown…", s]` for an unrecognized name and the operators reject it with a
+  clear message listing the valid names. (Reject tests: `reduce-reject-unknown-string`,
+  `map-reject-unknown-string`.)
+- ✅ **Duplicate output axis names** (`EinstoffShapes`, Parsing.wl) — *fixed.*
+  `{{a_}} :> {{a, c, c}}` used to resolve shapes and then build a bad
+  `InversePermutation[{3,1,1}]`, returning an unevaluated `ArrayReshape[Transpose[…]]`.
+  `EinstoffShapes` now rejects any axis name that repeats *within a single shape* (LHS or
+  RHS) as unsatisfiable, mirroring einx's `SemanticError: "the output expression must not
+  contain multiple vectorized axes with the same name"` (verified against the venv — einx
+  raises rather than replicating). Distinct-across-shapes (shared/contracted/kept axes) is
+  unaffected. `firstDuplicateAxis`/`termAxisNames` helpers; test
+  `reject-duplicate-output-axis`. (A single new RHS axis still broadcasts — §5.5
+  repetition — only a *repeated name* is rejected.)
 - **`Symbol[string]` for `#name` axes is `$Context`-sensitive** (matchTerms splice
   Parsing.wl, reduceAtoms Lowering.wl). It works because the desc and the call share a
   context in practice — the same assumption bare-symbol references already make — but the
@@ -380,8 +384,9 @@ silent wrong output or fragile invariants):
 - **Dead `Module` locals** `sizes/ends/starts` in `directSumSplit` (the live ones are
   `sz/en/st`). Harmless; remove.
 
-The first two are the priority: they turn bad input into silent wrong output instead of a
-clean rejection. To be addressed in a focused cleanup pass, separate from feature work.
+The two silent-wrong-output items are done. The remaining five (context-sensitive axis
+resolver, duplicated flatten, untagged throws, bindings validation, dead locals) are
+lower-severity and left for a future cleanup pass, separate from feature work.
 
 ## 8. Resolved / verified (no further action needed)
 

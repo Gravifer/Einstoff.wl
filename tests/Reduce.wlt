@@ -224,6 +224,14 @@ VerificationTest[
   TestID -> "reduce-any-all"
 ];
 
+(* 25b. An unknown reducer name is rejected (not applied as "name"[slice]). *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReduce]["summ"][{{a_, Slot["b"]}} :> {{a}},
+    {ArrayReshape[Range[12], {3, 4}]}],
+  $Failed,
+  TestID -> "reduce-reject-unknown-string"
+];
+
 (* 25. logsumexp via the stable max-shift form. *)
 VerificationTest[
   With[{x = {{1., 2., 4., 8.}}, v = {1., 2., 4., 8.}},

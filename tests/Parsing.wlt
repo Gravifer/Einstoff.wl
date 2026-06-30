@@ -62,20 +62,20 @@ VerificationTest[
   TestID -> "ex6-anon-bracket-ellipsis"
 ];
 
-(* 6b. A string-named bracket #b == Slot["b"] binds by *unification*: repeated
-   occurrences are symmetric (no Slot[b_]-binds-vs-Slot[b]-references asymmetry)
-   and must agree.  a [b] [b] with both b = 4 is satisfiable. *)
+(* 6b. A string-named bracket #b == Slot["b"] binds by *unification* (no
+   Slot[b_]-binds-vs-Slot[b]-references asymmetry); repeated occurrences across
+   operands must agree.  a [b], [b] c with both b = 4 is satisfiable. *)
 VerificationTest[
   out @ Einstoff`EinstoffShapes[
-    {{a_, Slot["b"], Slot["b"]}} :> {{a}}, {{2, 4, 4}}],
-  {{2}},
+    {{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {{2, 4}, {4, 3}}],
+  {{2, 3}},
   TestID -> "bracket-unify-ok"
 ];
 
 (* 6c. ...and the two occurrences disagreeing (4 vs 5) is unsatisfiable. *)
 VerificationTest[
   sat @ Einstoff`EinstoffShapes[
-    {{a_, Slot["b"], Slot["b"]}} :> {{a}}, {{2, 4, 5}}],
+    {{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {{2, 4}, {5, 3}}],
   False,
   TestID -> "bracket-unify-mismatch"
 ];
@@ -86,6 +86,14 @@ VerificationTest[
   out @ Einstoff`EinstoffShapes[{{a_, Slot["b"]}} :> {{a, b}}, {{2, 4}}],
   {{2, 4}},
   TestID -> "bracket-shares-identity-with-bare"
+];
+
+(* 6e. A repeated axis name within one shape is rejected (einx: "must not contain
+   multiple vectorized axes with the same name"); distinct-across-shapes is fine. *)
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c, c}}, {{3}}, {c -> 2}],
+  False,
+  TestID -> "reject-duplicate-output-axis"
 ];
 
 (* 9. Outer / broadcast:  a, b -> a b *)

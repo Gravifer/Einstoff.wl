@@ -122,6 +122,14 @@ VerificationTest[
   TestID -> "map-reject-not-shape-preserving"
 ];
 
+(* 14b. An unknown map op name is rejected with a clear error. *)
+VerificationTest[
+  Quiet @ Einstoff[Map]["flipp"][{{a_, Slot["b"]}} :> {{a, b}},
+    {ArrayReshape[Range[8], {2, 4}]}],
+  $Failed,
+  TestID -> "map-reject-unknown-string"
+];
+
 (* 14. More than one input tensor is rejected (Map is single-tensor). *)
 VerificationTest[
   Quiet @ Einstoff[Map][Reverse][{{a_, Slot["b"]}} :> {{a, b}},

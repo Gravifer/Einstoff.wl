@@ -82,6 +82,28 @@ bracketedNames[lhs_] :=
         {0, Infinity}],
       {0, Infinity}];
 
+(* Axis-name identities used by one shape term, for the within-shape uniqueness
+   check.  A binding (name_), a bare reference, and a #name bracket (Slot["name"])
+   are all the axis `name`; integer immediates and the anonymous ellipses
+   (_/__/___/##) are not names.  Composites/brackets recurse into their parts. *)
+termAxisNames[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]]] := {s};
+termAxisNames[s_Symbol] := {s};
+termAxisNames[s_String] := {Symbol[s]};
+termAxisNames[(CircleTimes | CirclePlus | Slot)[xs___]] := Join @@ (termAxisNames /@ {xs});
+termAxisNames[_] := {};
+
+(* First axis name occurring more than once *within a single shape*, else Missing[].
+   einx forbids "multiple vectorized axes with the same name"; the same name across
+   *different* shapes (operands, or input vs output) is fine — that is how shared /
+   contracted / kept axes work. *)
+firstDuplicateAxis[shapes_List] :=
+  Module[{dup = Missing["NoDuplicate"], rep},
+    Do[
+      rep = Select[Tally[Join @@ (termAxisNames /@ shape)], Last[#] > 1 &];
+      If[rep =!= {}, dup = rep[[1, 1]]; Break[]],
+      {shape, shapes}];
+    dup];
+
 (* ------------------------------------------------------------------ *)
 (* Unification of an axis name to a concrete size.                     *)
 (* ------------------------------------------------------------------ *)
@@ -267,7 +289,7 @@ evalOutShape[Hold[rhs_], env_] :=
 
 SetAttributes[EinstoffShapes, HoldFirst];
 EinstoffShapes[desc_, inputShapes_, bindings_ : {}] :=
-  Module[{p, lhs, heldRhs, bracketed, m, env, out},
+  Module[{p, lhs, heldRhs, bracketed, relRhs, dup, m, env, out},
     p = parseDesc[Hold[desc]];
     If[p["LHS"] === $Failed,
       Return[<|"Satisfiable" -> False,
@@ -275,6 +297,18 @@ EinstoffShapes[desc_, inputShapes_, bindings_ : {}] :=
         "OutputShapes" -> Missing[], "Bindings" -> <||>, "Bracketed" -> {}|>]];
     lhs = p["LHS"]; heldRhs = p["RHS"];
     bracketed = bracketedNames[lhs];
+    (* An axis name must be distinct within each shape (einx: "the output expression
+       must not contain multiple vectorized axes with the same name").  Check the
+       LHS shapes and the released RHS shapes; a globally bound RHS symbol releases
+       to its literal (excluded from names), matching the desc-not-held convention. *)
+    relRhs = Quiet @ Check[ReleaseHold[heldRhs], $Failed];
+    dup = firstDuplicateAxis[Join[lhs, If[MatchQ[relRhs, {___List}], relRhs, {}]]];
+    If[! MissingQ[dup],
+      Return[<|"Satisfiable" -> False,
+        "Reason" -> "axis " <> ToString[dup] <> " appears more than once within a \
+single shape; axis names must be distinct within a shape (einx forbids multiple \
+vectorized axes with the same name)",
+        "OutputShapes" -> Missing[], "Bindings" -> <||>, "Bracketed" -> bracketed|>]];
     m = EinstoffMatch[lhs, inputShapes, bindings];
     If[! TrueQ[m["ok"]],
       Return[<|"Satisfiable" -> False, "Reason" -> m["reason"],
