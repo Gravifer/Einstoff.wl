@@ -87,6 +87,7 @@ reduceAtoms[t_, br_ : False] :=
   Which[
     MatchQ[t, Verbatim[Pattern][_Symbol, Verbatim[Blank[]]]], {{t[[1]], br}},
     Head[t] === Symbol, {{t, br}},
+    StringQ[t], {{Symbol[t], br}},   (* #name bracket: Slot["name"] -> axis name *)
     IntegerQ[t], {{t, br}},
     Head[t] === CircleTimes,
       Join @@ Table[reduceAtoms[f, br], {f, List @@ t}],

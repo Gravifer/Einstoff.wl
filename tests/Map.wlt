@@ -16,7 +16,7 @@ ClearAll[a, b, c, r];
 (* 1. Flip (einx.flip) by name: reverse along the bracketed axis. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
-    Einstoff[Map]["flip"][{{a_, Slot[b_]}} :> {{a, b}}, {x}]],
+    Einstoff[Map]["flip"][{{a_, Slot["b"]}} :> {{a, b}}, {x}]],
   Reverse /@ ArrayReshape[Range[8], {2, 4}],
   TestID -> "map-flip-string"
 ];
@@ -24,8 +24,8 @@ VerificationTest[
 (* 2. A raw function works identically (the string is just a shortcut). *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
-    Einstoff[Map][Reverse][{{a_, Slot[b_]}} :> {{a, b}}, {x}] ===
-      Einstoff[Map]["flip"][{{a_, Slot[b_]}} :> {{a, b}}, {x}]],
+    Einstoff[Map][Reverse][{{a_, Slot["b"]}} :> {{a, b}}, {x}] ===
+      Einstoff[Map]["flip"][{{a_, Slot["b"]}} :> {{a, b}}, {x}]],
   True,
   TestID -> "map-raw-function-equals-name"
 ];
@@ -33,7 +33,7 @@ VerificationTest[
 (* 3. Sort (einx.sort) along the bracket. *)
 VerificationTest[
   With[{y = {{3, 1, 2}, {9, 4, 7}}},
-    Einstoff[Map]["sort"][{{a_, Slot[b_]}} :> {{a, b}}, {y}]],
+    Einstoff[Map]["sort"][{{a_, Slot["b"]}} :> {{a, b}}, {y}]],
   Sort /@ {{3, 1, 2}, {9, 4, 7}},
   TestID -> "map-sort"
 ];
@@ -41,7 +41,7 @@ VerificationTest[
 (* 4. id (einx.id) is the identity along the bracket. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
-    Einstoff[Map]["id"][{{a_, Slot[b_]}} :> {{a, b}}, {x}]],
+    Einstoff[Map]["id"][{{a_, Slot["b"]}} :> {{a, b}}, {x}]],
   ArrayReshape[Range[8], {2, 4}],
   TestID -> "map-id"
 ];
@@ -49,7 +49,7 @@ VerificationTest[
 (* 5. Roll (einx.roll): the shift is a parameter, so pass a function. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
-    Einstoff[Map][RotateLeft[#, 1] &][{{a_, Slot[b_]}} :> {{a, b}}, {x}]],
+    Einstoff[Map][RotateLeft[#, 1] &][{{a_, Slot["b"]}} :> {{a, b}}, {x}]],
   RotateLeft[#, 1] & /@ ArrayReshape[Range[8], {2, 4}],
   TestID -> "map-roll-function"
 ];
@@ -57,7 +57,7 @@ VerificationTest[
 (* 6. Bracket leads on input, output permutes ({b a} -> {a b}); flip along b. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {3, 2}]},
-    Einstoff[Map]["flip"][{{Slot[b_], a_}} :> {{a, b}}, {x}]],
+    Einstoff[Map]["flip"][{{Slot["b"], a_}} :> {{a, b}}, {x}]],
   Transpose[Reverse[ArrayReshape[Range[6], {3, 2}]]],
   TestID -> "map-flip-permute"
 ];
@@ -66,7 +66,7 @@ VerificationTest[
       reverses the whole flattened block (cf. SPEC 7.3). *)
 VerificationTest[
   With[{z = ArrayReshape[Range[12], {2, 2, 3}]},
-    Einstoff[Map]["flip"][{{a_, Slot[b_], Slot[c_]}} :> {{a, b, c}}, {z}]],
+    Einstoff[Map]["flip"][{{a_, Slot["b"], Slot["c"]}} :> {{a, b, c}}, {z}]],
   Map[ArrayReshape[Reverse[Flatten[#]], {2, 3}] &, ArrayReshape[Range[12], {2, 2, 3}]],
   TestID -> "map-two-bracket-flatten"
 ];
@@ -75,7 +75,7 @@ VerificationTest[
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}],
         sm = Exp[# - Max[#]]/Total[Exp[# - Max[#]]] &},
-    Einstoff[Map]["softmax"][{{a_, Slot[b_]}} :> {{a, b}}, {x}] === (sm /@ x)],
+    Einstoff[Map]["softmax"][{{a_, Slot["b"]}} :> {{a, b}}, {x}] === (sm /@ x)],
   True,
   TestID -> "map-softmax"
 ];
@@ -84,7 +84,7 @@ VerificationTest[
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}],
         lsm = (# - Max[#]) - Log[Total[Exp[# - Max[#]]]] &},
-    Einstoff[Map]["log_softmax"][{{a_, Slot[b_]}} :> {{a, b}}, {x}] === (lsm /@ x)],
+    Einstoff[Map]["log_softmax"][{{a_, Slot["b"]}} :> {{a, b}}, {x}] === (lsm /@ x)],
   True,
   TestID -> "map-log-softmax"
 ];
@@ -93,14 +93,14 @@ VerificationTest[
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
     Dimensions @
-      Einstoff[Map]["flip"][{{a_, Slot[b_]}} :> {{a, b, r}}, {x}, {r -> 2}]],
+      Einstoff[Map]["flip"][{{a_, Slot["b"]}} :> {{a, b, r}}, {x}, {r -> 2}]],
   {2, 4, 2},
   TestID -> "map-repeat"
 ];
 
 (* 11. A dropped axis is a reduction, not a map — rejected (points at ArrayReduce). *)
 VerificationTest[
-  Quiet @ Einstoff[Map][Reverse][{{a_, Slot[b_]}} :> {{a}},
+  Quiet @ Einstoff[Map][Reverse][{{a_, Slot["b"]}} :> {{a}},
     {ArrayReshape[Range[8], {2, 4}]}],
   $Failed,
   TestID -> "map-reject-dropped-axis"
@@ -116,7 +116,7 @@ VerificationTest[
 
 (* 13. A non-shape-preserving f (collapses the block) is rejected. *)
 VerificationTest[
-  Quiet @ Einstoff[Map][Total][{{a_, Slot[b_]}} :> {{a, b}},
+  Quiet @ Einstoff[Map][Total][{{a_, Slot["b"]}} :> {{a, b}},
     {ArrayReshape[Range[8], {2, 4}]}],
   $Failed,
   TestID -> "map-reject-not-shape-preserving"
@@ -124,7 +124,7 @@ VerificationTest[
 
 (* 14. More than one input tensor is rejected (Map is single-tensor). *)
 VerificationTest[
-  Quiet @ Einstoff[Map][Reverse][{{a_, Slot[b_]}} :> {{a, b}},
+  Quiet @ Einstoff[Map][Reverse][{{a_, Slot["b"]}} :> {{a, b}},
     {ArrayReshape[Range[8], {2, 4}], ArrayReshape[Range[8], {2, 4}]}],
   $Failed,
   TestID -> "map-reject-multitensor"

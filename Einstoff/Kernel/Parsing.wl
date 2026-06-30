@@ -69,12 +69,17 @@ parseDesc[h : Hold[_Rule]] :=
     "Warning" -> "prefer :> (RuleDelayed) over -> for desc"|>;
 parseDesc[_] := <|"LHS" -> $Failed, "RHS" -> $Failed|>;
 
-(* Names that appear bound inside a Slot[...] (bracket) anywhere in lhs.
-   Used only for the informational "Bracketed" field (cf. SPEC 5.2). *)
+(* Names that appear inside a Slot[...] (bracket) anywhere in lhs.  A bracketed
+   axis is written #name (== Slot["name"], the canonical ergonomic form) or, in a
+   composite, a binding pattern name_; both denote axis `name`.  Used only for the
+   informational "Bracketed" field (cf. SPEC 5.2). *)
 bracketedNames[lhs_] :=
   DeleteDuplicates @ Flatten @
     Cases[lhs,
-      s_Slot :> Cases[s, Verbatim[Pattern][n_Symbol, _] :> n, {0, Infinity}],
+      s_Slot :> Cases[s,
+        b_ /; StringQ[b] || MatchQ[b, Verbatim[Pattern][_Symbol, Verbatim[Blank[]]]] :>
+          If[StringQ[b], Symbol[b], First[b]],
+        {0, Infinity}],
       {0, Infinity}];
 
 (* ------------------------------------------------------------------ *)
@@ -103,6 +108,8 @@ factorToExpr[f_, env_] :=
     MatchQ[f, Verbatim[Pattern][_Symbol, Verbatim[Blank][]]],
       With[{n = f[[1]]}, If[KeyExistsQ[env, n], {env[n], {}, {}}, {n, {n}, {}}]],
     MatchQ[f, Verbatim[Blank[]]], With[{u = Unique["anon$"]}, {u, {}, {u}}],
+    StringQ[f],            (* a #name bracket inside a composite, e.g. (g #c) *)
+      With[{n = Symbol[f]}, If[KeyExistsQ[env, n], {env[n], {}, {}}, {n, {n}, {}}]],
     Head[f] === Slot && Length[f] === 1, factorToExpr[First[f], env],
     Head[f] === Symbol, If[KeyExistsQ[env, f], {env[f], {}, {}}, {f, {f}, {}}],
     Head[f] === CircleTimes,
@@ -158,9 +165,21 @@ matchTerms[terms_, dims_, env_] :=
   Module[{t, rest, d, drest},
     If[terms === {}, Return[If[dims === {}, {env}, {}]]];
     t = First[terms]; rest = Rest[terms];
-    (* Slot is a transparent bracket: splice its contents into the stream. *)
+    (* Slot is a transparent bracket: splice its contents into the stream.  A
+       string slot #name == Slot["name"] denotes axis `name`, so its content string
+       is mapped to that symbol on the way in (then handled by the Symbol case),
+       exactly as Slot[name_]/Slot[name] splice to a pattern/symbol — bracketing is
+       irrelevant to shape matching.  NB the string is promoted to a symbol ONLY
+       here, inside a bracket: a bare top-level string is still an illegal axis term
+       (so a globally bound non-size value remains rejected — SPEC §2 note). *)
     If[Head[t] === Slot,
-      Return[matchTerms[Join[List @@ t, rest], dims, env]]];
+      Return[matchTerms[
+        Join[Replace[List @@ t, s_String :> Symbol[s], {1}], rest], dims, env]]];
+    (* SlotSequence (##, the anonymous variadic bracket [...]) is an ellipsis of
+       bracketed axes — treat like ___ for shape matching (lowering is deferred,
+       like Slot[___]). *)
+    If[Head[t] === SlotSequence,
+      Return[matchTerms[Join[{BlankNullSequence[]}, rest], dims, env]]];
     (* Variable-length anonymous sequences (may consume zero dims). *)
     If[MatchQ[t, Verbatim[BlankNullSequence[]]],
       Return[Join @@ Table[matchTerms[rest, Drop[dims, k], env],

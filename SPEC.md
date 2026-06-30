@@ -53,9 +53,9 @@ matching do double duty as both parser and shape-binder.
 | Product / axis composition | `(a b)` | `a ⊗ b` | `CircleTimes` |
 | Direct sum / concatenation | `(a + b)` | `a ⊕ b` | `CirclePlus` |
 | Bracket (elementary-op signature axis) | `[a]` | `#a` | `Slot["a"]` |
-| Bracket, multiple axes | `[a b]` ≡ `[a][b]` | `Slot[a_], Slot[b_]` | adjacent single `Slot`s — `[a b]≡[a][b]`, see §7.3 |
-| Bracket, anonymous ellipsis | `[...]` | `Slot[___]` | `Slot` |
-| Bracket, integer immediate | `[2]` | `Slot[2]` | `Slot[2]` — **aliases `#2`, see §7.2** |
+| Bracket, multiple axes | `[a b]` ≡ `[a][b]` | `#a #b` | `Slot["a"], Slot["b"]` — adjacent single `Slot`s, `[a b]≡[a][b]`, see §7.3 |
+| Bracket, anonymous ellipsis | `[...]` | `##` | `SlotSequence[1]` |
+| Bracket, integer immediate | `[2]` | `Slot[2]` | `Slot[2]` — explicit (no `#`-sugar for a bracketed literal), see §7.2 |
 
 ## 4. Grammar
 
@@ -112,6 +112,16 @@ makes shared/contracted axes across tensors (§6.10) fall out for free.
 New axes that appear only on the RHS (repeat-style) are *not* covered by
 this mechanism, since there is nothing on the LHS to bind them to — those
 are resolved from an out-of-band `sizeRules`-style argument instead.
+
+A **bracketed** axis is written `#name` (= `Slot["name"]`) and binds by
+*unification* on its string name: the bind/reference asymmetry of bare symbols
+(`a_` vs `a`) does **not** apply inside brackets — every `#b` is just `Slot["b"]`,
+so repeated occurrences are symmetric and must agree (first sets the size, the
+rest must match), and `#b` shares identity with a bare `b` referenced elsewhere
+(the string maps to the symbol `b`). This sidesteps the `Slot[2]`/`#2` integer-slot
+hazard (§7.2): named axes never use an integer `Slot`. The matcher still tolerates
+the legacy symbol forms `Slot[b_]`/`Slot[b]` (they unify identically), but
+`#name` is canonical.
 
 ### 5.2 Reduce vs. elementary-op: the bracket disambiguates
 
@@ -217,12 +227,12 @@ after that for brevity.
 
 5. **Bracket reduce** — `einx.sum("a [b]", x)`
    ```
-   {{a_, Slot[b_]}} :> {{a}}
+   {{a_, Slot["b"]}} :> {{a}}
    ```
 
 6. **Anonymous bracket ellipsis** — `einx.mean("b [...] c", x)`
    ```
-   {{b_, Slot[___], c_}} :> {{b, c}}
+   {{b_, SlotSequence[1], c_}} :> {{b, c}}
    ```
 
 7. **Named ellipsis, cross-tensor zip (Kronecker product)** —
@@ -253,7 +263,7 @@ after that for brevity.
 
 10. **Einsum-style contraction (matmul)** — `einx.dot("a [b], [b] c -> a c", x, y)`
     ```
-    {{a_, Slot[b_]}, {Slot[b], c_}} :> {{a, c}}
+    {{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}
     ```
     `b_` binds in the first operand, bare `b` references it in the second
     — ordinary WL repeated-variable matching, no custom rule needed.
@@ -261,13 +271,13 @@ after that for brevity.
 11. **Gather with bracketed immediate** —
     `einx.get_at("b [h w] c, b i [2] -> b i c", x, y)`
     ```
-    {{b_, Slot[h_], Slot[w_], c_}, {b, i_, Slot[2]}} :> {{b, i, c}}
+    {{b_, Slot["h"], Slot["w"], c_}, {b, i_, Slot[2]}} :> {{b, i, c}}
     ```
     (a multi-axis bracket `[h w]` is adjacent single brackets — §7.3.)
 
 12. **Shape-preserving, one-sided** — `einx.flip("... (g [c])", x, c=2)`
     ```
-    {___, CircleTimes[g_, Slot[c_]]}
+    {___, CircleTimes[g_, Slot["c"]]}
     ```
     No `RuleDelayed`. Front-end normalizes `p` to `p :> p` before the core
     engine ever sees it, per §4.2.
@@ -298,27 +308,29 @@ semantics already is that interface.
   irregular ops like Kronecker product; `RuleDelayed` solves expressibility
   of the spec, not automatic compilation to the four native primitives.
 
-### 7.2 `Slot` aliasing `Function` slots (deferred, not yet fixed)
+### 7.2 `Slot` aliasing `Function` slots — largely resolved (named axes are string-keyed)
 
 `Slot[n]` for integer `n` is literally `#n`. Outside a `Function` body it
-sits inert; if any bracketed-immediate subexpression is ever spliced into a
-`Function`/`&` template and applied, the integer silently gets reinterpreted
-as an argument reference instead of a bracketed dimension:
+sits inert; if any bracketed-immediate subexpression were ever spliced into a
+`Function`/`&` template and applied, the integer would silently get
+reinterpreted as an argument reference instead of a bracketed dimension:
 
 ```mathematica
 tmpl = {Slot[2], a} &;
 tmpl[x, y]      (* {y, a} — silent corruption, no error *)
 ```
 
-Symbolic brackets (`Slot[ds_]` etc.) fail loudly instead (`Function::slotn`),
-since `ds` isn't a valid slot number — only the integer-immediate case is
-silent. Proposed mitigation (not yet implemented): normalize `Slot[2]` to
-`Slot["2"]` internally. Per discussion, this is deferred until either (a) it
-actually breaks something, or (b) the engine starts generating
-`Function`-wrapped code (e.g. a vmap-style backend), at which point it stops
-being optional. Current mitigating factor: none of the planned compilation
-targets (`Transpose`, `ArrayReshape`, `ArrayReduce`, `Join`) are `Function`s,
-so the AST is not currently expected to flow into one.
+**Resolution.** A bracketed *axis* is now written `#name` = `Slot["name"]` (§5.1)
+— a *string* slot, never an integer one — so axes never collide with `Function`'s
+positional slots. The only integer `Slot` left is the gather immediate `[2]` =
+`Slot[2]`, which is part of the still-deferred gather/scatter path; that case keeps
+the explicit `Slot[2]` form and, if gather is built and ever emits `Function`-wrapped
+code, is normalized to `Slot["2"]` at that point (the previously-proposed mitigation,
+now scoped to just that one construct). The engine already never routes a `Slot`
+through an anonymous `Function` (it iterates with `Table`, not `&`/`/@`), and none of
+the compilation targets (`Transpose`, `ArrayReshape`, `ArrayReduce`, `Join`, `Inner`,
+`Map`) are `Function`s, so even integer immediates do not flow into one today.
+
 
 ### 7.3 `Slot` arity — resolved: brackets are single-axis
 
@@ -326,7 +338,7 @@ A multi-axis bracket `[a b c]` is **identical** to adjacent single brackets
 `[a][b][c]` — einx feeds the bracketed axes to the elementary op as one
 flattened unit, and the order/grouping of the brackets does not matter (probed
 against the venv). So the canonical Einstoff form is one `Slot` per axis:
-`[a b]` is written `Slot[a_], Slot[b_]`, never `Slot[a_, b_]`. The matcher
+`[a b]` is written `#a #b` (= `Slot["a"], Slot["b"]`), never `Slot[a_, b_]`. The matcher
 still *tolerates* a multi-arg `Slot` harmlessly (it splices `List @@ Slot[...]`
 in `matchTerms` / `reduceAtoms`), but that form is non-canonical and not used
 in the spec or tests. This retires the former "non-standard arity" concern:
@@ -427,15 +439,19 @@ atoms (`Take` slice, then reshape). **Still deferred:** bracketed direct sum
 (`Slot[CirclePlus[…]]`) and >1 CirclePlus per shape. Plan:
 `docs/plans/circleplus-direct-sum.md`.
 
-**Other deferred lowering items** (rejected loudly today, not mis-compiled):
-variable-arity bracket ellipsis `Slot[___]` (ex6); named-ellipsis / `Repeated[...]`
-re-walk (§5.3); within-operand reduction before contraction in `Einstoff[Dot]`.
+**Bracket notation — string-named axes (implemented).** A bracketed axis is now
+`#name` = `Slot["name"]` (§5.1, §3 glossary), bound by unification on its string
+name; the anonymous variadic bracket `[...]` is `##` = `SlotSequence[1]`. This is the
+canonical out-facing form used throughout the tests; the legacy `Slot[name_]`/`Slot[name]`
+symbol forms are still tolerated (they unify identically). It subsumes the §7.2
+integer-slot aliasing hazard for axes (named axes never use an integer `Slot`).
+`Einstoff[Map][f]`, the kept-bracket vmap, is also implemented (see above).
 
-**Designed, not yet built** (plan: `docs/plans/brackets-map-and-notation.md`):
-the notation migration `Slot[name_]` → `#name` (`Slot["name"]`) / `Slot[___]` → `##`
-(`SlotSequence[1]`), which also subsumes the §7.2 integer-slot aliasing hazard by
-making bracketed axes string-named. (`Einstoff[Map][f]`, the kept-bracket vmap, is
-now implemented — see above.)
+**Other deferred lowering items** (rejected loudly today, not mis-compiled):
+variable-arity bracket ellipsis `##`/`Slot[___]` (ex6) — the matcher resolves its
+shape, but lowering an axis-count-varying bracket is deferred; named-ellipsis /
+`Repeated[...]` re-walk (§5.3); within-operand reduction before contraction in
+`Einstoff[Dot]`.
 
 **Long-term TODO (heavily deferred — do not pursue now) — CI policy for the Python
 cross-validation suite.** When CI exists: the `tests/python/*.wlt` einx/einops

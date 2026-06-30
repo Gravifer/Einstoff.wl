@@ -1,7 +1,7 @@
 # Plan: bracket cleanup (done) → `Einstoff[Map]` → `#a`/`##` notation migration
 
-> Referenced from SPEC.md §9. Parts A and B are **done**; Part C is **designed,
-> not yet built** (recorded here so the design survives session boundaries).
+> Referenced from SPEC.md §9. Parts A, B and C are all **done** (2026-06-30). This
+> file is kept as the rationale/record; the implementation is in the tree.
 
 ## Context
 
@@ -87,7 +87,28 @@ the reducer-currying convention. New file `Einstoff/Kernel/Map.wl`.
 
 ---
 
-## Part C — Design: notation migration `#a` / `##`
+## Part C — DONE: notation migration `#a` / `##`
+
+**Built** (2026-06-30). A bracketed axis is now `#name` = `Slot["name"]`, bound by
+unification on its string name; `[...]` is `##` = `SlotSequence[1]`. Engine changes
+(all small, since `matchTerms` already routed every bracket through `unify`, so the
+old `Slot[b_]`/`Slot[b]` and new `Slot["b"]` are semantically identical): `Parsing.wl`
+`matchTerms` promotes a Slot's string content to its symbol on splice (`Replace[List@@t,
+s_String :> Symbol[s], {1}]`) and handles `SlotSequence` like `___`; `factorToExpr` and
+`bracketedNames` gained a String case; `Lowering.wl` `reduceAtoms` gained `StringQ[t] ->
+{{Symbol[t], br}}`. Crucially the string→symbol promotion happens **only inside a
+bracket** — a bare top-level string is still an illegal axis term, so a globally bound
+non-size value stays rejected (the `reduce-global-illegal` feature). Legacy symbol
+forms remain tolerated. All ~34 test bracket sites migrated to `Slot["…"]` /
+`SlotSequence[1]` (per user: the out-facing DSL uses `Slot["b"]`), plus 3 new unify/
+identity tests. Composite (`Slot[CircleTimes[c_,d_]]`) and integer (`Slot[2]`) brackets
+keep their explicit forms (no `#`-sugar); the Repeated destructuring template (§5.3,
+deferred) keeps its Pattern bracket `Slot[ds_]` (it is a template, not a unify-by-name).
+Suite 180 green (135 WL + 45 xval). Resolved open decisions: (1) `Slot["b"]` maps to
+the symbol `b` via `Symbol[]` resolved in the caller's context (= the desc's own
+context) — brackets and bare refs share identity; (2) bracketed integer immediates keep
+`Slot[2]`; (3) `##` = `SlotSequence[1]`, treated as `___` for matching. The original
+design follows:
 
 Move bracket notation to the ergonomic, hazard-free form:
 `Slot[name_]` / `Slot[name]` → **`#name`** (`Slot["name"]`); `Slot[___]` (anonymous

@@ -232,7 +232,7 @@ VerificationTest[
 
 (* 27. A bracketed (Slot) summand is not a product block -> rejected. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{m_, Slot[a_]}, {m_, c_}} :> {{m, CirclePlus[Slot[a], c]}},
+  Quiet @ Einstoff[ArrayReshape][{{m_, Slot["a"]}, {m_, c_}} :> {{m, CirclePlus[Slot["a"], c]}},
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[8], {2, 4}]}],
   $Failed,
   TestID -> "concat-reject-slot-summand"

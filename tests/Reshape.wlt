@@ -66,7 +66,7 @@ VerificationTest[
 (* 7. Brackets (reduce) are not in the rearrange subset. *)
 VerificationTest[
   Quiet @ Einstoff[ArrayReshape][
-    {{a_, Slot[b_]}} :> {{a}}, {Partition[Range[6], 3]}],
+    {{a_, Slot["b"]}} :> {{a}}, {Partition[Range[6], 3]}],
   $Failed,
   TestID -> "lower-reject-bracket"
 ];

@@ -49,7 +49,7 @@ VerificationTest[
 
 (* 5. Bracket reduce:  a [b] *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[{{a_, Slot[b_]}} :> {{a}}, {{5, 9}}],
+  out @ Einstoff`EinstoffShapes[{{a_, Slot["b"]}} :> {{a}}, {{5, 9}}],
   {{5}},
   TestID -> "ex5-bracket-reduce"
 ];
@@ -57,9 +57,35 @@ VerificationTest[
 (* 6. Anonymous bracket ellipsis:  b [...] c *)
 VerificationTest[
   out @ Einstoff`EinstoffShapes[
-    {{b_, Slot[___], c_}} :> {{b, c}}, {{2, 7, 7, 3}}],
+    {{b_, SlotSequence[1], c_}} :> {{b, c}}, {{2, 7, 7, 3}}],
   {{2, 3}},
   TestID -> "ex6-anon-bracket-ellipsis"
+];
+
+(* 6b. A string-named bracket #b == Slot["b"] binds by *unification*: repeated
+   occurrences are symmetric (no Slot[b_]-binds-vs-Slot[b]-references asymmetry)
+   and must agree.  a [b] [b] with both b = 4 is satisfiable. *)
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[
+    {{a_, Slot["b"], Slot["b"]}} :> {{a}}, {{2, 4, 4}}],
+  {{2}},
+  TestID -> "bracket-unify-ok"
+];
+
+(* 6c. ...and the two occurrences disagreeing (4 vs 5) is unsatisfiable. *)
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[
+    {{a_, Slot["b"], Slot["b"]}} :> {{a}}, {{2, 4, 5}}],
+  False,
+  TestID -> "bracket-unify-mismatch"
+];
+
+(* 6d. A bracketed axis shares identity with a bare reference: #b on the input is
+   the same axis `b` referenced bare on the output. *)
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[{{a_, Slot["b"]}} :> {{a, b}}, {{2, 4}}],
+  {{2, 4}},
+  TestID -> "bracket-shares-identity-with-bare"
 ];
 
 (* 9. Outer / broadcast:  a, b -> a b *)
@@ -72,7 +98,7 @@ VerificationTest[
 (* 10. Einsum contraction (matmul):  a [b], [b] c -> a c *)
 VerificationTest[
   out @ Einstoff`EinstoffShapes[
-    {{a_, Slot[b_]}, {Slot[b], c_}} :> {{a, c}}, {{2, 3}, {3, 4}}],
+    {{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {{2, 3}, {3, 4}}],
   {{2, 4}},
   TestID -> "ex10-matmul"
 ];
@@ -80,7 +106,7 @@ VerificationTest[
 (* 11. Gather with bracketed immediate:  b [h w] c, b i [2] -> b i c *)
 VerificationTest[
   out @ Einstoff`EinstoffShapes[
-    {{b_, Slot[h_], Slot[w_], c_}, {b, i_, Slot[2]}} :> {{b, i, c}},
+    {{b_, Slot["h"], Slot["w"], c_}, {b, i_, Slot[2]}} :> {{b, i, c}},
     {{8, 16, 16, 3}, {8, 5, 2}}],
   {{8, 5, 3}},
   TestID -> "ex11-gather-immediate"
@@ -105,7 +131,7 @@ VerificationTest[
 (* bracketed-axis reporting *)
 VerificationTest[
   Einstoff`EinstoffShapes[
-    {{a_, Slot[b_]}, {Slot[b], c_}} :> {{a, c}}, {{2, 3}, {3, 4}}]["Bracketed"],
+    {{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {{2, 3}, {3, 4}}]["Bracketed"],
   {b},
   TestID -> "ex10-bracketed"
 ];
@@ -115,7 +141,7 @@ VerificationTest[
 (* shared-axis conflict: matmul inner dims disagree (3 vs 9) *)
 VerificationTest[
   sat @ Einstoff`EinstoffShapes[
-    {{a_, Slot[b_]}, {Slot[b], c_}} :> {{a, c}}, {{2, 3}, {9, 4}}],
+    {{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {{2, 3}, {9, 4}}],
   False,
   TestID -> "unsat-shared-axis-conflict"
 ];
@@ -146,7 +172,7 @@ VerificationTest[
 (* bracketed-immediate mismatch: [2] but tensor dim is 5 *)
 VerificationTest[
   sat @ Einstoff`EinstoffShapes[
-    {{b_, Slot[h_], Slot[w_], c_}, {b, i_, Slot[2]}} :> {{b, i, c}},
+    {{b_, Slot["h"], Slot["w"], c_}, {b, i_, Slot[2]}} :> {{b, i, c}},
     {{8, 16, 16, 3}, {8, 5, 5}}],
   False,
   TestID -> "unsat-immediate-mismatch"

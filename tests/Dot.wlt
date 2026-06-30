@@ -23,7 +23,7 @@ VerificationTest[
 (* 2. Bracketed matmul 'a [b], [b] c -> a c' (SPEC ex 10) === native Dot. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[Dot][{{a_, Slot[b_]}, {Slot[b], c_}} :> {{a, c}}, {x, y}]],
+    Einstoff[Dot][{{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {x, y}]],
   ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}],
   TestID -> "dot-matmul-bracket"
 ];
@@ -53,7 +53,7 @@ VerificationTest[
 (* 6. Contract then merge survivors 'a b, b c -> (a c)'. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[Dot][{{a_, Slot[b_]}, {Slot[b], c_}} :> {{CircleTimes[a, c]}}, {x, y}]],
+    Einstoff[Dot][{{a_, Slot["b"]}, {Slot["b"], c_}} :> {{CircleTimes[a, c]}}, {x, y}]],
   Flatten[ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}]],
   TestID -> "dot-contract-merge"
 ];
@@ -113,7 +113,7 @@ VerificationTest[
 (* 13. Matmul, then broadcast the result into a new axis r: 'a [b], [b] c -> a c r', r=2. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[Dot][{{a_, Slot[b_]}, {Slot[b], c_}} :> {{a, c, r}}, {x, y}, {r -> 2}]],
+    Einstoff[Dot][{{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c, r}}, {x, y}, {r -> 2}]],
   With[{mm = ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}]},
     Table[mm[[i, j]], {i, 2}, {j, 4}, {k, 2}]],
   TestID -> "dot-then-repeat"
@@ -142,7 +142,7 @@ VerificationTest[
 (* 16. Bracketed three-operand chain 'a [b], [b] [c], [c] d -> a d'. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}], z = ArrayReshape[Range[20], {4, 5}]},
-    Einstoff[Dot][{{a_, Slot[b_]}, {Slot[b], Slot[c_]}, {Slot[c], d_}} :> {{a, d}}, {x, y, z}]],
+    Einstoff[Dot][{{a_, Slot["b"]}, {Slot["b"], Slot["c"]}, {Slot["c"], d_}} :> {{a, d}}, {x, y, z}]],
   ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}] . ArrayReshape[Range[20], {4, 5}],
   TestID -> "dot-three-chain-bracketed"
 ];
