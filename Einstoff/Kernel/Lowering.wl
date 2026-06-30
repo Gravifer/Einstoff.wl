@@ -43,7 +43,8 @@ Einstoff::unsat =
   "description is not satisfiable against the given tensor(s): `1`";
 
 PackageScoped[{descParts, resolveSlotStrings, rearrangeAtoms, atomSize, reduceAtoms,
-  materializeOutput, selfContract, hasCirclePlus, directSumConcat, directSumSplit}]
+  materializeOutput, selfContract, reshapeTo, hasCirclePlus, directSumConcat,
+  directSumSplit}]
 
 (* ------------------------------------------------------------------ *)
 (* desc parsing.  Operators are HoldFirst and pass Hold[desc] in, so the *)
@@ -85,6 +86,7 @@ descParts[_] := $Failed;
 rearrangeAtoms[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]]] := {s};
 rearrangeAtoms[s_Symbol] := {s};
 rearrangeAtoms[n_Integer] := {n};
+rearrangeAtoms[{}] := {1};   (* in-shape unit-axis term {} == literal 1 (einx "()") *)
 rearrangeAtoms[CircleTimes[fs__]] := Join @@ (rearrangeAtoms /@ {fs});
 rearrangeAtoms[other_] := (
   Message[Einstoff::unsupp,
@@ -94,6 +96,12 @@ rearrangeAtoms[other_] := (
 
 atomSize[n_Integer, _] := n;
 atomSize[s_, env_] := Lookup[env, s, Throw[$Failed]];
+
+(* Scalar-safe ArrayReshape: dims === {} means rank-0 (a scalar), where ArrayReshape
+   would leak unevaluated — return the lone element instead.  An empty shape {} (a
+   scalar operand) and a fully-squeezed array both land here. *)
+reshapeTo[arr_, {}] := First @ Flatten @ {arr};
+reshapeTo[arr_, dims_] := ArrayReshape[arr, dims];
 
 (* Does any shape in `shapes` contain a CirclePlus (direct-sum) term?  Used to
    route a desc into the direct-sum path and to guard Join/Split direction. *)
@@ -109,6 +117,7 @@ reduceAtoms[t_, br_ : False] :=
     MatchQ[t, Verbatim[Pattern][_Symbol, Verbatim[Blank[]]]], {{t[[1]], br}},
     Head[t] === Symbol, {{t, br}},
     StringQ[t], {{Symbol[t], br}},   (* #name bracket: Slot["name"] -> axis name *)
+    t === {}, {{1, br}},             (* in-shape unit-axis term {} == literal 1 *)
     IntegerQ[t], {{t, br}},
     Head[t] === CircleTimes,
       Join @@ Table[reduceAtoms[f, br], {f, List @@ t}],
@@ -139,7 +148,8 @@ supported subset yet)"];
 (* ------------------------------------------------------------------ *)
 
 materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
-  Module[{env2 = env, rhsTerms2, rhsAtoms, repeats, acc = arr, order, srcOrder, outDims},
+  Module[{env2 = env, rhsTerms2, rhsAtoms, present, repeats, acc = arr, order,
+          srcOrder, outDims},
     (* A surviving INPUT literal-integer axis of size > 1 cannot be carried to the
        output: under Option A an output literal becomes a fresh anonymous broadcast
        axis, so an input literal has no output identity to map to (cf. einx rejecting
@@ -174,17 +184,23 @@ materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
        ArrayReshape and leak as an unevaluated expression. *)
     If[! AllTrue[rhsAtoms, With[{s = atomSize[#, env2]}, IntegerQ[s] && s >= 1] &],
       Throw[$Failed]];
-    repeats = Select[rhsAtoms, ! MemberQ[presentAtoms, #] &];
+    (* Unit-axis squeeze (einx): a size-1 present axis that is dropped on the output
+       (absent from rhsAtoms) is removed — a length-1 axis carries no data, so reshaping
+       to the kept present dims simply drops it.  A size-(>1) dropped axis is reduce and
+       is rejected upstream, so only unit axes are dropped here. *)
+    present = Select[presentAtoms, MemberQ[rhsAtoms, #] || atomSize[#, env2] > 1 &];
+    If[present =!= presentAtoms, acc = reshapeTo[acc, atomSize[#, env2] & /@ present]];
+    repeats = Select[rhsAtoms, ! MemberQ[present, #] &];
     (* Broadcast each repeat axis on as a new leading axis. *)
     Do[acc = ConstantArray[acc, atomSize[r, env2]], {r, repeats}];
     (* Scalar output: nothing to permute or recompose. *)
     If[rhsAtoms === {}, Return[First @ Flatten @ {acc}]];
-    (* acc's axes after the broadcasts: Reverse[repeats] then presentAtoms. *)
-    order = Join[Reverse[repeats], presentAtoms];
+    (* acc's axes after the broadcasts: Reverse[repeats] then present. *)
+    order = Join[Reverse[repeats], present];
     srcOrder = Flatten[FirstPosition[order, #] & /@ rhsAtoms];
     If[Length[srcOrder] > 1, acc = Transpose[acc, InversePermutation[srcOrder]]];
     outDims = (Times @@ (atomSize[#, env2] & /@ rearrangeAtoms[#])) & /@ rhsTerms2;
-    ArrayReshape[acc, outDims]];
+    reshapeTo[acc, outDims]];
 
 (* ------------------------------------------------------------------ *)
 (* Within-tensor (self-) contraction.  einsum-style: a name repeated   *)
@@ -207,7 +223,7 @@ materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
 selfContract[x_, lhsAtoms_, rhsAtoms_, env_] :=
   Module[{dims, xr, names, repeated, groups, ndims},
     dims = atomSize[#, env] & /@ lhsAtoms;        (* Throws if unbound *)
-    xr = ArrayReshape[x, dims];
+    xr = reshapeTo[x, dims];                       (* scalar-safe (dims may be {}) *)
     names = DeleteCases[lhsAtoms, _Integer];
     repeated = Select[DeleteDuplicates[names], Count[lhsAtoms, #] >= 2 &];
     If[repeated === {}, Return[{xr, lhsAtoms}]];

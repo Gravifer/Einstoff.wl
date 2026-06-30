@@ -181,4 +181,53 @@ VerificationTest[
   TestID -> "reject-literal-carry"
 ];
 
+(* ===================== unit axes & scalars (einx axis-squeezing) ====== *)
+ClearAll[a, c];
+
+(* 23. Squeeze a size-1 input axis dropped on the output: 'a 1 c -> a c' (einx). *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_, 1, c_}} :> {{a, c}}, {ArrayReshape[Range[6], {2, 1, 3}]}],
+  ArrayReshape[Range[6], {2, 3}],
+  TestID -> "unit-squeeze-input"
+];
+
+(* 24. ...and it composes with a permute: 'a 1 c -> c a'. *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_, 1, c_}} :> {{c, a}}, {ArrayReshape[Range[6], {2, 1, 3}]}],
+  Transpose[ArrayReshape[Range[6], {2, 3}]],
+  TestID -> "unit-squeeze-permute"
+];
+
+(* 25. An in-shape {} term is the unit axis (einx '()'): 'a () c -> a c' == 'a 1 c -> a c'. *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_, {}, c_}} :> {{a, c}}, {ArrayReshape[Range[6], {2, 1, 3}]}],
+  ArrayReshape[Range[6], {2, 3}],
+  TestID -> "unit-empty-term-squeeze"
+];
+
+(* 26. ...and {} is accepted in a non-output position by the matcher (Dimensions 1). *)
+VerificationTest[
+  Einstoff`EinstoffMatch[{{2, {}, 3}, {2, ___}}, {{2, 1, 3}, {2, 4, 5}}]["ok"],
+  True,
+  TestID -> "unit-empty-term-match"
+];
+
+(* 27-30. Scalars (rank 0): squeeze/insert a singleton, no leaked ArrayReshape[s,{}]. *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{}} :> {{}}, {7}], 7, TestID -> "scalar-identity"];
+VerificationTest[
+  Einstoff[ArrayReshape][{{}} :> {{1}}, {7}], {7}, TestID -> "scalar-to-singleton"];
+VerificationTest[
+  Einstoff[ArrayReshape][{{1}} :> {{}}, {{7}}], 7, TestID -> "singleton-to-scalar"];
+VerificationTest[
+  Einstoff[ArrayReduce][Total][{{}} :> {{}}, {7}], 7, TestID -> "scalar-reduce"];
+
+(* 31. A size > 1 literal still cannot be carried even with a {} unit beside it:
+   '2 () 3 -> 2 1 3' rejects (anonymous 2 and 3 have no carryable identity; einx errors). *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{2, {}, 3}} :> {{2, 1, 3}}, {ArrayReshape[Range[6], {2, 1, 3}]}],
+  $Failed,
+  TestID -> "reject-literal-carry-with-unit"
+];
+
 EndTestSection[];

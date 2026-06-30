@@ -121,7 +121,7 @@ elementary op (softmax/flip/sort/…) is the Einstoff[Map][f] path, not reductio
       Message[Einstoff::unsat, "an input axis size is unbound"];
       Return[$Failed]];
 
-    xr = ArrayReshape[x, decompDims];
+    xr = reshapeTo[x, decompDims];     (* scalar-safe (decompDims may be {}) *)
     xred = If[reducedPos === {}, xr, ArrayReduce[reducer, xr, reducedPos]];
 
     (* Surviving atoms, in their LHS-relative order (= xred's axis order); then

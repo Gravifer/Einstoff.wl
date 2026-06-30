@@ -189,6 +189,18 @@ VerificationTest[
   TestID -> "xval-einops-repeat-merge"
 ];
 
+(* unit-axis squeeze 'a 1 c -> a c' and insertion 'a c -> a c 1' (einx axis-squeezing) *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_, 1, c_}} :> {{a, c}}, {ArrayReshape[Range[6], {2, 1, 3}]}],
+  pyRef["einx", "a 1 c -> a c", {2, 1, 3}],
+  TestID -> "xval-einx-unit-squeeze"
+];
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_, c_}} :> {{a, c, 1}}, {ArrayReshape[Range[6], {2, 3}]}],
+  pyRef["einx", "a c -> a c 1", {2, 3}],
+  TestID -> "xval-einx-unit-insert"
+];
+
 EndTestSection[];
 (* ======================================================================== *)
 

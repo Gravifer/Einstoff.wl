@@ -128,6 +128,7 @@ unify[n_, d_, env_] :=
 factorToExpr[f_, env_] :=
   Which[
     IntegerQ[f], {f, {}, {}},
+    f === {}, {1, {}, {}},   (* in-shape unit-axis term {} == literal 1 *)
     MatchQ[f, Verbatim[Pattern][_Symbol, Verbatim[Blank][]]],
       With[{n = f[[1]]}, If[KeyExistsQ[env, n], {env[n], {}, {}}, {n, {n}, {}}]],
     MatchQ[f, Verbatim[Blank[]]], With[{u = Unique["anon$"]}, {u, {}, {u}}],
@@ -188,6 +189,9 @@ matchTerms[terms_, dims_, env_] :=
   Module[{t, rest, d, drest},
     If[terms === {}, Return[If[dims === {}, {env}, {}]]];
     t = First[terms]; rest = Rest[terms];
+    (* {} is an in-shape unit-axis term, equivalent to the literal 1 (einx "2 () 3");
+       it consumes one tensor dimension, which must be 1. *)
+    If[t === {}, Return[matchTerms[Join[{1}, rest], dims, env]]];
     (* Slot is a transparent bracket: splice its contents into the stream.  A
        string slot #name == Slot["name"] denotes axis `name`, so its content string
        is mapped to that symbol on the way in (then handled by the Symbol case),
@@ -281,8 +285,11 @@ EinstoffMatch[lhsShapes_, inputShapes_, bindings_ : {}] :=
 (* ------------------------------------------------------------------ *)
 
 evalOutShape[Hold[rhs_], env_] :=
-  rhs /. Join[Normal[env],
-    {CircleTimes -> Times, CirclePlus -> Plus, Slot -> Sequence}];
+  Replace[
+    rhs /. Join[Normal[env],
+      {CircleTimes -> Times, CirclePlus -> Plus, Slot -> Sequence}],
+    {} -> 1, {2}];   (* an in-shape {} term (level 2, inside a shape) is the unit axis
+                        1; a whole-shape {} (level 1) stays scalar / rank 0 *)
 
 (* ------------------------------------------------------------------ *)
 (* Public: full pipeline.                                             *)
