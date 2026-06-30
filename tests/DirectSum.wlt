@@ -282,4 +282,30 @@ VerificationTest[
   TestID -> "split-cas-unique"
 ];
 
+(* 32. Split with an integer summand, the singleton block SQUEEZED to {b}:
+   'b (q + 1) -> b q, b', q=3 over a size-4 axis (cf. einx). *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[8], {2, 4}]},
+    Einstoff[ArrayReshape][{{b_, CirclePlus[q_, 1]}} :> {{b, q}, {b}}, {x}, {q -> 3}]],
+  {{{1, 2, 3}, {5, 6, 7}}, {4, 8}},
+  TestID -> "split-integer-summand-squeeze"
+];
+
+(* 33. ...or the singleton block PRESERVED as {b, 1} when explicitly requested. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[8], {2, 4}]},
+    Einstoff[ArrayReshape][{{b_, CirclePlus[q_, 1]}} :> {{b, q}, {b, 1}}, {x}, {q -> 3}]],
+  {{{1, 2, 3}, {5, 6, 7}}, {{4}, {8}}},
+  TestID -> "split-integer-summand-preserve"
+];
+
+(* 34. An integer summand of size > 1 cannot be squeezed to {b} (it would lose data)
+   — rejected cleanly, not leaked. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[8], {2, 4}]},
+    Quiet @ Einstoff[ArrayReshape][{{b_, CirclePlus[q_, 2]}} :> {{b, q}, {b}}, {x}, {q -> 2}]],
+  $Failed,
+  TestID -> "split-integer-summand-oversized-reject"
+];
+
 EndTestSection[];

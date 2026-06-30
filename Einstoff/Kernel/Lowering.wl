@@ -140,23 +140,25 @@ supported subset yet)"];
 
 materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
   Module[{env2 = env, rhsTerms2, rhsAtoms, repeats, acc = arr, order, srcOrder, outDims},
-    (* A surviving INPUT literal-integer axis cannot be carried to the output: under
-       Option A every output literal becomes a fresh anonymous broadcast axis, so an
-       input literal has no output identity to map to (cf. einx rejecting 'a 2 -> a 2').
-       Every lowering path (Massage/Reduce/Map/Dot) funnels here, so reject it once,
-       centrally — otherwise the uniquified output literals leave the input literal in
-       presentAtoms unmatched and the layout below produces garbage.  (A literal input
-       axis may still be reduced/contracted away *before* reaching this point.) *)
-    If[AnyTrue[presentAtoms, IntegerQ], Throw[$Failed]];
-    (* Option A (einx-faithful): give each literal-integer OUTPUT axis a unique
-       anonymous identity, sized to its value.  A literal output integer is a repetition
-       (a new broadcast) axis, and two equal literals (e.g. 'a 2 2') are DISTINCT axes —
-       matching einx, which broadcasts 'a -> a 2 2' to (...,2,2).  An *input* literal
-       stays the bare integer, so it can never be carried to the output (its drop is
-       caught upstream) — exactly as einx rejects 'a 2 -> a 2'. *)
-    rhsTerms2 = Replace[rhsTerms,
-      n_Integer :> With[{u = Unique["lit$"]}, env2 = Append[env2, u -> n]; u],
-      {0, Infinity}];
+    (* A surviving INPUT literal-integer axis of size > 1 cannot be carried to the
+       output: under Option A an output literal becomes a fresh anonymous broadcast
+       axis, so an input literal has no output identity to map to (cf. einx rejecting
+       'a 2 -> a 2').  A size-1 input literal is benign — it is squeezed (e.g. a
+       singleton direct-sum summand block 'b (q+1) -> b q, b').  Every lowering path
+       funnels here, so reject the size-(>1) case once, centrally, rather than letting
+       the layout below produce garbage. *)
+    If[AnyTrue[presentAtoms, IntegerQ[#] && # > 1 &], Throw[$Failed]];
+    (* Option A (einx-faithful): give each *duplicated* literal-integer OUTPUT axis a
+       unique anonymous identity, sized to its value, so two equal literals (e.g.
+       'a 2 2') are DISTINCT broadcast axes — matching einx, which broadcasts
+       'a -> a 2 2' to (...,2,2).  A literal that occurs once keeps its integer value, so
+       it still repeats (when output-only) or carries (e.g. a singleton summand preserved
+       as 'b (q+1) -> b q, b 1'); only genuine duplicates need fresh identities. *)
+    Module[{litCounts = Counts[Cases[rhsTerms, _Integer, {0, Infinity}]]},
+      rhsTerms2 = Replace[rhsTerms,
+        n_Integer /; litCounts[n] > 1 :>
+          With[{u = Unique["lit$"]}, env2 = Append[env2, u -> n]; u],
+        {0, Infinity}]];
     rhsAtoms = If[rhsTerms2 === {}, {},
       Join @@ Table[rearrangeAtoms[t], {t, rhsTerms2}]];
     (* Backstop: after literal uniquification any remaining duplicate is a real identity
