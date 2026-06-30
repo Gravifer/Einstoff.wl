@@ -367,11 +367,15 @@ the suite — they are fragile invariants / maintainability smells):
   unaffected. `firstDuplicateAxis`/`termAxisNames` helpers; test
   `reject-duplicate-output-axis`. (A single new RHS axis still broadcasts — §5.5
   repetition — only a *repeated name* is rejected.)
-- **`Symbol[string]` for `#name` axes is `$Context`-sensitive** (matchTerms splice
-  Parsing.wl, reduceAtoms Lowering.wl). It works because the desc and the call share a
-  context in practice — the same assumption bare-symbol references already make — but the
-  invariant is implicit and spread across two files. Fix: centralize into one axis-name
-  resolver, ideally context-explicit.
+- ✅ **`Symbol[string]` for `#name` axes was `$Context`-sensitive** — *fixed.* A single
+  resolver `resolveSlotStrings` (Lowering.wl, shared by `descParts` and `parseDesc`) now
+  maps each `#name` bracket to the *symbol the desc itself already uses* for that name
+  (collected from the desc, `System`` heads excluded), instead of `Symbol["name"]` in the
+  live `$Context`. So `#b` and a bare `b` are the same axis regardless of context; a name
+  seen only as a string is internal-only (harmless `Symbol[]` fallback). Demonstrated:
+  the previously-failing adversarial-`$Context` case now succeeds (test
+  `bracket-context-robust`). env stays symbol-keyed, so the CAS/`Solve` layer is
+  untouched.
 - **Duplicated desc parsing / CirclePlus flattening** in `descParts` (Lowering.wl) and
   `parseDesc`/`flattenDirectSum` (Parsing.wl) — they mirror each other (held vs released
   RHS); future syntax could update one and miss the other. Fix: share the flatten logic.
@@ -384,9 +388,10 @@ the suite — they are fragile invariants / maintainability smells):
 - **Dead `Module` locals** `sizes/ends/starts` in `directSumSplit` (the live ones are
   `sz/en/st`). Harmless; remove.
 
-The two silent-wrong-output items are done. The remaining five (context-sensitive axis
-resolver, duplicated flatten, untagged throws, bindings validation, dead locals) are
-lower-severity and left for a future cleanup pass, separate from feature work.
+The two silent-wrong-output items and the context-sensitive axis resolver are done. The
+remaining four (duplicated desc/flatten, untagged throws, bindings validation, dead
+`directSumSplit` locals) are lower-severity and left for a future cleanup pass, separate
+from feature work.
 
 ## 8. Resolved / verified (no further action needed)
 

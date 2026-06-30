@@ -60,26 +60,27 @@ EinstoffParse[desc_] := parseDesc[Hold[desc]];
 flattenDirectSum[expr_] :=
   expr //. CirclePlus[x___, CirclePlus[y___], z___] :> CirclePlus[x, y, z];
 
+(* resolveSlotStrings (shared, in Lowering.wl) maps each #name bracket to the symbol
+   the desc itself uses for that name, so brackets are context-safe before matching. *)
 parseDesc[h : Hold[_RuleDelayed]] :=
-  <|"LHS" -> flattenDirectSum @ Extract[h, {1, 1}],
-    "RHS" -> Extract[h, {1, 2}, Hold]|>;
+  With[{hr = resolveSlotStrings[h]},
+    <|"LHS" -> flattenDirectSum @ Extract[hr, {1, 1}],
+      "RHS" -> Extract[hr, {1, 2}, Hold]|>];
 parseDesc[h : Hold[_Rule]] :=
-  <|"LHS" -> flattenDirectSum @ Extract[h, {1, 1}],
-    "RHS" -> Extract[h, {1, 2}, Hold],
-    "Warning" -> "prefer :> (RuleDelayed) over -> for desc"|>;
+  With[{hr = resolveSlotStrings[h]},
+    <|"LHS" -> flattenDirectSum @ Extract[hr, {1, 1}],
+      "RHS" -> Extract[hr, {1, 2}, Hold],
+      "Warning" -> "prefer :> (RuleDelayed) over -> for desc"|>];
 parseDesc[_] := <|"LHS" -> $Failed, "RHS" -> $Failed|>;
 
-(* Names that appear inside a Slot[...] (bracket) anywhere in lhs.  A bracketed
-   axis is written #name (== Slot["name"], the canonical ergonomic form) or, in a
-   composite, a binding pattern name_; both denote axis `name`.  Used only for the
-   informational "Bracketed" field (cf. SPEC 5.2). *)
+(* Names that appear inside a Slot[...] (bracket) anywhere in lhs.  By the time this
+   runs the desc has been through resolveSlotStrings, so a #name bracket is Slot[name]
+   (a bare symbol); composites keep their pattern symbols.  Collect every non-System`
+   symbol inside any Slot.  Used only for the informational "Bracketed" field (§5.2). *)
 bracketedNames[lhs_] :=
   DeleteDuplicates @ Flatten @
     Cases[lhs,
-      s_Slot :> Cases[s,
-        b_ /; StringQ[b] || MatchQ[b, Verbatim[Pattern][_Symbol, Verbatim[Blank[]]]] :>
-          If[StringQ[b], Symbol[b], First[b]],
-        {0, Infinity}],
+      s_Slot :> Cases[s, n_Symbol /; Context[n] =!= "System`" :> n, {0, Infinity}],
       {0, Infinity}];
 
 (* Axis-name identities used by one shape term, for the within-shape uniqueness

@@ -36,8 +36,8 @@ Einstoff::unsupp = "`1`";
 Einstoff::unsat =
   "description is not satisfiable against the given tensor(s): `1`";
 
-PackageScoped[{descParts, rearrangeAtoms, atomSize, reduceAtoms, materializeOutput,
-  hasCirclePlus, directSumConcat, directSumSplit}]
+PackageScoped[{descParts, resolveSlotStrings, rearrangeAtoms, atomSize, reduceAtoms,
+  materializeOutput, hasCirclePlus, directSumConcat, directSumSplit}]
 
 (* ------------------------------------------------------------------ *)
 (* desc parsing.  Operators are HoldFirst and pass Hold[desc] in, so the *)
@@ -45,12 +45,27 @@ PackageScoped[{descParts, rearrangeAtoms, atomSize, reduceAtoms, materializeOutp
 (* (released) rhs shape lists.  Returns $Failed if desc isn't lhs :> rhs. *)
 (* ------------------------------------------------------------------ *)
 
+(* A bracketed axis #name == Slot["name"] denotes the axis `name`.  Resolve each
+   bracket string to the *symbol the desc itself uses* for that name — collected from
+   the desc's own symbols (System` heads like List/CircleTimes/Slot excluded) — so #b
+   and a bare b are the same axis regardless of $Context.  This removes the
+   Symbol["b"]-resolved-in-the-wrong-context hazard (a string would otherwise become a
+   symbol in whatever $Context happens to be live).  A name that appears only as a
+   string (never bare) is internal-only, so the Symbol[] fallback is harmless.  Shared
+   by both desc entry points (descParts here, parseDesc in the shape layer). *)
+resolveSlotStrings[h_Hold] :=
+  Module[{byName},
+    byName = Association @ Cases[h,
+      s_Symbol /; Context[s] =!= "System`" :> (SymbolName[s] -> s), {0, Infinity}];
+    h /. Slot[str_String] :> Slot[Lookup[byName, str, Symbol[str]]]];
+
 (* CirclePlus is associative; canonicalize a ⊕ (b ⊕ c) to a flat summand list so
    the direct-sum paths see one CirclePlus with all summands (order preserved —
    CirclePlus is not Orderless). Mirrors flattenDirectSum in the shape layer. *)
 descParts[h : Hold[_Rule | _RuleDelayed]] :=
-  {Extract[h, {1, 1}], ReleaseHold @ Extract[h, {1, 2}, Hold]} //.
-    CirclePlus[x___, CirclePlus[y___], z___] :> CirclePlus[x, y, z];
+  With[{hr = resolveSlotStrings[h]},
+    {Extract[hr, {1, 1}], ReleaseHold @ Extract[hr, {1, 2}, Hold]} //.
+      CirclePlus[x___, CirclePlus[y___], z___] :> CirclePlus[x, y, z]];
 descParts[_] := $Failed;
 
 (* ------------------------------------------------------------------ *)

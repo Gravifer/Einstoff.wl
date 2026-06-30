@@ -96,6 +96,16 @@ VerificationTest[
   TestID -> "reject-duplicate-output-axis"
 ];
 
+(* 6f. Context robustness: a #b bracket resolves to the desc's OWN symbol b (not a
+   $Context-dependent Symbol["b"]), so an unusual $Context does not break the match
+   between #b on the input and a bare b on the output. *)
+VerificationTest[
+  Block[{$Context = "Sandbox`", $ContextPath = {"System`", "Einstoff`"}},
+    out @ Einstoff`EinstoffShapes[{{a_, Slot["b"]}} :> {{a, b}}, {{2, 4}}]],
+  {{2, 4}},
+  TestID -> "bracket-context-robust"
+];
+
 (* 9. Outer / broadcast:  a, b -> a b *)
 VerificationTest[
   out @ Einstoff`EinstoffShapes[{{a_}, {b_}} :> {{a, b}}, {{4}, {5}}],
