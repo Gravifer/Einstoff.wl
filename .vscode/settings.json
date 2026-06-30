@@ -4,6 +4,7 @@
         "parse",
         "agents",
         "lowering",
-        "tests"
+        "tests",
+        "entrance"
     ]
 }

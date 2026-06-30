@@ -50,7 +50,8 @@ mapFunction[s_String] := Replace[ToLowerCase[s], {
   "sort" -> Sort,
   "softmax" -> (Exp[# - Max[#]]/Total[Exp[# - Max[#]]] &),
   "log_softmax" | "logsoftmax" -> ((# - Max[#]) - Log[Total[Exp[# - Max[#]]]] &),
-  _ -> s}];
+  (* An unknown string is a typo, not a function: flag it so the caller rejects it. *)
+  _ :> Missing["UnknownMapOp", s]}];
 mapFunction[f_] := f;
 
 (* Curried: Einstoff[Map][f] is the operator, applied to [desc, tensors, bindings].
@@ -74,6 +75,11 @@ EinstoffMap[fSpec_][desc_, tensors_, bindings_List : {}] :=
       Return[$Failed]];
 
     f = mapFunction[fSpec];
+    If[MissingQ[f],
+      Message[Einstoff::unsupp,
+        "unknown map op name \"" <> ToString[fSpec] <> "\"; use one of \
+flip/sort/softmax/log_softmax/id, or pass a function"];
+      Return[$Failed]];
 
     inShapes = Dimensions /@ tensors;
     shp = EinstoffShapes[desc, inShapes, bindings];

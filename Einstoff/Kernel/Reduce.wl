@@ -58,7 +58,9 @@ reduceFunction[s_String] := Replace[ToLowerCase[s], {
   "any" -> (AnyTrue[#, # != 0 &] &),
   "all" -> (AllTrue[#, # != 0 &] &),
   "logsumexp" | "lse" -> (Max[#] + Log[Total[Exp[# - Max[#]]]] &),
-  _ -> s}];
+  (* An unknown string is a typo, not a function: flag it so the caller rejects
+     it loudly (otherwise it would be applied as `"name"[slice]` -> garbage). *)
+  _ :> Missing["UnknownReducer", s]}];
 reduceFunction[f_] := f;
 
 (* Curried: Einstoff[ArrayReduce][reducer] is the operator, applied to
@@ -81,6 +83,11 @@ EinstoffReduce[reducerSpec_][desc_, tensors_, bindings_List : {}] :=
       Return[$Failed]];
 
     reducer = reduceFunction[reducerSpec];
+    If[MissingQ[reducer],
+      Message[Einstoff::unsupp,
+        "unknown reducer name \"" <> ToString[reducerSpec] <> "\"; use one of \
+sum/mean/var/std/prod/count_nonzero/any/all/max/min/logsumexp, or pass a function"];
+      Return[$Failed]];
 
     inShapes = Dimensions /@ tensors;
     shp = EinstoffShapes[desc, inShapes, bindings];
