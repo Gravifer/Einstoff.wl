@@ -224,4 +224,12 @@ VerificationTest[
   TestID -> "unit-empty-in-output-composite-bound"
 ];
 
+(* EinstoffParse normalizes {} -> 1 on BOTH sides (incl. inside a composite), while a
+   whole-shape {} stays scalar and held symbols are untouched. *)
+VerificationTest[
+  Einstoff`EinstoffParse[{{a_}} :> {{a, {}, CircleTimes[c, {}]}}]["RHS"],
+  Hold[{{a, 1, CircleTimes[c, 1]}}],
+  TestID -> "parse-normalizes-rhs-unit"
+];
+
 EndTestSection[];

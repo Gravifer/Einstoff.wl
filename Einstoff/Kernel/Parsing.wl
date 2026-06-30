@@ -62,14 +62,17 @@ flattenDirectSum[expr_] :=
 
 (* resolveSlotStrings (shared, in Lowering.wl) maps each #name bracket to the symbol
    the desc itself uses for that name, so brackets are context-safe before matching. *)
+(* The held RHS is normalized too (so EinstoffParse really returns a normalized desc):
+   {} -> 1 at levels >= 3 hits term and composite-factor positions but never a level-2
+   whole-shape {} (a scalar), and only touches {} so held symbols are untouched. *)
 parseDesc[h : Hold[_RuleDelayed]] :=
   With[{hr = resolveSlotStrings[h]},
     <|"LHS" -> normUnitTerms @ flattenDirectSum @ Extract[hr, {1, 1}],
-      "RHS" -> Extract[hr, {1, 2}, Hold]|>];
+      "RHS" -> Replace[Extract[hr, {1, 2}, Hold], {} -> 1, {3, Infinity}]|>];
 parseDesc[h : Hold[_Rule]] :=
   With[{hr = resolveSlotStrings[h]},
     <|"LHS" -> normUnitTerms @ flattenDirectSum @ Extract[hr, {1, 1}],
-      "RHS" -> Extract[hr, {1, 2}, Hold],
+      "RHS" -> Replace[Extract[hr, {1, 2}, Hold], {} -> 1, {3, Infinity}],
       "Warning" -> "prefer :> (RuleDelayed) over -> for desc"|>];
 parseDesc[_] := <|"LHS" -> $Failed, "RHS" -> $Failed|>;
 
@@ -190,7 +193,10 @@ matchTerms[terms_, dims_, env_] :=
     If[terms === {}, Return[If[dims === {}, {env}, {}]]];
     t = First[terms]; rest = Rest[terms];
     (* {} is an in-shape unit-axis term, equivalent to the literal 1 (einx "2 () 3");
-       it consumes one tensor dimension, which must be 1. *)
+       it consumes one tensor dimension, which must be 1.  NB the operator/EinstoffShapes
+       paths normalize {} -> 1 up front (descParts/parseDesc via normUnitTerms), so this
+       case — and the mirroring {} cases in rearrangeAtoms/reduceAtoms/factorToExpr —
+       exist for the *public* EinstoffMatch entry, which takes raw shape lists. *)
     If[t === {}, Return[matchTerms[Join[{1}, rest], dims, env]]];
     (* Slot is a transparent bracket: splice its contents into the stream.  A
        string slot #name == Slot["name"] denotes axis `name`, so its content string

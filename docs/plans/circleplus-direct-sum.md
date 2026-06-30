@@ -56,7 +56,7 @@ detected in the desc. Shared helpers (`descParts`, `atomSize`, `materializeOutpu
 come from the hub.
 
 **Dispatch:**
-- `Einstoff[ArrayReshape]` (`EinstoffRearrange`): no CirclePlus → existing
+- `Einstoff[ArrayReshape]` (`EinstoffMassage`): no CirclePlus → existing
   single-tensor path; CirclePlus on RHS → concat handler; on LHS → split handler
   (phase 2 → reject with a clear "not yet" for now).
 - `Einstoff[Join]`: guard CirclePlus appears **only on the RHS** (else reject), then
@@ -90,7 +90,7 @@ same axis; >1 CirclePlus per shape.
 - **Create `Einstoff/Kernel/DirectSum.wl`** — concat handler + `Einstoff[Join]` /
   `Einstoff[Split]` dispatch + a CirclePlus-aware decomposition distinguishing
   `CirclePlus` from `CircleTimes`/`Slot`.
-- **Edit `Einstoff/Kernel/Reshape.wl`** — detect CirclePlus in `EinstoffRearrange`
+- **Edit `Einstoff/Kernel/Reshape.wl`** — detect CirclePlus in `EinstoffMassage`
   and delegate; otherwise unchanged.
 - **Possibly edit `Einstoff/Kernel/Lowering.wl`** — shared decomposition helper as
   `PackageScoped` if best placed in the hub.
