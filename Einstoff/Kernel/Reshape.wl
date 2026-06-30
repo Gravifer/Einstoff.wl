@@ -80,10 +80,11 @@ EinstoffMassage[desc_, tensors_, bindings_List : {}] :=
     If[sc === $Failed, Return[$Failed]];
     {xc, atomsc} = sc;
     (* Every surviving (non-contracted) input axis must be carried to the output.  A
-       named axis is carried iff it appears on the RHS; a literal-integer input axis can
-       NEVER be carried (output literals are fresh broadcast axes — cf. einx rejecting
-       'a 2 -> a 2'), so a surviving input integer is treated as a drop.  A dropped axis
-       is reduce, not rearrange/contract. *)
+       named axis is carried iff it appears on the RHS.  A literal input axis of size > 1
+       cannot be carried (output literals are fresh broadcast axes — cf. einx rejecting
+       'a 2 -> a 2'), so a surviving size-(>1) input literal is a drop.  A size-1 literal
+       is a unit axis (squeezed by materializeOutput), so it is allowed.  A dropped
+       size-(>1) axis is reduce, not rearrange/contract. *)
     If[AnyTrue[atomsc, ! MemberQ[rhsAtoms, #] && atomSize[#, env] > 1 &],
       Message[Einstoff::unsupp,
         "an input axis of size > 1 is dropped on the output — that is reduce, not \

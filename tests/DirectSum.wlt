@@ -329,4 +329,21 @@ VerificationTest[
   TestID -> "split-named-summand-carries"
 ];
 
+(* 37-38. A {} summand is the unit literal 1 (einx '()'): concat 'b c, -> b (c + ())'
+   and split 'b (q + ()) -> b q, b' behave exactly like the literal-1 forms. *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{b_, c_}, {}} :> {{b, CirclePlus[c, {}]}},
+    {ArrayReshape[Range[6], {2, 3}], 42}],
+  Einstoff[ArrayReshape][{{b_, c_}, {}} :> {{b, CirclePlus[c, 1]}},
+    {ArrayReshape[Range[6], {2, 3}], 42}],
+  TestID -> "concat-unit-empty-summand"
+];
+VerificationTest[
+  Einstoff[ArrayReshape][{{b_, CirclePlus[q_, {}]}} :> {{b, q}, {b}},
+    {ArrayReshape[Range[8], {2, 4}]}, {q -> 3}],
+  Einstoff[ArrayReshape][{{b_, CirclePlus[q_, 1]}} :> {{b, q}, {b}},
+    {ArrayReshape[Range[8], {2, 4}]}, {q -> 3}],
+  TestID -> "split-unit-empty-summand"
+];
+
 EndTestSection[];

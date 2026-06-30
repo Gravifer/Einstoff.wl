@@ -42,9 +42,9 @@ Einstoff::unsupp = "`1`";
 Einstoff::unsat =
   "description is not satisfiable against the given tensor(s): `1`";
 
-PackageScoped[{descParts, resolveSlotStrings, rearrangeAtoms, atomSize, reduceAtoms,
-  materializeOutput, selfContract, reshapeTo, hasCirclePlus, directSumConcat,
-  directSumSplit}]
+PackageScoped[{descParts, resolveSlotStrings, normUnitTerms, rearrangeAtoms, atomSize,
+  reduceAtoms, materializeOutput, selfContract, reshapeTo, hasCirclePlus,
+  directSumConcat, directSumSplit}]
 
 (* ------------------------------------------------------------------ *)
 (* desc parsing.  Operators are HoldFirst and pass Hold[desc] in, so the *)
@@ -66,12 +66,21 @@ resolveSlotStrings[h_Hold] :=
       s_Symbol /; Context[s] =!= "System`" :> (SymbolName[s] -> s), {0, Infinity}];
     h /. Slot[str_String] :> Slot[Lookup[byName, str, Symbol[str]]]];
 
+(* Normalize an in-shape unit term {} to the literal 1, at any depth WITHIN each shape
+   (including inside a CircleTimes/CirclePlus), while leaving a whole-shape {} as a
+   scalar (rank-0 operand).  So `{}` and `1` are the same unit axis in every term
+   position; only a shape that *is* {} stays scalar.  Applied once at the desc boundary
+   (descParts / parseDesc) so all downstream code sees one spelling. *)
+normUnitTerms[shapes_] :=
+  Replace[shapes, sh_List :> If[sh === {}, {}, sh /. {} -> 1], {1}];
+
 (* CirclePlus is associative; canonicalize a ⊕ (b ⊕ c) to a flat summand list so
    the direct-sum paths see one CirclePlus with all summands (order preserved —
    CirclePlus is not Orderless). Mirrors flattenDirectSum in the shape layer. *)
 descParts[h : Hold[_Rule | _RuleDelayed]] :=
   With[{hr = resolveSlotStrings[h]},
-    {Extract[hr, {1, 1}], ReleaseHold @ Extract[hr, {1, 2}, Hold]} //.
+    {normUnitTerms @ Extract[hr, {1, 1}],
+     normUnitTerms @ ReleaseHold @ Extract[hr, {1, 2}, Hold]} //.
       CirclePlus[x___, CirclePlus[y___], z___] :> CirclePlus[x, y, z]];
 descParts[_] := $Failed;
 

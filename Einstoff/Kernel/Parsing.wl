@@ -64,11 +64,11 @@ flattenDirectSum[expr_] :=
    the desc itself uses for that name, so brackets are context-safe before matching. *)
 parseDesc[h : Hold[_RuleDelayed]] :=
   With[{hr = resolveSlotStrings[h]},
-    <|"LHS" -> flattenDirectSum @ Extract[hr, {1, 1}],
+    <|"LHS" -> normUnitTerms @ flattenDirectSum @ Extract[hr, {1, 1}],
       "RHS" -> Extract[hr, {1, 2}, Hold]|>];
 parseDesc[h : Hold[_Rule]] :=
   With[{hr = resolveSlotStrings[h]},
-    <|"LHS" -> flattenDirectSum @ Extract[hr, {1, 1}],
+    <|"LHS" -> normUnitTerms @ flattenDirectSum @ Extract[hr, {1, 1}],
       "RHS" -> Extract[hr, {1, 2}, Hold],
       "Warning" -> "prefer :> (RuleDelayed) over -> for desc"|>];
 parseDesc[_] := <|"LHS" -> $Failed, "RHS" -> $Failed|>;
@@ -284,12 +284,11 @@ EinstoffMatch[lhsShapes_, inputShapes_, bindings_ : {}] :=
 (* CircleTimes -> product, CirclePlus -> sum, Slot unwrapped.          *)
 (* ------------------------------------------------------------------ *)
 
+(* Normalize an in-shape {} unit term to 1 *before* CircleTimes -> Times etc., so a {}
+   inside a composite (e.g. (a () )) evaluates correctly; a whole-shape {} stays scalar. *)
 evalOutShape[Hold[rhs_], env_] :=
-  Replace[
-    rhs /. Join[Normal[env],
-      {CircleTimes -> Times, CirclePlus -> Plus, Slot -> Sequence}],
-    {} -> 1, {2}];   (* an in-shape {} term (level 2, inside a shape) is the unit axis
-                        1; a whole-shape {} (level 1) stays scalar / rank 0 *)
+  normUnitTerms[rhs] /. Join[Normal[env],
+    {CircleTimes -> Times, CirclePlus -> Plus, Slot -> Sequence}];
 
 (* ------------------------------------------------------------------ *)
 (* Public: full pipeline.                                             *)

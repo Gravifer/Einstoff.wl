@@ -230,4 +230,12 @@ VerificationTest[
   TestID -> "reject-literal-carry-with-unit"
 ];
 
+(* 32. {} and 1 are the same unit literal even for duplicate-output broadcast:
+   'a -> a {} {}' == 'a -> a 1 1' (both two unit broadcast axes). *)
+VerificationTest[
+  Einstoff[ArrayReshape][{{a_}} :> {{a, {}, {}}}, {Range[2]}],
+  Einstoff[ArrayReshape][{{a_}} :> {{a, 1, 1}}, {Range[2]}],
+  TestID -> "unit-empty-duplicate-output"
+];
+
 EndTestSection[];

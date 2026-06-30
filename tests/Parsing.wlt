@@ -211,4 +211,17 @@ VerificationTest[
   TestID -> "unsat-reason-present"
 ];
 
+(* An in-shape {} inside an output composite is the unit 1, evaluated before the
+   CircleTimes product: (a ()) -> a, and a (c ()) -> a (c) with c bound. *)
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[{{a_}} :> {{CircleTimes[a, {}]}}, {{3}}],
+  {{3}},
+  TestID -> "unit-empty-in-output-composite"
+];
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[{{a_}} :> {{a, CircleTimes[c, {}]}}, {{3}}, {c -> 2}],
+  {{3, 2}},
+  TestID -> "unit-empty-in-output-composite-bound"
+];
+
 EndTestSection[];
