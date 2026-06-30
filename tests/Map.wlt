@@ -138,4 +138,13 @@ VerificationTest[
   TestID -> "map-reject-multitensor"
 ];
 
+(* 15. A kept literal-integer axis has no carryable identity (shared materializeOutput
+   guard, Option A) — rejected, not leaked. *)
+VerificationTest[
+  Quiet @ Einstoff[Map]["id"][{{a_, Slot[2]}} :> {{a, 2}},
+    {ArrayReshape[Range[6], {3, 2}]}],
+  $Failed,
+  TestID -> "map-reject-kept-literal"
+];
+
 EndTestSection[];

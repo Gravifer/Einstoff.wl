@@ -240,4 +240,21 @@ VerificationTest[
   TestID -> "reduce-logsumexp"
 ];
 
+(* 26. A literal-integer axis may be REDUCED (summed) away. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {3, 2}]},
+    Einstoff[ArrayReduce][Total][{{a_, 2}} :> {{a}}, {x}]],
+  Total /@ ArrayReshape[Range[6], {3, 2}],
+  TestID -> "reduce-literal-axis"
+];
+
+(* 27. ...but a literal-integer axis cannot be KEPT (it has no carryable identity —
+   shared materializeOutput guard, Option A); rejected rather than leaked. *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReduce][Total][{{a_, 2}} :> {{a, 2}},
+    {ArrayReshape[Range[6], {3, 2}]}],
+  $Failed,
+  TestID -> "reduce-reject-kept-literal"
+];
+
 EndTestSection[];

@@ -171,4 +171,13 @@ VerificationTest[
   TestID -> "dot-reject-one-tensor"
 ];
 
+(* 20. A kept literal-integer axis has no carryable identity (shared materializeOutput
+   guard, Option A) — rejected, not leaked as an unevaluated ArrayReshape. *)
+VerificationTest[
+  Quiet @ Einstoff[Dot][{{a_, 2}, {2}} :> {{a, 2}},
+    {ArrayReshape[Range[6], {3, 2}], Range[2]}],
+  $Failed,
+  TestID -> "dot-reject-kept-literal"
+];
+
 EndTestSection[];

@@ -140,6 +140,14 @@ supported subset yet)"];
 
 materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
   Module[{env2 = env, rhsTerms2, rhsAtoms, repeats, acc = arr, order, srcOrder, outDims},
+    (* A surviving INPUT literal-integer axis cannot be carried to the output: under
+       Option A every output literal becomes a fresh anonymous broadcast axis, so an
+       input literal has no output identity to map to (cf. einx rejecting 'a 2 -> a 2').
+       Every lowering path (Massage/Reduce/Map/Dot) funnels here, so reject it once,
+       centrally — otherwise the uniquified output literals leave the input literal in
+       presentAtoms unmatched and the layout below produces garbage.  (A literal input
+       axis may still be reduced/contracted away *before* reaching this point.) *)
+    If[AnyTrue[presentAtoms, IntegerQ], Throw[$Failed]];
     (* Option A (einx-faithful): give each literal-integer OUTPUT axis a unique
        anonymous identity, sized to its value.  A literal output integer is a repetition
        (a new broadcast) axis, and two equal literals (e.g. 'a 2 2') are DISTINCT axes —
