@@ -6,6 +6,7 @@
 
      Reshape.wl   Einstoff[ArrayReshape] / EinstoffRearrange
      Reduce.wl    Einstoff[ArrayReduce]  / EinstoffReduce  (curried in the reducer)
+     Map.wl       Einstoff[Map]          / EinstoffMap     (curried in the map fn)
      Dot.wl       Einstoff[Dot]/[Inner]  / EinstoffDot, EinstoffInner (Inner curried)
      DirectSum.wl Einstoff[Join]/[Split] / EinstoffJoin (CirclePlus concat/split)
 
@@ -24,9 +25,11 @@ PackageExported[{Einstoff}]
 Einstoff::usage =
   "Einstoff[op] yields the Einstoff operator implementing op: \
 Einstoff[ArrayReshape] (rearrange/reshape), Einstoff[ArrayReduce][reducer] \
-(reduction), Einstoff[Dot] (einsum contraction) and its generalization \
-Einstoff[Inner][mul, add], Einstoff[Join]/[Split] (direct sum). Applied as \
-op[desc, tensors, bindings]; the reducer and (mul, add) are curried.";
+(reduction), Einstoff[Map][f] (shape-preserving elementary op along a bracketed \
+axis — flip/sort/softmax/…), Einstoff[Dot] (einsum contraction) and its \
+generalization Einstoff[Inner][mul, add], Einstoff[Join]/[Split] (direct sum). \
+Applied as op[desc, tensors, bindings]; the reducer, map fn and (mul, add) are \
+curried.";
 
 (* Shared diagnostics for every lowering path. *)
 Einstoff::unsupp = "`1`";

@@ -41,12 +41,23 @@ Einstoff["Reduce"] := EinstoffReduce;
 
 (* Resolve a reducer spec to a list-reducing function.  Accepts a raw function
    (Total, Mean, Max, Min, ...) as-is, or a convenience string matched
-   case-insensitively (einops uses lowercase: "sum", "mean", "max", ...). *)
+   case-insensitively.  The string set covers every einx reduction op
+   (https://einx.readthedocs.io/en/stable/api/operations/reduction.html); each
+   reducer receives the flat list of elements being combined (ArrayReduce hands
+   f the combined slice as one vector), so list-level definitions suffice.  var
+   and std are *population* (ddof = 0, matching numpy/einx) — deliberately NOT
+   WL's sample-based Variance/StandardDeviation.  any/all test "nonzero". *)
 reduceFunction[s_String] := Replace[ToLowerCase[s], {
   "sum" | "total" | "add" -> Total,
   "mean" | "average" -> Mean,
   "max" -> Max, "min" -> Min,
   "prod" | "product" | "times" -> (Times @@ # &),
+  "var" | "variance" -> (Mean[(# - Mean[#])^2] &),
+  "std" | "stddev" -> (Sqrt[Mean[(# - Mean[#])^2]] &),
+  "count_nonzero" | "countnonzero" -> (Total[Unitize[#]] &),
+  "any" -> (AnyTrue[#, # != 0 &] &),
+  "all" -> (AllTrue[#, # != 0 &] &),
+  "logsumexp" | "lse" -> (Max[#] + Log[Total[Exp[# - Max[#]]]] &),
   _ -> s}];
 reduceFunction[f_] := f;
 
@@ -94,7 +105,7 @@ EinstoffReduce[reducerSpec_][desc_, tensors_, bindings_List : {}] :=
         lhsBr[[#]] && MemberQ[rhsAtoms, lhsAtoms[[#]]] &],
       Message[Einstoff::unsupp,
         "a bracketed axis is kept on the output — feeding an axis whole to an \
-elementary op is a separate path, not reduction"];
+elementary op (softmax/flip/sort/…) is the Einstoff[Map][f] path, not reduction"];
       Return[$Failed]];
 
     x = First[tensors];

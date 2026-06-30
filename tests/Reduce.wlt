@@ -178,4 +178,58 @@ VerificationTest[
   TestID -> "reduce-global-illegal"
 ];
 
+(* ===================== full einx reduction-op coverage =============
+   Every named reducer at
+   https://einx.readthedocs.io/en/stable/api/operations/reduction.html resolves to
+   a list reducer; checked here against an independent WL reference over the
+   bracketed axis. var/std are *population* (ddof = 0), matching numpy/einx. *)
+
+(* 20. Population variance (NOT WL's sample Variance). *)
+VerificationTest[
+  With[{x = {{1., 2., 4., 8.}}},
+    Einstoff[ArrayReduce]["var"][{{a_, Slot[b_]}} :> {{a}}, {x}]],
+  {Mean[({1., 2., 4., 8.} - Mean[{1., 2., 4., 8.}])^2]},
+  TestID -> "reduce-var-population"
+];
+
+(* 21. Population standard deviation = Sqrt of population variance. *)
+VerificationTest[
+  With[{x = {{1., 2., 4., 8.}}},
+    Einstoff[ArrayReduce]["std"][{{a_, Slot[b_]}} :> {{a}}, {x}]],
+  {Sqrt @ Mean[({1., 2., 4., 8.} - Mean[{1., 2., 4., 8.}])^2]},
+  TestID -> "reduce-std-population"
+];
+
+(* 22. prod (already aliased; confirm the einx name resolves). *)
+VerificationTest[
+  With[{x = {{1, 2, 3, 4}}},
+    Einstoff[ArrayReduce]["prod"][{{a_, Slot[b_]}} :> {{a}}, {x}]],
+  {24},
+  TestID -> "reduce-prod-name"
+];
+
+(* 23. count_nonzero counts the nonzero entries along the axis. *)
+VerificationTest[
+  Einstoff[ArrayReduce]["count_nonzero"][{{a_, Slot[b_]}} :> {{a}}, {{{0, 1, 0, 2}}}],
+  {2},
+  TestID -> "reduce-count-nonzero"
+];
+
+(* 24. any / all test "nonzero" (numpy/einx truthiness). *)
+VerificationTest[
+  {Einstoff[ArrayReduce]["any"][{{a_, Slot[b_]}} :> {{a}}, {{{0, 0, 0}}}],
+   Einstoff[ArrayReduce]["all"][{{a_, Slot[b_]}} :> {{a}}, {{{1, 2, 0}}}],
+   Einstoff[ArrayReduce]["all"][{{a_, Slot[b_]}} :> {{a}}, {{{1, 2, 3}}}]},
+  {{False}, {False}, {True}},
+  TestID -> "reduce-any-all"
+];
+
+(* 25. logsumexp via the stable max-shift form. *)
+VerificationTest[
+  With[{x = {{1., 2., 4., 8.}}, v = {1., 2., 4., 8.}},
+    Einstoff[ArrayReduce]["logsumexp"][{{a_, Slot[b_]}} :> {{a}}, {x}]],
+  {Max[{1., 2., 4., 8.}] + Log[Total[Exp[{1., 2., 4., 8.} - Max[{1., 2., 4., 8.}]]]]},
+  TestID -> "reduce-logsumexp"
+];
+
 EndTestSection[];

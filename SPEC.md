@@ -375,11 +375,26 @@ fold with the batched inner product using an arbitrary multiply `mul` and combin
 `Inner`. For a semiring `(mul, add)` the N-ary fold is associative; the
 left-to-right order is the defined semantics otherwise.
 
-The reducer and `(mul, add)` are **curried** into the operator
-(`Einstoff[ArrayReduce][Total][…]`, `Einstoff[Inner][mul, add][…]`); no operator
-holds `desc` (uniform convention — §2 note), so a globally bound axis symbol
-substitutes (a bound integer reads as a literal dimension; illegal values are
-rejected by the matcher).
+`Einstoff[Map][f]` is the **kept-bracket sibling of `Einstoff[ArrayReduce]`**: a
+reduction *drops* the bracketed axes (`f`: block → scalar); a map *keeps* them
+(`f`: block → same-length block) and vmaps the op over every unbracketed axis. It
+covers einx's shape-preserving miscellaneous ops (flip/roll/sort/softmax/
+log_softmax/id) — the bracketed atoms are flattened to one vector (so `[a b]≡[a][b]`)
+and handed to `f`, which returns a same-length vector; the axes are kept on the RHS
+(dropping one is a reduction → routed to `ArrayReduce`). einx has no generic vmap
+entry point, so this single generic operator realizes all of them with `f` supplied.
+`f` is any vector→vector function (`Reverse`, `Sort`, a custom map) or a string name
+(`"flip"/"sort"/"softmax"/"log_softmax"/"id"`); `roll`'s shift is a parameter, so it
+is written `RotateRight[#, k] &`.
+
+The reducer, the map `f` and `(mul, add)` are **curried** into the operator
+(`Einstoff[ArrayReduce][Total][…]`, `Einstoff[Map][f][…]`,
+`Einstoff[Inner][mul, add][…]`); no operator holds `desc` (uniform convention — §2
+note), so a globally bound axis symbol substitutes (a bound integer reads as a
+literal dimension; illegal values are rejected by the matcher). The reducer string
+set covers **every einx reduction op** (sum/mean/var/std/prod/count_nonzero/any/all/
+max/min/logsumexp); `var`/`std` are population (ddof = 0, matching numpy/einx), and
+any raw list-reducer (`Total`, `Variance`, a custom function) is also accepted.
 
 **`CirclePlus` (direct sum) — implemented and cross-validated.** The direct-sum
 axis `(a + b)` lowers two ways, both folded into `Einstoff[ArrayReshape]` (einx
@@ -417,11 +432,10 @@ variable-arity bracket ellipsis `Slot[___]` (ex6); named-ellipsis / `Repeated[..
 re-walk (§5.3); within-operand reduction before contraction in `Einstoff[Dot]`.
 
 **Designed, not yet built** (plan: `docs/plans/brackets-map-and-notation.md`):
-`Einstoff[Map][f]` — the kept-bracket sibling of `Einstoff[ArrayReduce][reducer]`
-(a bracketed axis kept on the output, fed whole to an elementary op / vmap:
-softmax, flip, sort, roll); and the notation migration `Slot[name_]` → `#name`
-(`Slot["name"]`) / `Slot[___]` → `##` (`SlotSequence[1]`), which also subsumes the
-§7.2 integer-slot aliasing hazard by making bracketed axes string-named.
+the notation migration `Slot[name_]` → `#name` (`Slot["name"]`) / `Slot[___]` → `##`
+(`SlotSequence[1]`), which also subsumes the §7.2 integer-slot aliasing hazard by
+making bracketed axes string-named. (`Einstoff[Map][f]`, the kept-bracket vmap, is
+now implemented — see above.)
 
 **Long-term TODO (heavily deferred — do not pursue now) — CI policy for the Python
 cross-validation suite.** When CI exists: the `tests/python/*.wlt` einx/einops

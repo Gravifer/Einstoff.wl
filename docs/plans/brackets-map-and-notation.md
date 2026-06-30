@@ -1,6 +1,6 @@
 # Plan: bracket cleanup (done) → `Einstoff[Map]` → `#a`/`##` notation migration
 
-> Referenced from SPEC.md §9. Part A is **done**; Parts B and C are **designed,
+> Referenced from SPEC.md §9. Parts A and B are **done**; Part C is **designed,
 > not yet built** (recorded here so the design survives session boundaries).
 
 ## Context
@@ -36,7 +36,20 @@ operator logic or numeric outputs changed — suite stayed at 153 green.
 
 ---
 
-## Part B — Design: `Einstoff[Map][f]` (kept-bracket vmap)
+## Part B — DONE: `Einstoff[Map][f]` (kept-bracket vmap)
+
+**Built** in `Einstoff/Kernel/Map.wl` (subvalue `EinstoffMap[f][desc, tensors,
+bindings_List : {}]`, `Einstoff[Map] := EinstoffMap`). `mapFunction` resolves the einx
+misc names (`"flip"`→`Reverse`, `"sort"`→`Sort`, `"softmax"`/`"log_softmax"` stable
+max-shift, `"id"`→`Identity`); `roll` is a function (`RotateRight[#,k]&`, matching
+numpy `shift`). Lowering: `reduceAtoms` flags brackets → `Transpose` vmap-atoms-lead/
+bracket-atoms-trail → collapse to `{vmapProd, brProd}` matrix → `f /@ rows` (with a
+shape-preserving check) → reshape back → `materializeOutput`. Rejects: dropped axis
+(→ `ArrayReduce`), no bracket (→ `ArrayReshape`), non-shape-preserving `f`, multi-
+tensor. Also extended `Reduce.wl`'s `reduceFunction` to the full einx reduction set
+(var/std population, count_nonzero, any, all, logsumexp). Tests: `tests/Map.wlt` (14)
++ `tests/python/Map.wlt` (4, vs einx.flip/sort/roll/softmax) + 6 new in
+`tests/Reduce.wlt`. Suite 177 green (132 WL + 45 xval). The design that was built:
 
 The kept-bracket sibling of `Einstoff[ArrayReduce][reducer]`: reduce *drops* the
 bracketed axes (`f`: block → scalar); **Map keeps them** (`f`: block → same-shape
