@@ -6,7 +6,7 @@
    einx entry points (sum/mean/…).  The rearrange pipeline with a reduction
    inserted after the decompose step: axes present on the LHS but absent on the
    RHS are reduced away with the reducer via ArrayReduce, then the surviving axes
-   are permuted/recomposed exactly as in EinstoffRearrange.
+   are permuted/recomposed exactly as in EinstoffMassage.
 
    NB the curried form means desc is NOT held (a hold attribute cannot survive a
    compound head, EinstoffReduce[reducer][…]) — and that is fine, even useful:
@@ -33,7 +33,7 @@ EinstoffReduce::usage =
 reduction ops / einops.reduce) of a single tensor: axes present on the LHS but \
 absent on the RHS are reduced away with reducer (a function such as Total/Mean/\
 Max, or a name like \"sum\"/\"mean\"/\"max\") via ArrayReduce, and the surviving \
-axes are permuted/recomposed as in EinstoffRearrange. Bracketed (Slot) axes mark \
+axes are permuted/recomposed as in EinstoffMassage. Bracketed (Slot) axes mark \
 the einx reduction style; a bare dropped axis is the einops style.";
 
 Einstoff[ArrayReduce] := EinstoffReduce;

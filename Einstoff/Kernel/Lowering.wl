@@ -142,6 +142,14 @@ materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
   Module[{rhsAtoms, repeats, acc = arr, order, srcOrder, outDims},
     rhsAtoms = If[rhsTerms === {}, {},
       Join @@ Table[rearrangeAtoms[t], {t, rhsTerms}]];
+    (* Every output atom must resolve to a *positive integer* size.  atomSize Throws
+       on an unbound name; a name bound to 0 / a negative / a non-integer, or a literal
+       <= 0 immediate, is rejected here.  EinstoffShapes validates this for the paths
+       that go through it; callers that bypass it (Massage sizes via EinstoffMatch to
+       allow a within-tensor repeat) rely on this guard so bad dims cannot reach
+       ArrayReshape and leak as an unevaluated expression. *)
+    If[! AllTrue[rhsAtoms, With[{s = atomSize[#, env]}, IntegerQ[s] && s >= 1] &],
+      Throw[$Failed]];
     repeats = Select[rhsAtoms, ! MemberQ[presentAtoms, #] &];
     (* Broadcast each repeat axis on as a new leading axis. *)
     Do[acc = ConstantArray[acc, atomSize[r, env]], {r, repeats}];

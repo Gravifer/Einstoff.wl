@@ -147,4 +147,22 @@ VerificationTest[
   TestID -> "repeat-merge-leading"
 ];
 
+(* 18-20. An output axis must be a positive integer (Massage sizes via EinstoffMatch,
+   so this positivity guard lives in materializeOutput, not EinstoffShapes). *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{a_}} :> {{a, 0}}, {Range[3]}],
+  $Failed,
+  TestID -> "reject-zero-output-integer"
+];
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{a_}} :> {{a, c}}, {Range[3]}, {c -> 0}],
+  $Failed,
+  TestID -> "reject-zero-output-binding"
+];
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{a_}} :> {{a, -1}}, {Range[3]}],
+  $Failed,
+  TestID -> "reject-negative-output-integer"
+];
+
 EndTestSection[];

@@ -87,4 +87,17 @@ VerificationTest[
   TestID -> "einsum-reject-mixed-multitensor"
 ];
 
+(* 11. A literal integer output axis is also repetition (broadcast) — rejected,
+   single- and multi-tensor (output integers count as repetition, Reshape.wlt §15). *)
+VerificationTest[
+  Quiet @ Einstoff["einsum"][{{a_}} :> {{a, 2}}, {Range[3]}],
+  $Failed,
+  TestID -> "einsum-reject-literal-repetition"
+];
+VerificationTest[
+  Quiet @ Einstoff["einsum"][{{a_}, {b_}} :> {{a, b, 2}}, {Range[3], Range[4]}],
+  $Failed,
+  TestID -> "einsum-reject-literal-repetition-multi"
+];
+
 EndTestSection[];

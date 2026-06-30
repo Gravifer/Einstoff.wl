@@ -89,7 +89,8 @@ rearrange/contract (use Einstoff[ArrayReduce])"];
     result = Catch[materializeOutput[xc, atomsc, First[rhs], env]];
     If[result === $Failed,
       Message[Einstoff::unsat,
-        "an output axis size is unbound (a repeated axis needs a binding)"];
+        "an output axis size is unbound or not a positive integer (a repeated axis \
+needs a positive binding)"];
       Return[$Failed]];
     result
   ];
