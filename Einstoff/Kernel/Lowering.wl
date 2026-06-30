@@ -37,7 +37,7 @@ Einstoff::unsat =
   "description is not satisfiable against the given tensor(s): `1`";
 
 PackageScoped[{descParts, resolveSlotStrings, rearrangeAtoms, atomSize, reduceAtoms,
-  materializeOutput, hasCirclePlus, directSumConcat, directSumSplit}]
+  materializeOutput, selfContract, hasCirclePlus, directSumConcat, directSumSplit}]
 
 (* ------------------------------------------------------------------ *)
 (* desc parsing.  Operators are HoldFirst and pass Hold[desc] in, so the *)
@@ -147,3 +147,45 @@ materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
     If[Length[srcOrder] > 1, acc = Transpose[acc, InversePermutation[srcOrder]]];
     outDims = (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ rhsTerms;
     ArrayReshape[acc, outDims]];
+
+(* ------------------------------------------------------------------ *)
+(* Within-tensor (self-) contraction.  einsum-style: a name repeated   *)
+(* within one operand's atom list and absent from the output is summed  *)
+(* over its coincident slots (a partial trace, e.g. Ricci R^a_bad).     *)
+(*                                                                      *)
+(* Reshapes `x` to its atomic dims, then for each repeated dropped name *)
+(* contracts that pair of slots via ResourceFunction["ArrayContract"]   *)
+(* (Plus, with the explicit array depth — the 3-arg form mis-levels).   *)
+(* Returns {atomicTensor, survivingAtoms}: the atomic-granularity array  *)
+(* and its remaining atom labels (contracted positions removed).  With  *)
+(* no repeats it is just the atomic reshape (no resource-function call). *)
+(*                                                                      *)
+(* Only *pairwise* contraction is tensorial: a name kept on the output  *)
+(* would be a diagonal (deferred) and a name occurring >2 times a       *)
+(* super-diagonal (non-tensorial) — both Throw $Failed loudly.          *)
+(* Throws (caught by the caller) on an unbound axis too.                *)
+(* ------------------------------------------------------------------ *)
+
+selfContract[x_, lhsAtoms_, rhsAtoms_, env_] :=
+  Module[{dims, xr, names, repeated, groups, ndims},
+    dims = atomSize[#, env] & /@ lhsAtoms;        (* Throws if unbound *)
+    xr = ArrayReshape[x, dims];
+    names = DeleteCases[lhsAtoms, _Integer];
+    repeated = Select[DeleteDuplicates[names], Count[lhsAtoms, #] >= 2 &];
+    If[repeated === {}, Return[{xr, lhsAtoms}]];
+    If[AnyTrue[repeated, MemberQ[rhsAtoms, #] &],
+      Message[Einstoff::unsupp,
+        "a repeated axis is kept on the output (a diagonal) — not supported yet; \
+drop the axis to contract it"];
+      Throw[$Failed]];
+    If[AnyTrue[repeated, Count[lhsAtoms, #] > 2 &],
+      Message[Einstoff::unsupp,
+        "an axis occurs more than twice (a super-diagonal) — only pairwise \
+contraction is supported (it is the geometrically meaningful, tensorial case)"];
+      Throw[$Failed]];
+    (* Disjoint position pairs, one per repeated name.  Table (not &/@) keeps the
+       per-name body off an anonymous Function (SPEC 7.2 discipline). *)
+    groups = Table[Flatten[Position[lhsAtoms, n]], {n, repeated}];
+    ndims = Length[lhsAtoms];
+    {ResourceFunction["ArrayContract"][xr, groups, Plus, ndims],
+     Delete[lhsAtoms, List /@ Flatten[groups]]}];
