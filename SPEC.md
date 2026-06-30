@@ -345,6 +345,44 @@ in the spec or tests. This retires the former "non-standard arity" concern:
 there is no multi-arg `Slot` to guard against, because we never emit one.
 (`Slot[]` — bracketed nothing — does not arise.)
 
+### 7.4 Robustness gaps surfaced by code review (2026-06-30)
+
+A review flagged latent robustness issues; the validated ones, with current behaviour
+confirmed empirically (none breaks the test suite — they turn *malformed input* into
+silent wrong output or fragile invariants):
+
+- **Unknown reducer / map string silently misbehaves** (`reduceFunction` Reduce.wl,
+  `mapFunction` Map.wl). A typo like `Einstoff[ArrayReduce]["summ"]` falls through as
+  the bare string and is applied as a function — the result is unevaluated `summ[{…}]`
+  garbage, *not* `$Failed`. (Map rejects it only by accident, via its shape-preservation
+  check.) Fix: reject an unknown string immediately with a clear message. **High value,
+  cheap.**
+- **Duplicate output axis names produce silent garbage** (`materializeOutput`
+  `FirstPosition`, Lowering.wl; same idiom in Dot.wl `contractPair`, Map.wl).
+  `{{a_}} :> {{a, c, c}}` resolves shapes (Satisfiable, `{3,2,2}`) but lowering builds
+  `InversePermutation[{3,1,1}]` — not a permutation — so the op returns an unevaluated
+  `ArrayReshape[Transpose[…]]` rather than a value or a clean error. Fix: validate that
+  axis names are unique per shape (and reject duplicates up front).
+- **`Symbol[string]` for `#name` axes is `$Context`-sensitive** (matchTerms splice
+  Parsing.wl, reduceAtoms Lowering.wl). It works because the desc and the call share a
+  context in practice — the same assumption bare-symbol references already make — but the
+  invariant is implicit and spread across two files. Fix: centralize into one axis-name
+  resolver, ideally context-explicit.
+- **Duplicated desc parsing / CirclePlus flattening** in `descParts` (Lowering.wl) and
+  `parseDesc`/`flattenDirectSum` (Parsing.wl) — they mirror each other (held vs released
+  RHS); future syntax could update one and miss the other. Fix: share the flatten logic.
+- **Untagged `Throw[$Failed]`/`Catch`** in shared lowering: in Dot/Inner the user-supplied
+  `mul`/`add` run *inside* a `Catch`, so a user function that throws untagged would be
+  swallowed as our `$Failed`. Narrow/low-likelihood; tagged throws would isolate it.
+- **`Association[bindings]` is unvalidated** (Parsing.wl). Malformed entries degrade to
+  later, less-local unsat messages rather than crashing; a small normalization layer would
+  localize the error.
+- **Dead `Module` locals** `sizes/ends/starts` in `directSumSplit` (the live ones are
+  `sz/en/st`). Harmless; remove.
+
+The first two are the priority: they turn bad input into silent wrong output instead of a
+clean rejection. To be addressed in a focused cleanup pass, separate from feature work.
+
 ## 8. Resolved / verified (no further action needed)
 
 - `CirclePlus`/`CircleTimes` have no built-in evaluation rules for symbolic
