@@ -1,9 +1,11 @@
 # Within-tensor contraction (traces & diagonals) — semantics & design note
 
-> Status: **design analysis, not yet implemented.** Captures how the ein* / NumPy /
-> Wolfram ecosystem treats a *repeated index*, the geometric meaning of contraction,
-> and the resulting design boundary for a future `Einstoff` extension. The future
-> public documentation should reflect §4 and §7.
+> Status: **pairwise core implemented** (2026-06; `selfContract` in Lowering.wl,
+> `Einstoff["Massage"]`, `Einstoff["einsum"]`). The combiner generalization, diagonal-
+> keep, `>2` super-diagonals, and mixed within+cross multi-operand einsum remain deferred
+> per §7. Captures how the ein* / NumPy / Wolfram ecosystem treats a *repeated index*,
+> the geometric meaning of contraction, and the design boundary. The future public
+> documentation should reflect §4 and §7.
 
 ## 1. Motivation
 

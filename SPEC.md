@@ -501,15 +501,36 @@ shape, but lowering an axis-count-varying bracket is deferred; named-ellipsis /
 `Repeated[...]` re-walk (§5.3); within-operand reduction before contraction in
 `Einstoff[Dot]`.
 
-**Within-tensor contraction** (GR-style traces, e.g. Ricci `R^a{}_{bad}` — a repeated
-index in one operand) is analyzed in `docs/within-tensor-contraction.md`: einx cannot
-express it, but `einops.einsum`/`np.einsum` and WL (`TensorContract`/`Tr`/`ArrayContract`)
-can. The principled core is *pairwise* contraction (the only geometrically-meaningful,
-tensorial case; `>2` same-name sums are basis-dependent super-diagonals, which WL's own
-`EinsteinSummation` also excludes). Planned as a future extension: support repeated-and-
-dropped → pairwise contract (dup-check narrowed to RHS-only), generalizable by combiner
-exactly as `Einstoff[Inner][mul, add]` generalizes `Dot`; diagonal-keep and the
-bracket/composite interactions deferred.
+**Within-tensor contraction — pairwise core implemented.** A name repeated in one
+operand and dropped on the output is summed over its coincident slots (GR-style traces,
+e.g. Ricci `R^a{}_{bad}`), which einx cannot express but `einops.einsum`/`np.einsum` and
+WL can. Lowered by `selfContract` (Lowering.wl) via
+`ResourceFunction["ArrayContract"][x, pairs, Plus, ArrayDepth[x]]` (the explicit depth is
+required — the 3-arg form mis-levels). Exposed two ways:
+- `Einstoff["Massage"]` / `EinstoffMassage` (Reshape.wl) — the **univalent** (single-
+  tensor) structural engine: rearrange + repeat + direct sum **and** within-tensor
+  contraction. It sizes via `EinstoffMatch` (not `EinstoffShapes`) so a within-tensor
+  repeat is allowed, while the shape-layer uniqueness check still protects reduce/map.
+- `Einstoff["einsum"]` / `EinstoffEinsum` (Einsum.wl) — the pairwise-contraction subset:
+  1 tensor → Massage, ≥2 → the `Dot` cross-tensor fold; rejects repetition and the mixed
+  multi-operand case (deferred). Cross-validated against `einops.einsum`.
+
+Only *pairwise* is supported (the tensorial case): a kept repeat (diagonal `aa->a`), an
+axis occurring `>2` times (super-diagonal, non-tensorial — `EinsteinSummation` also caps
+at 2), and a single dropped index (plain sum-reduction → `Einstoff[ArrayReduce]`) are all
+rejected. **Deferred:** the combiner generalization (`ArrayContract[…, add]` /
+`Tr[…, add]`, mirroring `Einstoff[Inner]`); diagonal-keep; mixed within+cross multi-
+operand einsum; and the bracket/composite interactions. Analysis:
+`docs/within-tensor-contraction.md`.
+
+**Entrance re-architecture (in progress).** `Einstoff["Massage"]` is the engine the
+named entrances are meant to guard. Done: `Massage` exists; `Einstoff[ArrayReshape]` is
+currently a permissive Massage alias; `Einstoff["einsum"]` lands as a guard/dispatcher.
+**TODO:** add the intent guards `Einstoff[ArrayReshape]` (pure bijective rearrange) and
+`Einstoff["ArrayContract"]` (no repetition / non-increasing), delegating to Massage, and
+migrate the existing `ArrayReshape` repeat/direct-sum tests to `Massage`. A future cross-
+tensor backend parallel to the univalent Massage — working name **`EinstoffTandem`** —
+would unify the `Dot`/`Inner` structural role under the same metaphor (potential TODO).
 
 **Long-term TODO (heavily deferred — do not pursue now) — CI policy for the Python
 cross-validation suite.** When CI exists: the `tests/python/*.wlt` einx/einops
