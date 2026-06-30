@@ -142,6 +142,11 @@ materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
   Module[{rhsAtoms, repeats, acc = arr, order, srcOrder, outDims},
     rhsAtoms = If[rhsTerms === {}, {},
       Join @@ Table[rearrangeAtoms[t], {t, rhsTerms}]];
+    (* Output atoms must be distinct: a duplicate (a repeated name, or two equal literal
+       integers) makes the FirstPosition layout below ambiguous and would leak an
+       unevaluated ArrayReshape.  Option B — reject it (this branch); Option A would
+       instead give literal duplicates distinct identities. *)
+    If[! DuplicateFreeQ[rhsAtoms], Throw[$Failed]];
     (* Every output atom must resolve to a *positive integer* size.  atomSize Throws
        on an unbound name; a name bound to 0 / a negative / a non-integer, or a literal
        <= 0 immediate, is rejected here.  EinstoffShapes validates this for the paths

@@ -100,4 +100,11 @@ VerificationTest[
   TestID -> "einsum-reject-literal-repetition-multi"
 ];
 
+(* 13. A duplicate literal output axis is rejected (distinct-output, like np.einsum). *)
+VerificationTest[
+  Quiet @ Einstoff["einsum"][{{a_, 2}} :> {{a, 2, 2}}, {ArrayReshape[Range[6], {3, 2}]}],
+  $Failed,
+  TestID -> "einsum-reject-duplicate-literal"
+];
+
 EndTestSection[];

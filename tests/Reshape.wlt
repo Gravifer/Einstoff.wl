@@ -165,4 +165,13 @@ VerificationTest[
   TestID -> "reject-negative-output-integer"
 ];
 
+(* 21. Duplicate literal output axes are rejected (Option B): 'a -> a 2 2'.  (einx
+   would instead broadcast two anonymous size-2 axes — that is Option A, on a sibling
+   branch.) A single 'a -> a 2' still repeats (test 15). *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{a_}} :> {{a, 2, 2}}, {Range[3]}],
+  $Failed,
+  TestID -> "reject-duplicate-literal-output"
+];
+
 EndTestSection[];

@@ -53,6 +53,12 @@ EinstoffEinsum[desc_, tensors_, bindings_List : {}] :=
     rhsAtoms = Catch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
     If[opAtoms === $Failed || rhsAtoms === $Failed, Return[$Failed]];
 
+    (* Output atoms must be distinct (np.einsum errors on a repeated output subscript;
+       Option B also rejects two equal literal integers). *)
+    If[! DuplicateFreeQ[rhsAtoms],
+      Message[Einstoff::unsupp,
+        "einsum output axes must be distinct (no repeated output subscript)"];
+      Return[$Failed]];
     (* einsum has no repetition: every output atom — a named axis OR a literal integer
        immediate — must appear on some input.  A literal output integer not present on
        the input is a broadcast (Reshape.wlt treats output integers as repetition), so

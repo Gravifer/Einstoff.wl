@@ -69,10 +69,12 @@ EinstoffMassage[desc_, tensors_, bindings_List : {}] :=
     lhsAtoms = Catch[Join @@ (rearrangeAtoms /@ First[lhs])];
     rhsAtoms = Catch[Join @@ (rearrangeAtoms /@ First[rhs])];
     If[lhsAtoms === $Failed || rhsAtoms === $Failed, Return[$Failed]];
-    (* An axis name may not repeat on the output (no einsum spelling for it). *)
-    If[! DuplicateFreeQ[DeleteCases[rhsAtoms, _Integer]],
+    (* Output atoms must be distinct — a repeated name OR two equal literal integers
+       (Option B: duplicate literal output axes are rejected, not broadcast). *)
+    If[! DuplicateFreeQ[rhsAtoms],
       Message[Einstoff::unsupp,
-        "an axis name repeats on the output — output axes must be distinct"];
+        "an output axis is repeated (a name twice, or two equal literal integers) — \
+output axes must be distinct"];
       Return[$Failed]];
 
     (* Self-contract a within-tensor repeated (dropped) index; identity otherwise. *)
