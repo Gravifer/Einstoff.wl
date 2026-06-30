@@ -496,6 +496,16 @@ shape, but lowering an axis-count-varying bracket is deferred; named-ellipsis /
 `Repeated[...]` re-walk (§5.3); within-operand reduction before contraction in
 `Einstoff[Dot]`.
 
+**Within-tensor contraction** (GR-style traces, e.g. Ricci `R^a{}_{bad}` — a repeated
+index in one operand) is analyzed in `docs/within-tensor-contraction.md`: einx cannot
+express it, but `einops.einsum`/`np.einsum` and WL (`TensorContract`/`Tr`/`ArrayContract`)
+can. The principled core is *pairwise* contraction (the only geometrically-meaningful,
+tensorial case; `>2` same-name sums are basis-dependent super-diagonals, which WL's own
+`EinsteinSummation` also excludes). Planned as a future extension: support repeated-and-
+dropped → pairwise contract (dup-check narrowed to RHS-only), generalizable by combiner
+exactly as `Einstoff[Inner][mul, add]` generalizes `Dot`; diagonal-keep and the
+bracket/composite interactions deferred.
+
 **Long-term TODO (heavily deferred — do not pursue now) — CI policy for the Python
 cross-validation suite.** When CI exists: the `tests/python/*.wlt` einx/einops
 cross-tests must *not* be required status checks (opt-in; need a Python venv); and
