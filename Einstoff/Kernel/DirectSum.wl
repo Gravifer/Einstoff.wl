@@ -134,7 +134,7 @@ SetAttributes[directSumSplit, HoldFirst];
 
 directSumSplit[desc_, tensors_, bindings_List] :=
   Module[{parts, lhs, rhs, inShape, cpos, cp, summands, k, shp, env, x,
-          ndims, n, sizes, ends, starts, outs},
+          ndims, n, outs},
     parts = descParts[Hold[desc]];
     If[parts === $Failed,
       Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];

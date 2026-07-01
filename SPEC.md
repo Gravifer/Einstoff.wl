@@ -387,16 +387,20 @@ the suite — they are fragile invariants / maintainability smells):
 - **Untagged `Throw[$Failed]`/`Catch`** in shared lowering: in Dot/Inner the user-supplied
   `mul`/`add` run *inside* a `Catch`, so a user function that throws untagged would be
   swallowed as our `$Failed`. Narrow/low-likelihood; tagged throws would isolate it.
-- **`Association[bindings]` is unvalidated** (Parsing.wl). Malformed entries degrade to
-  later, less-local unsat messages rather than crashing; a small normalization layer would
-  localize the error.
-- **Dead `Module` locals** `sizes/ends/starts` in `directSumSplit` (the live ones are
-  `sz/en/st`). Harmless; remove.
+- ✅ **`Association[bindings]` is unvalidated** (Parsing.wl) — *fixed.* `EinstoffMatch`
+  now validates `bindings` at the entrance: it must be a list of axis-name -> size rules
+  (a bare `Symbol` key, a positive-integer size; `Rule` or `RuleDelayed`; the default `{}`
+  is vacuously valid). A malformed spec (a non-rule entry, a non-symbol key, or a
+  non-positive/non-integer size) now returns a local `ok -> False` reason here rather than
+  degrading into a deeper unsat message or leaking an unevaluated `Association[...]`
+  through `matchTerms`. Seven regression tests (`bindings-reject-*`, `bindings-ruledelayed-ok`).
+- ✅ **Dead `Module` locals** `sizes/ends/starts` in `directSumSplit` — *removed* (the live
+  ones, `sz/en/st`, live in the inner block `Module`).
 
-The two silent-wrong-output items, the context-sensitive axis resolver, and the
-duplicated desc normalization are done. The remaining three (untagged throws, bindings
-validation, dead `directSumSplit` locals) are lower-severity and left for a future
-cleanup pass, separate from feature work.
+The two silent-wrong-output items, the context-sensitive axis resolver, the duplicated
+desc normalization, bindings validation, and the dead `directSumSplit` locals are done.
+The one remaining item (untagged throws in Dot/Inner) is lower-severity and left for a
+future cleanup pass, separate from feature work.
 
 ## 8. Resolved / verified (no further action needed)
 

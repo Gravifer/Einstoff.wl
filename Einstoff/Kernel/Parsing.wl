@@ -270,7 +270,22 @@ EinstoffMatch[lhsShapes_, inputShapes_, bindings_ : {}] :=
         "reason" -> "operand count: desc has " <> ToString[Length[lhsShapes]] <>
           " shape(s) but " <> ToString[Length[inputShapes]] <>
           " tensor shape(s) given"|>]];
+    (* Validate `bindings` at the entrance so a malformed spec fails locally here, rather
+       than degrading into a deeper, less-obvious unsat message (or an unevaluated
+       Association[...] leaking through matchTerms).  A binding is an axis-name -> size
+       rule: a bare Symbol key and a positive-integer size.  Rule or RuleDelayed; the
+       default {} is vacuously valid.  Values are read from the built Association so a
+       RuleDelayed size is evaluated before the integer check. *)
+    If[! MatchQ[bindings, {(_Rule | _RuleDelayed) ...}] ||
+       ! AllTrue[bindings, MatchQ[First[#], _Symbol] &],
+      Return[<|"ok" -> False,
+        "reason" -> "bindings must be a list of axis-name -> size rules \
+(e.g. {n -> 8}); got " <> ToString[bindings, InputForm]|>]];
     env0 = Association[bindings];
+    If[! AllTrue[env0, IntegerQ[#] && # >= 1 &],
+      Return[<|"ok" -> False,
+        "reason" -> "each binding must give a positive-integer axis size; got " <>
+          ToString[Normal[env0], InputForm]|>]];
     {res, sown} = Reap[matchAll[lhsShapes, inputShapes, env0]];
     If[res === {},
       <|"ok" -> False,

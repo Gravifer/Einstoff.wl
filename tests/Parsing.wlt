@@ -239,4 +239,54 @@ VerificationTest[
   TestID -> "parse-flattens-rhs-circleplus"
 ];
 
+(* ===================== bindings validation (§7.4) ================== *)
+
+(* A bindings entry that is not an axis-name -> size rule (a bare symbol/expr) is
+   rejected at the entrance with a clear reason, not degraded into a deep unsat. *)
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c, 2}],
+  False,
+  TestID -> "bindings-reject-non-rule"
+];
+VerificationTest[
+  StringContainsQ[
+    Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c, 2}]["Reason"],
+    "bindings must be a list of axis-name"],
+  True,
+  TestID -> "bindings-reject-non-rule-reason"
+];
+
+(* A non-symbol key (an integer immediate as a key) is not an axis name — rejected. *)
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {2 -> 3, c -> 2}],
+  False,
+  TestID -> "bindings-reject-nonsymbol-key"
+];
+
+(* A non-positive or non-integer size is rejected with the size-specific reason. *)
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> -2}],
+  False,
+  TestID -> "bindings-reject-nonpositive-size"
+];
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2.5}],
+  False,
+  TestID -> "bindings-reject-noninteger-size"
+];
+VerificationTest[
+  StringContainsQ[
+    Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 0}]["Reason"],
+    "positive-integer axis size"],
+  True,
+  TestID -> "bindings-reject-size-reason"
+];
+
+(* A valid RuleDelayed binding still works (size read from the built Association). *)
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c :> 2}],
+  {{3, 2}},
+  TestID -> "bindings-ruledelayed-ok"
+];
+
 EndTestSection[];
