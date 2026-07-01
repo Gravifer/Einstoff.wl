@@ -75,4 +75,22 @@ VerificationTest[
   TestID -> "inner-reject-one-tensor"
 ];
 
+(* 9. Inner shares innerLower's Option-A operand sanitize: a size > 1 literal is not a
+   shared contraction identity (two '2's are not the same axis) — reject, like Dot. *)
+VerificationTest[
+  Quiet @ Einstoff[Inner][Plus, Min][{{a_, 2}, {2, b_}} :> {{a, b}},
+    {ArrayReshape[Range[6], {3, 2}], ArrayReshape[Range[8], {2, 4}]}],
+  $Failed,
+  TestID -> "inner-reject-shared-literal"
+];
+
+(* 10. ...and a unit (size-1) literal operand axis squeezes: 'a 1, b -> a b' is the
+   (min-plus) outer product. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[3], {3, 1}], y = Range[4]},
+    Einstoff[Inner][Plus, Min][{{a_, 1}, {b_}} :> {{a, b}}, {x, y}]],
+  Outer[Plus, Flatten[ArrayReshape[Range[3], {3, 1}]], Range[4]],
+  TestID -> "inner-unit-literal-squeeze-outer"
+];
+
 EndTestSection[];

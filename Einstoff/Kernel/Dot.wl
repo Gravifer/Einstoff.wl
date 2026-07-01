@@ -135,7 +135,7 @@ for one)"];
     outA = Catch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
     If[labs === $Failed || outA === $Failed, Return[$Failed]];
 
-    (* Sanitize each operand for Option A: squeeze unit literals, reject size->1
+    (* Sanitize each operand for Option A: squeeze unit literals, reject size > 1
        literals, so contractPair only ever sees named (identity-bearing) axes. *)
     sanitized = Catch[Table[sanitizeOperand[tensors[[j]], labs[[j]], env], {j, Length[lhs]}]];
     If[sanitized === $Failed, Return[$Failed]];
