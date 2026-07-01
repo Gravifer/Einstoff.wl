@@ -76,12 +76,14 @@ VerificationTest[
 
 (* ===================== rejection paths ============================= *)
 
-(* 9. Three input tensors are rejected (first cut is two-operand). *)
+(* 9. Operand-count mismatch: 3 tensors but only 2 input shapes in the desc -> rejected.
+   (N-operand chains ARE supported — see the 3- and 4-operand chain tests above; this
+   rejects only because the tensor count disagrees with the desc's shape count.) *)
 VerificationTest[
   Quiet @ Einstoff[Dot][{{a_, b_}, {b, c_}} :> {{a, c}},
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}], ArrayReshape[Range[6], {2, 3}]}],
   $Failed,
-  TestID -> "dot-reject-three-tensor"
+  TestID -> "dot-reject-operand-count-mismatch"
 ];
 
 (* 10. A single-operand axis dropped before contraction is rejected. *)
@@ -199,6 +201,22 @@ VerificationTest[
   With[{x = ArrayReshape[Range[3], {3, 1}], y = Range[4]},
     {Outer[Times, Flatten[x], y], Outer[Times, Flatten[x], y]}],
   TestID -> "dot-unit-literal-squeeze-outer"
+];
+
+(* 23. A contracted axis in >2 operands (dropped) is an N-way super-diagonal — rejected
+   (einx.dot: contracted axes must appear in exactly two inputs). *)
+VerificationTest[
+  Quiet @ Einstoff[Dot][{{a_}, {a_}, {a_}} :> {{}}, {Range[3], Range[3], Range[3]}],
+  $Failed,
+  TestID -> "dot-reject-nary-contraction"
+];
+
+(* 24. ...but keeping that axis on the output is an elementwise product across all
+   operands: 'a, a, a -> a' == x y z (einx accepts this). *)
+VerificationTest[
+  Einstoff[Dot][{{a_}, {a_}, {a_}} :> {{a}}, {Range[3], Range[3], Range[3]}],
+  Range[3] Range[3] Range[3],
+  TestID -> "dot-nary-elementwise-keep"
 ];
 
 EndTestSection[];

@@ -141,6 +141,21 @@ for one)"];
     If[sanitized === $Failed, Return[$Failed]];
     stensors = sanitized[[All, 1]]; slabs = sanitized[[All, 2]];
 
+    (* A contracted axis must be shared by *exactly two* operands.  A named axis that is
+       absent from the output (contracted) and appears in more than two operands is an
+       N-way same-index contraction — a super-diagonal, non-tensorial (cf. einx.dot
+       "contracted axes must appear in exactly two input expressions", and the within-
+       tensor >2 reject in selfContract).  Keeping the axis on the output (an elementwise
+       / batch product across operands, e.g. 'a, a, a -> a') is fine and not caught here.
+       The one-operand dropped case is a within-operand reduction, caught in contractPair. *)
+    If[AnyTrue[DeleteDuplicates[Flatten[slabs]],
+        Function[ax, ! MemberQ[outA, ax] && Count[slabs, l_ /; MemberQ[l, ax]] > 2]],
+      Message[Einstoff::unsupp,
+        "a contracted axis appears in more than two operands — an N-way (>2) same-index \
+contraction is a super-diagonal, not a pairwise tensor contraction (keep it on the \
+output for an elementwise/batch product, or contract pairwise)"];
+      Return[$Failed]];
+
     (* Pairwise left fold: contract operand i into the accumulator, keeping the
        global output axes plus anything a later operand still needs. *)
     result = Catch @ Module[{accT = First[stensors], accL = First[slabs], keep},

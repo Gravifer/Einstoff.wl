@@ -117,4 +117,12 @@ VerificationTest[
   TestID -> "einsum-reject-shared-literal"
 ];
 
+(* 15. A contracted axis in >2 operands is an N-way super-diagonal — reject
+   'a, a, a ->' (einx.dot: contracted axes must appear in exactly two inputs). *)
+VerificationTest[
+  Quiet @ Einstoff["einsum"][{{a_}, {a_}, {a_}} :> {{}}, {Range[3], Range[3], Range[3]}],
+  $Failed,
+  TestID -> "einsum-reject-nary-contraction"
+];
+
 EndTestSection[];
