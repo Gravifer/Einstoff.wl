@@ -200,9 +200,9 @@ VerificationTest[
 ];
 
 (* ===================== composite summands (concat) =============== *)
-(* A direct-sum summand may be a product block (a CircleTimes), e.g. (a⊗b) ⊕ c,
-   on the *concat* side (CirclePlus on the RHS). Split with a composite summand is
-   still deferred (it needs a matcher extension; see SPEC §9). *)
+(* A direct-sum summand may be a product block (a CircleTimes), e.g. (a⊗b) ⊕ c.
+   Supported in BOTH directions: concat here, and split below (the CAS matcher
+   solveComposite resolves the block's factor sizes; see SPEC §9). *)
 
 (* 24. Composite block whose operand is pre-merged: 'm (a b), m c -> m ((a b) + c)', a=2. *)
 VerificationTest[

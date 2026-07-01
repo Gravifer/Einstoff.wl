@@ -10,6 +10,17 @@
 > CirclePlus per shape. The text below is the original phased plan (concat = phase 1,
 > split = phase 2); both phases have since landed.
 
+---
+
+> ⚠️ **Everything below this line is the ORIGINAL phased plan, preserved verbatim for
+> design rationale.** It is written in the future tense and its "phase 2", "deferred",
+> and "not yet implemented" references are **historical** — concat (phase 1) and split
+> (phase 2), including nested and composite (CircleTimes-block) summands in both
+> directions, have all shipped. For the authoritative current status and the genuinely
+> remaining deferrals, see the header above and SPEC.md §9.
+
+---
+
 ## Context
 
 The four-operator core — `Einstoff[ArrayReshape]`, `[ArrayReduce]`, `[Dot]`, plus

@@ -76,8 +76,10 @@ directSumConcat[desc_, tensors_, bindings_List] :=
     cpos = Position[out, _CirclePlus, {1}];
     If[Length[cpos] =!= 1 || hasCirclePlus[Delete[out, cpos]],
       Message[Einstoff::unsupp,
-        "concatenation supports exactly one top-level CirclePlus on the output \
-(nested or multiple direct sums are not supported yet)"];
+        "concatenation supports exactly one direct-sum (CirclePlus) axis per output \
+shape (top-level nesting like a \[CirclePlus] (b \[CirclePlus] c) is flattened and \
+supported; more than one direct-sum axis, or a CirclePlus nested inside another term \
+such as a CircleTimes, is not supported yet)"];
       Return[$Failed]];
     n = cpos[[1, 1]];                       (* concat axis = that term's position *)
     cp = out[[n]];
@@ -148,8 +150,10 @@ directSumSplit[desc_, tensors_, bindings_List] :=
     cpos = Position[inShape, _CirclePlus, {1}];
     If[Length[cpos] =!= 1 || hasCirclePlus[Delete[inShape, cpos]],
       Message[Einstoff::unsupp,
-        "splitting supports exactly one top-level CirclePlus on the input \
-(nested or multiple direct sums are not supported yet)"];
+        "splitting supports exactly one direct-sum (CirclePlus) axis per input shape \
+(top-level nesting like a \[CirclePlus] (b \[CirclePlus] c) is flattened and \
+supported; more than one direct-sum axis, or a CirclePlus nested inside another term \
+such as a CircleTimes, is not supported yet)"];
       Return[$Failed]];
     n = cpos[[1, 1]];                       (* concat axis = that term's position *)
     cp = inShape[[n]];
