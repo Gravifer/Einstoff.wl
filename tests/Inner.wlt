@@ -93,4 +93,12 @@ VerificationTest[
   TestID -> "inner-unit-literal-squeeze-outer"
 ];
 
+(* 11. Inner shares innerLower's N-way guard: a contracted axis in >2 operands (dropped)
+   is a super-diagonal — reject 'a, a, a ->', like Dot. *)
+VerificationTest[
+  Quiet @ Einstoff[Inner][Plus, Min][{{a_}, {a_}, {a_}} :> {{}}, {Range[3], Range[3], Range[3]}],
+  $Failed,
+  TestID -> "inner-reject-nary-contraction"
+];
+
 EndTestSection[];
