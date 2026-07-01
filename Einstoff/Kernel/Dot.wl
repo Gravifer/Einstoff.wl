@@ -85,12 +85,29 @@ within-operand reduction before contraction is not supported (use ArrayReduce)"]
     lab = Join[b, m, n];
     {If[lab === {}, First @ Flatten[mm], ArrayReshape[mm, sz[lab]]], lab}];
 
+(* Option A in the contraction path: a literal input axis is anonymous, so it cannot be
+   a shared/contracted/batch/free identity.  A size-1 literal is a UNIT axis (carries no
+   data) — squeeze it; a size-(>1) literal has no carryable identity — reject (cf.
+   einx.dot rejecting 'a 2, 2 b -> a b': "contracted axes must appear in exactly two
+   inputs").  Otherwise two equal integer literals in different operands would be treated
+   as the same axis by contractPair's Intersection.  Returns {tensor, atoms} with unit
+   literals squeezed away (reshapeTo drops them) and no integer atoms remaining. *)
+sanitizeOperand[t_, atoms_, env_] :=
+  (If[AnyTrue[atoms, IntegerQ[#] && # > 1 &],
+     Message[Einstoff::unsupp,
+       "a literal axis of size > 1 in a contraction operand has no carryable identity \
+(a shared/contracted axis must be named); only a unit (size-1) axis may be a literal"];
+     Throw[$Failed]];
+   With[{keep = DeleteCases[atoms, _Integer]},
+     If[keep === atoms, {t, atoms},
+       {reshapeTo[t, atomSize[#, env] & /@ keep], keep}]]);
+
 (* The shared lowering, parameterized by the (mul, add) combiner.  desc is NOT held
    (uniform convention): a globally bound axis symbol substitutes — a bound integer
    reads as a literal dimension, illegal values rejected downstream; Pattern still
    holds each binding `name_` and `:>` holds the RHS. *)
 innerLower[mul_, add_, desc_, tensors_, bindings_] :=
-  Module[{parts, lhs, rhs, shp, env, labs, outA, result},
+  Module[{parts, lhs, rhs, shp, env, labs, outA, sanitized, stensors, slabs, result},
     parts = descParts[Hold[desc]];
     If[parts === $Failed,
       Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
@@ -118,13 +135,19 @@ for one)"];
     outA = Catch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
     If[labs === $Failed || outA === $Failed, Return[$Failed]];
 
+    (* Sanitize each operand for Option A: squeeze unit literals, reject size->1
+       literals, so contractPair only ever sees named (identity-bearing) axes. *)
+    sanitized = Catch[Table[sanitizeOperand[tensors[[j]], labs[[j]], env], {j, Length[lhs]}]];
+    If[sanitized === $Failed, Return[$Failed]];
+    stensors = sanitized[[All, 1]]; slabs = sanitized[[All, 2]];
+
     (* Pairwise left fold: contract operand i into the accumulator, keeping the
        global output axes plus anything a later operand still needs. *)
-    result = Catch @ Module[{accT = First[tensors], accL = First[labs], keep},
+    result = Catch @ Module[{accT = First[stensors], accL = First[slabs], keep},
       Do[
-        keep = Union[outA, Join @@ labs[[i + 1 ;;]]];
-        {accT, accL} = contractPair[mul, add, accT, accL, tensors[[i]], labs[[i]], keep, env],
-        {i, 2, Length[tensors]}];
+        keep = Union[outA, Join @@ slabs[[i + 1 ;;]]];
+        {accT, accL} = contractPair[mul, add, accT, accL, stensors[[i]], slabs[[i]], keep, env],
+        {i, 2, Length[stensors]}];
       materializeOutput[accT, accL, First[rhs], env]];
     If[result === $Failed, Return[$Failed]];
     result

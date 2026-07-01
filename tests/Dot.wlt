@@ -180,4 +180,25 @@ VerificationTest[
   TestID -> "dot-reject-kept-literal"
 ];
 
+(* 21. A size > 1 literal is NOT a shared contraction identity across operands: two
+   '2's in different operands must not become the same axis — reject (einx.dot rejects
+   'a 2, 2 b -> a b': a contracted axis must be named). *)
+VerificationTest[
+  Quiet @ Einstoff[Dot][{{a_, 2}, {2, b_}} :> {{a, b}},
+    {ArrayReshape[Range[6], {3, 2}], ArrayReshape[Range[8], {2, 4}]}],
+  $Failed,
+  TestID -> "dot-reject-shared-literal"
+];
+
+(* 22. A unit (size-1) literal operand axis is squeezed, so 'a 1, b -> a b' (== einx
+   'a (), b') is an outer product — the {} spelling behaves identically. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[3], {3, 1}], y = Range[4]},
+    {Einstoff[Dot][{{a_, 1}, {b_}} :> {{a, b}}, {x, y}],
+     Einstoff[Dot][{{a_, {}}, {b_}} :> {{a, b}}, {x, y}]}],
+  With[{x = ArrayReshape[Range[3], {3, 1}], y = Range[4]},
+    {Outer[Times, Flatten[x], y], Outer[Times, Flatten[x], y]}],
+  TestID -> "dot-unit-literal-squeeze-outer"
+];
+
 EndTestSection[];

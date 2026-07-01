@@ -108,4 +108,13 @@ VerificationTest[
   TestID -> "einsum-reject-literal-on-input"
 ];
 
+(* 14. Multi-tensor: a size > 1 literal is not a shared contraction identity — reject
+   'a 2, 2 b -> a b' (matches einx.dot). *)
+VerificationTest[
+  Quiet @ Einstoff["einsum"][{{a_, 2}, {2, b_}} :> {{a, b}},
+    {ArrayReshape[Range[6], {3, 2}], ArrayReshape[Range[8], {2, 4}]}],
+  $Failed,
+  TestID -> "einsum-reject-shared-literal"
+];
+
 EndTestSection[];
