@@ -232,4 +232,11 @@ VerificationTest[
   TestID -> "parse-normalizes-rhs-unit"
 ];
 
+(* EinstoffParse flattens nested RHS CirclePlus symmetrically with the LHS. *)
+VerificationTest[
+  Einstoff`EinstoffParse[{{a_}} :> {{CirclePlus[a, CirclePlus[b, 1]]}}]["RHS"],
+  Hold[{{CirclePlus[a, b, 1]}}],
+  TestID -> "parse-flattens-rhs-circleplus"
+];
+
 EndTestSection[];

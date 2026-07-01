@@ -346,4 +346,23 @@ VerificationTest[
   TestID -> "split-unit-empty-summand"
 ];
 
+(* 39. Split must NOT silently drop a NAMED size > 1 summand: 'b (q + k) -> b q, b'
+   with k = 2 would truncate the second block (data loss) — reject centrally.  (Only
+   a size-1 unit summand may be squeezed, tests 32/38; name+carry it via test 36.) *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b}},
+    {ArrayReshape[Range[10], {2, 5}]}, {q -> 3, k -> 2}],
+  $Failed,
+  TestID -> "split-drop-named-summand-reject"
+];
+
+(* 40. Concat must NOT silently drop a size > 1 operand axis into a size-1 summand:
+   'b c, b k -> b (c + 1)' discards most of the second operand — reject. *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{b_, c_}, {b_, k_}} :> {{b, CirclePlus[c, 1]}},
+    {ArrayReshape[Range[6], {2, 3}], ArrayReshape[10 + Range[4], {2, 2}]}],
+  $Failed,
+  TestID -> "concat-drop-operand-axis-reject"
+];
+
 EndTestSection[];

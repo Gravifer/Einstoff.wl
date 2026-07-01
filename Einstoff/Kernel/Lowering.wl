@@ -193,11 +193,17 @@ materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
        ArrayReshape and leak as an unevaluated expression. *)
     If[! AllTrue[rhsAtoms, With[{s = atomSize[#, env2]}, IntegerQ[s] && s >= 1] &],
       Throw[$Failed]];
-    (* Unit-axis squeeze (einx): a size-1 present axis that is dropped on the output
-       (absent from rhsAtoms) is removed — a length-1 axis carries no data, so reshaping
-       to the kept present dims simply drops it.  A size-(>1) dropped axis is reduce and
-       is rejected upstream, so only unit axes are dropped here. *)
-    present = Select[presentAtoms, MemberQ[rhsAtoms, #] || atomSize[#, env2] > 1 &];
+    (* A present axis absent from the output must be *squeezable*: only a size-1 (unit)
+       axis carries no data and may be dropped.  A dropped size-(>1) axis (named or
+       literal) is a reduction — keeping it in `present` and then reshaping to the smaller
+       output dims would silently TRUNCATE data (the DirectSum concat/split paths hit
+       exactly this).  Every lowering path funnels here, so enforce the invariant once,
+       centrally — do NOT trust callers to pre-reject it (Massage additionally prechecks
+       for a clearer message; DirectSum/Reduce/Map/Dot rely on this guard). *)
+    If[AnyTrue[presentAtoms, ! MemberQ[rhsAtoms, #] && atomSize[#, env2] > 1 &],
+      Throw[$Failed]];
+    (* Squeeze the surviving size-1 (unit) dropped axes by reshaping to the kept dims. *)
+    present = Select[presentAtoms, MemberQ[rhsAtoms, #] &];
     If[present =!= presentAtoms, acc = reshapeTo[acc, atomSize[#, env2] & /@ present]];
     repeats = Select[rhsAtoms, ! MemberQ[present, #] &];
     (* Broadcast each repeat axis on as a new leading axis. *)

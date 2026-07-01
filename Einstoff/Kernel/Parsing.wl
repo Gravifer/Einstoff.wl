@@ -62,17 +62,22 @@ flattenDirectSum[expr_] :=
 
 (* resolveSlotStrings (shared, in Lowering.wl) maps each #name bracket to the symbol
    the desc itself uses for that name, so brackets are context-safe before matching. *)
-(* The held RHS is normalized too (so EinstoffParse really returns a normalized desc):
-   {} -> 1 at levels >= 3 hits term and composite-factor positions but never a level-2
-   whole-shape {} (a scalar), and only touches {} so held symbols are untouched. *)
+(* The held RHS is normalized too (so EinstoffParse really returns a normalized desc),
+   symmetrically with the LHS: {} -> 1 at levels >= 3 hits term and composite-factor
+   positions but never a level-2 whole-shape {} (a scalar), and nested CirclePlus is
+   flattened (a ⊕ (b ⊕ c) -> a ⊕ b ⊕ c).  Both are structural and touch only {}/CirclePlus,
+   so held symbols are untouched. *)
+normHeldRhs[hrhs_Hold] :=
+  Replace[hrhs, {} -> 1, {3, Infinity}] //.
+    CirclePlus[x___, CirclePlus[y___], z___] :> CirclePlus[x, y, z];
 parseDesc[h : Hold[_RuleDelayed]] :=
   With[{hr = resolveSlotStrings[h]},
     <|"LHS" -> normUnitTerms @ flattenDirectSum @ Extract[hr, {1, 1}],
-      "RHS" -> Replace[Extract[hr, {1, 2}, Hold], {} -> 1, {3, Infinity}]|>];
+      "RHS" -> normHeldRhs @ Extract[hr, {1, 2}, Hold]|>];
 parseDesc[h : Hold[_Rule]] :=
   With[{hr = resolveSlotStrings[h]},
     <|"LHS" -> normUnitTerms @ flattenDirectSum @ Extract[hr, {1, 1}],
-      "RHS" -> Replace[Extract[hr, {1, 2}, Hold], {} -> 1, {3, Infinity}],
+      "RHS" -> normHeldRhs @ Extract[hr, {1, 2}, Hold],
       "Warning" -> "prefer :> (RuleDelayed) over -> for desc"|>];
 parseDesc[_] := <|"LHS" -> $Failed, "RHS" -> $Failed|>;
 
