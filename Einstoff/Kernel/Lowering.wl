@@ -152,8 +152,13 @@ supported subset yet)"];
 (* Throws $Failed (caught by the caller) on an unbound or bad axis.     *)
 (*                                                                      *)
 (* Repetition is layered here, uniformly, so every operator path        *)
-(* (reshape/reduce/dot) gets einx-style repeat for free.  Callers must  *)
-(* ensure presentAtoms ⊆ rhsAtoms (any present axis must reach output). *)
+(* (reshape/reduce/dot/direct-sum) gets einx-style repeat for free.     *)
+(*                                                                      *)
+(* A present axis NOT on the RHS is handled here, centrally, not by the *)
+(* caller: a size-1 (unit) axis is squeezed; a size-(>1) axis is a data *)
+(* loss / reduction and is rejected (Throw).  So callers need NOT pre-  *)
+(* ensure presentAtoms ⊆ rhsAtoms — this is the single enforcement      *)
+(* point for that invariant (do not move the guard back outward).       *)
 (* ------------------------------------------------------------------ *)
 
 materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=

@@ -376,9 +376,12 @@ the suite — they are fragile invariants / maintainability smells):
   the previously-failing adversarial-`$Context` case now succeeds (test
   `bracket-context-robust`). env stays symbol-keyed, so the CAS/`Solve` layer is
   untouched.
-- **Duplicated desc parsing / CirclePlus flattening** in `descParts` (Lowering.wl) and
-  `parseDesc`/`flattenDirectSum` (Parsing.wl) — they mirror each other (held vs released
-  RHS); future syntax could update one and miss the other. Fix: share the flatten logic.
+- **Duplicated desc normalization** across `descParts` (Lowering.wl) and
+  `parseDesc`/`normHeldRhs`/`flattenDirectSum` (Parsing.wl): both apply the same
+  `resolveSlotStrings` + `normUnitTerms` + CirclePlus-flatten policy, differing only in
+  held (parseDesc) vs released (descParts) RHS. Three mirrors now; future syntax could
+  update one and miss another — the area most likely to breed symptom patches. Fix:
+  factor the shared normalization into one helper parameterized over held/released RHS.
 - **Untagged `Throw[$Failed]`/`Catch`** in shared lowering: in Dot/Inner the user-supplied
   `mul`/`add` run *inside* a `Catch`, so a user function that throws untagged would be
   swallowed as our `$Failed`. Narrow/low-likelihood; tagged throws would isolate it.
