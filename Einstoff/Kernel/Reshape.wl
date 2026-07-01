@@ -9,10 +9,13 @@
    via selfContract.
 
    This is the engine the guarded entrances delegate to: Einstoff["Massage"] is it,
-   ungated.  (Increment 2 adds the guards: Einstoff[ArrayReshape] = pure-bijective,
-   Einstoff["ArrayContract"] = no-repetition, Einstoff["einsum"] = pairwise contraction
-   composing the cross-tensor Dot fold.)  A future cross-tensor backend parallel to
-   this univalent engine is sketched as EinstoffTandem (see SPEC §9 / the design note).
+   ungated.  The intent guards live here too, as thin policies over the shared
+   `massageCore`: Einstoff[ArrayReshape] = EinstoffReshape = pure-bijective (count-
+   preserving reindexing); Einstoff["ArrayContract"] = EinstoffContract = no-repetition
+   (adds within-tensor contraction).  Einstoff["einsum"] (Einsum.wl) is the pairwise-
+   contraction dispatcher composing the cross-tensor Dot fold.  A future cross-tensor
+   backend parallel to this univalent engine is sketched as EinstoffTandem (see SPEC §9
+   / the design note).
 
    Sizing uses EinstoffMatch directly rather than EinstoffShapes: a within-tensor
    repeated index must be allowed here, whereas EinstoffShapes' axis-uniqueness check
@@ -20,7 +23,7 @@
    handle it.  Shared helpers (descParts, rearrangeAtoms, atomSize, selfContract,
    materializeOutput) live in Lowering.wl. *)
 
-PackageExported[{EinstoffMassage}]
+PackageExported[{EinstoffMassage, EinstoffReshape, EinstoffContract}]
 
 EinstoffMassage::usage =
   "EinstoffMassage[desc, tensors, bindings] is the permissive single-tensor \
@@ -30,25 +33,62 @@ over its coincident slots). The named entrances (Einstoff[ArrayReshape], \
 Einstoff[\"ArrayContract\"], Einstoff[\"einsum\"]) are guards that delegate here. \
 desc is not held.";
 
-Einstoff["Massage"] := EinstoffMassage;
-(* Permissive aliases — kept until the guarded Einstoff[ArrayReshape] lands. *)
-Einstoff[ArrayReshape] := EinstoffMassage;
-Einstoff["Reshape"] := EinstoffMassage;
-Einstoff["Rearrange"] := EinstoffMassage;
+EinstoffReshape::usage =
+  "EinstoffReshape[desc, tensors, bindings] is the bijective entrance \
+(Einstoff[ArrayReshape]): permute/split/merge and unit-axis insert/squeeze only — an \
+element-count-preserving reindexing. Repetition (an output-only axis of size > 1), \
+within-tensor contraction, reduction, and direct sum are rejected (use \
+Einstoff[\"ArrayContract\"], Einstoff[ArrayReduce], Einstoff[Join]/[Split], or the \
+permissive Einstoff[\"Massage\"]). desc is not held.";
+
+EinstoffContract::usage =
+  "EinstoffContract[desc, tensors, bindings] is the within-tensor contraction entrance \
+(Einstoff[\"ArrayContract\"]): everything EinstoffReshape allows plus a within-tensor \
+pairwise contraction (a repeated, dropped input axis summed over its coincident slots). \
+It admits no repetition (an output-only axis of size > 1) and no direct sum; a plain \
+single-index sum-reduction is out of scope (use Einstoff[ArrayReduce]). desc is not held.";
+
+Einstoff["Massage"]       := EinstoffMassage;
+Einstoff[ArrayReshape]    := EinstoffReshape;
+Einstoff["Reshape"]       := EinstoffReshape;
+Einstoff["Rearrange"]     := EinstoffReshape;
+Einstoff["ArrayContract"] := EinstoffContract;
+Einstoff["Contract"]      := EinstoffContract;
+
+(* The three entrances are one engine under three policies, differing only in which
+   non-bijective features they admit (element counts, single tensor):
+     All        (EinstoffMassage)  — permissive: also repetition and direct sum
+     "Reshape"  (EinstoffReshape)  — bijective: count-preserving reindexing only
+     "Contract" (EinstoffContract) — no repetition; adds within-tensor contraction
+   Keeping the policy inside the shared core (massageCore) means the guards are pure
+   intent declarations and the classification of a rejected desc ("wrong guard" vs
+   "wrong lowering") lives at the exact point each feature becomes known. *)
+EinstoffMassage[desc_, tensors_, bindings_List : {}]  := massageCore[desc, tensors, bindings, All];
+EinstoffReshape[desc_, tensors_, bindings_List : {}]  := massageCore[desc, tensors, bindings, "Reshape"];
+EinstoffContract[desc_, tensors_, bindings_List : {}] := massageCore[desc, tensors, bindings, "Contract"];
 
 (* desc is NOT held (uniform convention): Pattern holds each binding `name_` and `:>`
    holds the RHS, so only a bare reference to a globally bound symbol is substituted. *)
-EinstoffMassage[desc_, tensors_, bindings_List : {}] :=
-  Module[{parts, lhs, rhs, m, env, lhsAtoms, rhsAtoms, sc, xc, atomsc, result},
+massageCore[desc_, tensors_, bindings_List, policy_] :=
+  Module[{parts, lhs, rhs, m, env, lhsAtoms, rhsAtoms, sc, xc, atomsc, result,
+          outOnly, repeated, contracted},
     parts = descParts[Hold[desc]];
     If[parts === $Failed,
       Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
       Return[$Failed]];
     {lhs, rhs} = parts;
-    (* Direct sum: einx folds `+` into id. CirclePlus on the RHS is concatenation,
-       on the LHS splitting — delegate either way. *)
-    If[hasCirclePlus[rhs], Return[directSumConcat[desc, tensors, bindings]]];
-    If[hasCirclePlus[lhs], Return[directSumSplit[desc, tensors, bindings]]];
+    (* Direct sum: einx folds `+` into id. CirclePlus on the RHS is concatenation, on
+       the LHS splitting.  Only the permissive engine admits it; the bijective / contract
+       guards treat a direct sum as a structural join/split that belongs elsewhere. *)
+    If[hasCirclePlus[rhs] || hasCirclePlus[lhs],
+      If[policy =!= All,
+        Message[Einstoff::unsupp,
+          "a direct sum (CirclePlus) is a structural join/split, not a " <>
+          If[policy === "Reshape", "bijective reshape", "within-tensor contraction"] <>
+          "; use Einstoff[Join]/[Split] or the permissive Einstoff[\"Massage\"]"];
+        Return[$Failed]];
+      If[hasCirclePlus[rhs], Return[directSumConcat[desc, tensors, bindings]]];
+      Return[directSumSplit[desc, tensors, bindings]]];
     If[! MatchQ[tensors, {__}],
       Message[Einstoff::unsupp,
         "tensors must be a non-empty list of arrays"]; Return[$Failed]];
@@ -79,6 +119,35 @@ EinstoffMassage[desc_, tensors_, bindings_List : {}] :=
     sc = einCatch[selfContract[First[tensors], lhsAtoms, rhsAtoms, env]];
     If[sc === $Failed, Return[$Failed]];
     {xc, atomsc} = sc;
+
+    (* Policy gate for the guarded entrances.  With `atomsc` (the surviving input atoms
+       after any within-tensor contraction) and the raw output atoms known, classify the
+       two non-bijective features and reject those the policy forbids — before the shared
+       drop-check / materialization, so the message names the guard, not the lowering:
+         contracted — selfContract removed a repeated, dropped input axis (atomsc shrank);
+                      forbidden by "Reshape" (bijective), admitted by "Contract".
+         repeated   — an output-only atom (not carried from the input) whose size is > 1
+                      (or unbound); that is repetition / broadcast, forbidden by both
+                      guards.  A size-1 output-only axis is a unit-axis insert (still an
+                      element-count-preserving reindexing), so it is NOT flagged. *)
+    If[policy =!= All,
+      contracted = atomsc =!= lhsAtoms;
+      outOnly = Select[rhsAtoms, ! MemberQ[atomsc, #] &];
+      repeated = AnyTrue[outOnly,
+        With[{s = If[IntegerQ[#], #, Lookup[env, #, Missing[]]]},
+          MissingQ[s] || TrueQ[s > 1]] &];
+      If[policy === "Reshape" && contracted,
+        Message[Einstoff::unsupp,
+          "a within-tensor repeated axis is contracted — not a bijective reshape; use \
+Einstoff[\"ArrayContract\"] or the permissive Einstoff[\"Massage\"]"];
+        Return[$Failed]];
+      If[repeated,
+        Message[Einstoff::unsupp,
+          "an output-only axis of size > 1 is repetition (broadcast), not a " <>
+          If[policy === "Reshape", "bijective reshape", "contraction"] <>
+          "; use the permissive Einstoff[\"Massage\"]"];
+        Return[$Failed]]];
+
     (* Every surviving (non-contracted) input axis must be carried to the output.  A
        named axis is carried iff it appears on the RHS.  A literal input axis of size > 1
        cannot be carried (output literals are fresh broadcast axes — cf. einx rejecting

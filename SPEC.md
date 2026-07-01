@@ -170,9 +170,11 @@ RHS but absent from the LHS is *materialized by broadcasting*: each existing
 element is replicated along the new axis. Its size cannot come from input-axis
 binding (nothing on the LHS constrains it), so it is supplied out of band via
 `bindings` (cf. §5.1), mirroring einx's `c=3` keyword. This applies uniformly
-to `Einstoff[ArrayReshape]` (≙ einops.repeat / einx.id with an output-only
+to `Einstoff["Massage"]` (≙ einops.repeat / einx.id with an output-only
 axis), `Einstoff[ArrayReduce]`, and `Einstoff[Dot]` — there is **no** separate
-repeat operator (and no `ArrayRepeat`, which is not a WL builtin). The op symbol
+repeat operator (and no `ArrayRepeat`, which is not a WL builtin). The bijective
+`Einstoff[ArrayReshape]` guard is the one entrance that *rejects* an output-only
+size > 1 axis (repetition is not a count-preserving reindexing). The op symbol
 selects the underlying elementary operation; repetition composes with it on the
 output side, e.g.
 
@@ -436,8 +438,10 @@ the tagged-throw isolation, and the dead `directSumSplit` locals.
 ## 9. Status & next steps
 
 Implemented and cross-validated against einx/einops: the matcher / shape resolver
-(`EinstoffShapes`), and the lowering paths `Einstoff[ArrayReshape]`
-(rearrange/reshape), `Einstoff[ArrayReduce][reducer]` (reduce, reducer curried),
+(`EinstoffShapes`), and the lowering paths `Einstoff["Massage"]` (the permissive
+univalent engine) with its intent guards `Einstoff[ArrayReshape]` (bijective
+rearrange/reshape) and `Einstoff["ArrayContract"]` (within-tensor contraction, no
+repetition), `Einstoff[ArrayReduce][reducer]` (reduce, reducer curried),
 `Einstoff[Dot]` (einsum contraction over **N ≥ 2 operands** via a pairwise left
 fold — `contractPair` keeps the global output axes plus anything a later operand
 still needs, so an axis is summed only once nothing downstream uses it), and
@@ -473,8 +477,10 @@ max/min/logsumexp); `var`/`std` are population (ddof = 0, matching numpy/einx), 
 any raw list-reducer (`Total`, `Variance`, a custom function) is also accepted.
 
 **`CirclePlus` (direct sum) — implemented and cross-validated.** The direct-sum
-axis `(a + b)` lowers two ways, both folded into `Einstoff[ArrayReshape]` (einx
-puts `+` in `id`) and routed by where the CirclePlus appears:
+axis `(a + b)` lowers two ways, both folded into the permissive `Einstoff["Massage"]`
+(einx puts `+` in `id`; the bijective `Einstoff[ArrayReshape]` guard rejects a direct
+sum — use `Einstoff[Join]`/`[Split]` or `Massage`) and routed by where the CirclePlus
+appears:
 
 - **Concatenation** (CirclePlus on the RHS, `{op1, …, opk} :> {{… a ⊕ b …}}`; ex4):
   each operand is aligned to the output shape with its own summand block (reusing
@@ -539,14 +545,28 @@ rejected. **Deferred:** the combiner generalization (`ArrayContract[…, add]` /
 operand einsum; and the bracket/composite interactions. Analysis:
 `docs/within-tensor-contraction.md`.
 
-**Entrance re-architecture (in progress).** `Einstoff["Massage"]` is the engine the
-named entrances are meant to guard. Done: `Massage` exists; `Einstoff[ArrayReshape]` is
-currently a permissive Massage alias; `Einstoff["einsum"]` lands as a guard/dispatcher.
-**TODO:** add the intent guards `Einstoff[ArrayReshape]` (pure bijective rearrange) and
-`Einstoff["ArrayContract"]` (no repetition / non-increasing), delegating to Massage, and
-migrate the existing `ArrayReshape` repeat/direct-sum tests to `Massage`. A future cross-
-tensor backend parallel to the univalent Massage — working name **`EinstoffTandem`** —
-would unify the `Dot`/`Inner` structural role under the same metaphor (potential TODO).
+**Entrance re-architecture (done).** `Einstoff["Massage"]` is the permissive engine; the
+named entrances are now intent guards over one shared core (`massageCore` in Reshape.wl),
+each a policy that admits only the features it declares (element counts, single tensor):
+- `Einstoff[ArrayReshape]` / `EinstoffReshape` — **bijective**: an element-count-preserving
+  reindexing (permute/split/merge + unit-axis insert/squeeze + scalar↔singleton). It
+  rejects repetition (an output-only axis of size > 1), within-tensor contraction,
+  reduction, and direct sum, each with a message naming the guard and the right entrance.
+- `Einstoff["ArrayContract"]` / `EinstoffContract` — **no repetition**: everything
+  ArrayReshape allows *plus* a within-tensor pairwise contraction. It rejects repetition
+  and direct sum; a plain single-index sum-reduction stays out of scope (`ArrayReduce`).
+- `Einstoff["Massage"]` — permissive (also repetition and direct sum).
+- `Einstoff["einsum"]` — the pairwise-contraction dispatcher (1 tensor → the contraction
+  entrance semantics, ≥2 → the Dot fold).
+
+The repetition / direct-sum test sites that formerly rode on `Einstoff[ArrayReshape]`
+migrated to `Einstoff["Massage"]`; `tests/ArrayContract.wlt` covers the new guard, and
+`tests/Reshape.wlt` asserts the bijective entrance now rejects those descs. Design note:
+`docs/plans/entrance-guards.md`. A future cross-tensor backend parallel to the univalent
+Massage — working name **`EinstoffTandem`** — would unify the `Dot`/`Inner` structural
+role under the same metaphor (potential TODO). **Remaining feature-roadmap work:** the
+combiner generalization (`ArrayContract[…, add]` / `Tr[…, add]`), diagonal-keep, and mixed
+within+cross multi-operand einsum.
 
 **Long-term TODO (heavily deferred — do not pursue now) — CI policy for the Python
 cross-validation suite.** When CI exists: the `tests/python/*.wlt` einx/einops

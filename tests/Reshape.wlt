@@ -95,18 +95,22 @@ VerificationTest[
   TestID -> "lower-reject-multitensor"
 ];
 
-(* ===================== repetition (SPEC 5.5) ====================== *)
+(* ===================== repetition is a Massage feature ============ *)
+(* Repetition (SPEC 5.5, an output-only axis of size > 1) is NOT bijective, so it moved
+   out of Einstoff[ArrayReshape] and lives on the permissive Einstoff["Massage"] engine.
+   These tests exercise the repeat lowering itself (numerics unchanged); the companion
+   section below asserts the bijective guard now REJECTS the same descs. *)
 
 (* 11. Repeat a vector along a new trailing axis: 'a -> a c', c=3. *)
 VerificationTest[
-  Einstoff[ArrayReshape][{{a_}} :> {{a, c}}, {Range[4]}, {c -> 3}],
+  Einstoff["Massage"][{{a_}} :> {{a, c}}, {Range[4]}, {c -> 3}],
   Table[Range[4][[i]], {i, 4}, {j, 3}],
   TestID -> "repeat-trailing"
 ];
 
 (* 12. Repeat + permute: 'a -> c a', c=3 (new axis leads). *)
 VerificationTest[
-  Einstoff[ArrayReshape][{{a_}} :> {{c, a}}, {Range[4]}, {c -> 3}],
+  Einstoff["Massage"][{{a_}} :> {{c, a}}, {Range[4]}, {c -> 3}],
   ConstantArray[Range[4], 3],
   TestID -> "repeat-leading"
 ];
@@ -114,35 +118,35 @@ VerificationTest[
 (* 13. einops.repeat 2D -> 3D: 'a b -> a b c', c=2. *)
 VerificationTest[
   With[{m = Partition[Range[6], 3]},
-    Einstoff[ArrayReshape][{{a_, b_}} :> {{a, b, c}}, {m}, {c -> 2}]],
+    Einstoff["Massage"][{{a_, b_}} :> {{a, b, c}}, {m}, {c -> 2}]],
   Table[Partition[Range[6], 3][[i, j]], {i, 2}, {j, 3}, {k, 2}],
   TestID -> "repeat-einops-2d-3d"
 ];
 
 (* 14. An unbound repeat axis (no binding) is unsatisfiable. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{a_}} :> {{a, c}}, {Range[4]}],
+  Quiet @ Einstoff["Massage"][{{a_}} :> {{a, c}}, {Range[4]}],
   $Failed,
   TestID -> "repeat-reject-unbound"
 ];
 
 (* 15. An explicit integer axis on the output is repetition: 'a -> a 2'. *)
 VerificationTest[
-  Einstoff[ArrayReshape][{{a_}} :> {{a, 2}}, {Range[4]}],
+  Einstoff["Massage"][{{a_}} :> {{a, 2}}, {Range[4]}],
   Table[Range[4][[i]], {i, 4}, {j, 2}],
   TestID -> "repeat-output-integer"
 ];
 
 (* 16. A repeat axis inside an output composite: 'a -> (a c)', c=3. *)
 VerificationTest[
-  Einstoff[ArrayReshape][{{a_}} :> {{CircleTimes[a, c]}}, {Range[4]}, {c -> 3}],
+  Einstoff["Massage"][{{a_}} :> {{CircleTimes[a, c]}}, {Range[4]}, {c -> 3}],
   Flatten @ Table[Range[4][[i]], {i, 4}, {j, 3}],
   TestID -> "repeat-merge"
 ];
 
 (* 17. Repeat axis as the leading composite factor: 'a -> (c a)', c=3. *)
 VerificationTest[
-  Einstoff[ArrayReshape][{{a_}} :> {{CircleTimes[c, a]}}, {Range[4]}, {c -> 3}],
+  Einstoff["Massage"][{{a_}} :> {{CircleTimes[c, a]}}, {Range[4]}, {c -> 3}],
   Flatten @ ConstantArray[Range[4], 3],
   TestID -> "repeat-merge-leading"
 ];
@@ -150,17 +154,17 @@ VerificationTest[
 (* 18-20. An output axis must be a positive integer (Massage sizes via EinstoffMatch,
    so this positivity guard lives in materializeOutput, not EinstoffShapes). *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{a_}} :> {{a, 0}}, {Range[3]}],
+  Quiet @ Einstoff["Massage"][{{a_}} :> {{a, 0}}, {Range[3]}],
   $Failed,
   TestID -> "reject-zero-output-integer"
 ];
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{a_}} :> {{a, c}}, {Range[3]}, {c -> 0}],
+  Quiet @ Einstoff["Massage"][{{a_}} :> {{a, c}}, {Range[3]}, {c -> 0}],
   $Failed,
   TestID -> "reject-zero-output-binding"
 ];
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{a_}} :> {{a, -1}}, {Range[3]}],
+  Quiet @ Einstoff["Massage"][{{a_}} :> {{a, -1}}, {Range[3]}],
   $Failed,
   TestID -> "reject-negative-output-integer"
 ];
@@ -168,9 +172,45 @@ VerificationTest[
 (* 21. Duplicate literal output axes BROADCAST as distinct anonymous axes (Option A,
    einx-faithful: 'a -> a 2 2' => (a,2,2)). *)
 VerificationTest[
-  Einstoff[ArrayReshape][{{a_}} :> {{a, 2, 2}}, {Range[3]}],
+  Einstoff["Massage"][{{a_}} :> {{a, 2, 2}}, {Range[3]}],
   Table[Range[3][[i]], {i, 3}, {j, 2}, {k, 2}],
   TestID -> "repeat-duplicate-literal"
+];
+
+(* ===== bijective guard: Einstoff[ArrayReshape] rejects non-bijective descs ===== *)
+(* The same repetition / contraction / direct-sum descs that Massage accepts are
+   rejected by the bijective entrance — a repeated OUTPUT-only axis of size > 1 is not
+   an element-count-preserving reindexing.  (A size-1 output-only axis is a unit insert,
+   still bijective — covered by the unit-axis tests below.) *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{a_}} :> {{a, c}}, {Range[4]}, {c -> 3}],
+  $Failed,
+  TestID -> "reshape-reject-repeat"
+];
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{a_}} :> {{a, 2}}, {Range[4]}],
+  $Failed,
+  TestID -> "reshape-reject-output-integer"
+];
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{a_}} :> {{a, 2, 2}}, {Range[3]}],
+  $Failed,
+  TestID -> "reshape-reject-duplicate-literal"
+];
+(* A within-tensor contraction shrinks the element count — not bijective; ArrayReshape
+   points at Einstoff["ArrayContract"] (which accepts it — see ArrayContract.wlt). *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{a_, b_, a, d_}} :> {{b, d}},
+    {ArrayReshape[Range[16], {2, 2, 2, 2}]}],
+  $Failed,
+  TestID -> "reshape-reject-contraction"
+];
+(* A direct sum is a structural join/split, not a reshape. *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}},
+    {ArrayReshape[Range[20], {2, 10}]}, {q -> 3}],
+  $Failed,
+  TestID -> "reshape-reject-direct-sum"
 ];
 
 (* 22. A literal-integer INPUT axis cannot be carried to the output (it has no

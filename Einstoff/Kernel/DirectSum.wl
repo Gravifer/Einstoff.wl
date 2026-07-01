@@ -18,10 +18,12 @@
      into multiple output tensors; each slice is then rearranged to its output
      shape (reusing materializeOutput). Returns a List of arrays. IMPLEMENTED.
 
-   Surface: folded into Einstoff[ArrayReshape] (einx puts `+` in `id`); the desc is
-   routed here when it contains a CirclePlus. Einstoff[Join] and Einstoff[Split] are
-   the same machinery under a directional guard (Join: CirclePlus only on the RHS;
-   Split: only on the LHS).
+   Surface: folded into the permissive Einstoff["Massage"] (einx puts `+` in `id`); the
+   desc is routed here when it contains a CirclePlus.  The bijective Einstoff[ArrayReshape]
+   / no-repetition Einstoff["ArrayContract"] guards reject a direct sum (it is a structural
+   join/split, not a reshape/contraction).  Einstoff[Join] and Einstoff[Split] are the same
+   machinery under a directional guard (Join: CirclePlus only on the RHS; Split: only on
+   the LHS).
 
    Shared helpers (descParts, rearrangeAtoms, atomSize, materializeOutput,
    hasCirclePlus) live in Lowering.wl. *)
