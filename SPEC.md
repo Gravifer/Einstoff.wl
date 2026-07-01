@@ -398,7 +398,10 @@ invariants / maintainability smells. Retained here as a record of the hardening:
   is vacuously valid). A malformed spec (a non-rule entry, a non-symbol key, or a
   non-positive/non-integer size) now returns a local `ok -> False` reason here rather than
   degrading into a deeper unsat message or leaking an unevaluated `Association[...]`
-  through `matchTerms`. Seven regression tests (`bindings-reject-*`, `bindings-ruledelayed-ok`).
+  through `matchTerms`. A **duplicate key** is also rejected outright (a follow-up review
+  edge: `Association` would silently keep the last value, so `{c -> 2, c -> 99}` and
+  `{c -> 99, c -> 2}` would differ order-dependently with no diagnostic). Nine regression
+  tests (`bindings-reject-*`, `bindings-ruledelayed-ok`).
 - ✅ **Dead `Module` locals** `sizes/ends/starts` in `directSumSplit` — *removed* (the live
   ones, `sz/en/st`, live in the inner block `Module`).
 

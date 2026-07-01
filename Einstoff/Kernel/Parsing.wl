@@ -281,6 +281,14 @@ EinstoffMatch[lhsShapes_, inputShapes_, bindings_ : {}] :=
       Return[<|"ok" -> False,
         "reason" -> "bindings must be a list of axis-name -> size rules \
 (e.g. {n -> 8}); got " <> ToString[bindings, InputForm]|>]];
+    (* An axis may be bound at most once.  Association silently keeps the LAST value, so
+       {c -> 2, c -> 99} and {c -> 99, c -> 2} would mean different things with no
+       diagnostic — reject a duplicate key outright rather than pick order-dependently. *)
+    If[! DuplicateFreeQ[First /@ bindings],
+      Return[<|"ok" -> False,
+        "reason" -> "duplicate binding key(s) " <>
+          ToString[Keys @ Select[Counts[First /@ bindings], # > 1 &], InputForm] <>
+          "; each axis may be bound at most once"|>]];
     env0 = Association[bindings];
     If[! AllTrue[env0, IntegerQ[#] && # >= 1 &],
       Return[<|"ok" -> False,

@@ -289,4 +289,19 @@ VerificationTest[
   TestID -> "bindings-ruledelayed-ok"
 ];
 
+(* A duplicate key is rejected rather than resolved order-dependently (Association would
+   silently keep the last value: {c -> 2, c -> 99} vs {c -> 99, c -> 2}). *)
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2, c -> 99}],
+  False,
+  TestID -> "bindings-reject-duplicate-key"
+];
+VerificationTest[
+  StringContainsQ[
+    Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2, c -> 99}]["Reason"],
+    "duplicate binding key"],
+  True,
+  TestID -> "bindings-reject-duplicate-key-reason"
+];
+
 EndTestSection[];
