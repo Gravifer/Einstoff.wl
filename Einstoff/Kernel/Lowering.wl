@@ -45,7 +45,18 @@ Einstoff::unsat =
 PackageScoped[{descParts, resolveSlotStrings, normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize,
   reduceAtoms, materializeOutput, selfContract, reshapeTo, hasCirclePlus,
-  directSumConcat, directSumSplit}]
+  directSumConcat, directSumSplit, einThrowTag, einCatch}]
+
+(* Internal control-flow tag.  The lowering helpers signal an unsupported / unsatisfiable
+   desc with Throw[$Failed, einThrowTag]; the operator that called them recovers it with
+   einCatch (a Catch scoped to that tag).  The TAG is load-bearing: several paths run
+   *user-supplied* functions inside the caught region — Inner's (mul, add), ArrayReduce's
+   reducer, Map's f — and a user function that itself throws (untagged, or with its own
+   tag) must propagate OUT rather than be swallowed as our $Failed sentinel.  Scoping every
+   internal throw/catch to einThrowTag isolates our control flow from the user's.
+   einThrowTag needs no definition — an undefined package symbol is a unique, stable tag. *)
+SetAttributes[einCatch, HoldFirst];
+einCatch[expr_] := Catch[expr, einThrowTag];
 
 (* ------------------------------------------------------------------ *)
 (* desc parsing.  Operators are HoldFirst and pass Hold[desc] in, so the *)
@@ -116,7 +127,8 @@ descParts[_] := $Failed;
 (* ------------------------------------------------------------------ *)
 
 (* Plain decomposition (no brackets): symbols, bindings, integers, products.
-   Out-of-subset heads Throw[$Failed] (caught by the calling operator). *)
+   Out-of-subset heads Throw[$Failed, einThrowTag] (recovered by einCatch in the
+   calling operator). *)
 rearrangeAtoms[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]]] := {s};
 rearrangeAtoms[s_Symbol] := {s};
 rearrangeAtoms[n_Integer] := {n};
@@ -126,10 +138,10 @@ rearrangeAtoms[other_] := (
   Message[Einstoff::unsupp,
     "unsupported term: " <> ToString[other, InputForm] <>
       " (direct sums and ellipses are not in the supported subset yet)"];
-  Throw[$Failed]);
+  Throw[$Failed, einThrowTag]);
 
 atomSize[n_Integer, _] := n;
-atomSize[s_, env_] := Lookup[env, s, Throw[$Failed]];
+atomSize[s_, env_] := Lookup[env, s, Throw[$Failed, einThrowTag]];
 
 (* Scalar-safe ArrayReshape: dims === {} means rank-0 (a scalar), where ArrayReshape
    would leak unevaluated — return the lone element instead.  An empty shape {} (a
@@ -162,7 +174,7 @@ reduceAtoms[t_, br_ : False] :=
         "unsupported term: " <> ToString[t, InputForm] <>
           " (direct sums and variable-arity bracket ellipses are not in the \
 supported subset yet)"];
-       Throw[$Failed])];
+       Throw[$Failed, einThrowTag])];
 
 (* ------------------------------------------------------------------ *)
 (* Shared output materialization, including repetition.                *)
@@ -196,7 +208,7 @@ materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
        singleton direct-sum summand block 'b (q+1) -> b q, b').  Every lowering path
        funnels here, so reject the size-(>1) case once, centrally, rather than letting
        the layout below produce garbage. *)
-    If[AnyTrue[presentAtoms, IntegerQ[#] && # > 1 &], Throw[$Failed]];
+    If[AnyTrue[presentAtoms, IntegerQ[#] && # > 1 &], Throw[$Failed, einThrowTag]];
     (* Option A (einx-faithful): give each *duplicated* literal-integer OUTPUT axis a
        unique anonymous identity, sized to its value, so two equal literals (e.g.
        'a 2 2') are DISTINCT broadcast axes — matching einx, which broadcasts
@@ -214,7 +226,7 @@ materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
        collision — a repeated NAME — which would make the FirstPosition layout below
        ambiguous; reject rather than leak an unevaluated ArrayReshape.  (Named output
        dups are normally rejected upstream; this covers any caller that bypasses that.) *)
-    If[! DuplicateFreeQ[rhsAtoms], Throw[$Failed]];
+    If[! DuplicateFreeQ[rhsAtoms], Throw[$Failed, einThrowTag]];
     (* Every output atom must resolve to a *positive integer* size.  atomSize Throws on
        an unbound name; a name bound to 0 / a negative / a non-integer, or a literal
        <= 0 immediate, is rejected here.  EinstoffShapes validates this for the paths
@@ -222,7 +234,7 @@ materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
        allow a within-tensor repeat) rely on this guard so bad dims cannot reach
        ArrayReshape and leak as an unevaluated expression. *)
     If[! AllTrue[rhsAtoms, With[{s = atomSize[#, env2]}, IntegerQ[s] && s >= 1] &],
-      Throw[$Failed]];
+      Throw[$Failed, einThrowTag]];
     (* A present axis absent from the output must be *squeezable*: only a size-1 (unit)
        axis carries no data and may be dropped.  A dropped size-(>1) axis (named or
        literal) is a reduction — keeping it in `present` and then reshaping to the smaller
@@ -231,7 +243,7 @@ materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
        centrally — do NOT trust callers to pre-reject it (Massage additionally prechecks
        for a clearer message; DirectSum/Reduce/Map/Dot rely on this guard). *)
     If[AnyTrue[presentAtoms, ! MemberQ[rhsAtoms, #] && atomSize[#, env2] > 1 &],
-      Throw[$Failed]];
+      Throw[$Failed, einThrowTag]];
     (* Squeeze the surviving size-1 (unit) dropped axes by reshaping to the kept dims. *)
     present = Select[presentAtoms, MemberQ[rhsAtoms, #] &];
     If[present =!= presentAtoms, acc = reshapeTo[acc, atomSize[#, env2] & /@ present]];
@@ -276,12 +288,12 @@ selfContract[x_, lhsAtoms_, rhsAtoms_, env_] :=
       Message[Einstoff::unsupp,
         "a repeated axis is kept on the output (a diagonal) — not supported yet; \
 drop the axis to contract it"];
-      Throw[$Failed]];
+      Throw[$Failed, einThrowTag]];
     If[AnyTrue[repeated, Count[lhsAtoms, #] > 2 &],
       Message[Einstoff::unsupp,
         "an axis occurs more than twice (a super-diagonal) — only pairwise \
 contraction is supported (it is the geometrically meaningful, tensorial case)"];
-      Throw[$Failed]];
+      Throw[$Failed, einThrowTag]];
     (* Disjoint position pairs, one per repeated name.  Table (not &/@) keeps the
        per-name body off an anonymous Function (SPEC 7.2 discipline). *)
     groups = Table[Flatten[Position[lhsAtoms, n]], {n, repeated}];

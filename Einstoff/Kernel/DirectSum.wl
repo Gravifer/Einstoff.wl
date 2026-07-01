@@ -108,7 +108,7 @@ of those (bracketed direct sums are not supported yet)"];
     env = shp["Bindings"];
 
     (* Align each operand to the output shape with CirclePlus -> its summand. *)
-    aligned = Catch @ Table[
+    aligned = einCatch @ Table[
       Module[{opShape = lhs[[i]], tensor = tensors[[i]], atoms, dims, target},
         atoms = If[opShape === {}, {}, Join @@ (rearrangeAtoms /@ opShape)];
         dims = atomSize[#, env] & /@ atoms;
@@ -184,7 +184,7 @@ of those (bracketed direct sums are not supported yet)"];
 
     x = First[tensors];
     ndims = Length[inShape];
-    outs = Catch @ Module[{sz, en, st},
+    outs = einCatch @ Module[{sz, en, st},
       (* block size of a summand = product over its atoms (a product block (a b)
          contributes a*b to the concat axis). *)
       sz = (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ summands;

@@ -67,7 +67,7 @@ contractPair[mul_, add_, t1_, l1_, t2_, l2_, keep_, env_] :=
       Message[Einstoff::unsupp,
         "an input axis appears in only one operand and is dropped — a \
 within-operand reduction before contraction is not supported (use ArrayReduce)"];
-      Throw[$Failed]];
+      Throw[$Failed, einThrowTag]];
     x1 = If[l1 === {}, t1, ArrayReshape[t1, sz[l1]]];
     x2 = If[l2 === {}, t2, ArrayReshape[t2, sz[l2]]];
     p1 = Flatten[FirstPosition[l1, #] & /@ Join[b, m, k]];
@@ -97,7 +97,7 @@ sanitizeOperand[t_, atoms_, env_] :=
      Message[Einstoff::unsupp,
        "a literal axis of size > 1 in a contraction operand has no carryable identity \
 (a shared/contracted axis must be named); only a unit (size-1) axis may be a literal"];
-     Throw[$Failed]];
+     Throw[$Failed, einThrowTag]];
    With[{keep = DeleteCases[atoms, _Integer]},
      If[keep === atoms, {t, atoms},
        {reshapeTo[t, atomSize[#, env] & /@ keep], keep}]]);
@@ -130,14 +130,14 @@ for one)"];
     env = shp["Bindings"];
 
     (* Atomic axes of each operand (brackets unwrapped) and of the output. *)
-    labs = Catch[Table[
+    labs = einCatch[Table[
       (Join @@ Table[reduceAtoms[t], {t, lhs[[j]]}])[[All, 1]], {j, Length[lhs]}]];
-    outA = Catch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
+    outA = einCatch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
     If[labs === $Failed || outA === $Failed, Return[$Failed]];
 
     (* Sanitize each operand for Option A: squeeze unit literals, reject size > 1
        literals, so contractPair only ever sees named (identity-bearing) axes. *)
-    sanitized = Catch[Table[sanitizeOperand[tensors[[j]], labs[[j]], env], {j, Length[lhs]}]];
+    sanitized = einCatch[Table[sanitizeOperand[tensors[[j]], labs[[j]], env], {j, Length[lhs]}]];
     If[sanitized === $Failed, Return[$Failed]];
     stensors = sanitized[[All, 1]]; slabs = sanitized[[All, 2]];
 
@@ -158,7 +158,7 @@ output for an elementwise/batch product, or contract pairwise)"];
 
     (* Pairwise left fold: contract operand i into the accumulator, keeping the
        global output axes plus anything a later operand still needs. *)
-    result = Catch @ Module[{accT = First[stensors], accL = First[slabs], keep},
+    result = einCatch @ Module[{accT = First[stensors], accL = First[slabs], keep},
       Do[
         keep = Union[outA, Join @@ slabs[[i + 1 ;;]]];
         {accT, accL} = contractPair[mul, add, accT, accL, stensors[[i]], slabs[[i]], keep, env],

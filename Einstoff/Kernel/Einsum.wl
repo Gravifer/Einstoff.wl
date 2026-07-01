@@ -49,8 +49,8 @@ EinstoffEinsum[desc_, tensors_, bindings_List : {}] :=
 
     (* Atoms per operand and on the output (bracket-aware: a marked contraction axis
        counts as its atom).  rearrangeAtoms/reduceAtoms Throw on unsupported terms. *)
-    opAtoms = Catch[Table[(Join @@ Table[reduceAtoms[t], {t, shp}])[[All, 1]], {shp, lhs}]];
-    rhsAtoms = Catch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
+    opAtoms = einCatch[Table[(Join @@ Table[reduceAtoms[t], {t, shp}])[[All, 1]], {shp, lhs}]];
+    rhsAtoms = einCatch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
     If[opAtoms === $Failed || rhsAtoms === $Failed, Return[$Failed]];
 
     (* einsum has no repetition / broadcast: every output atom must be a NAMED axis that

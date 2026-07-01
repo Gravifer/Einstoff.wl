@@ -88,9 +88,9 @@ flip/sort/softmax/log_softmax/id, or pass a function"];
     env = shp["Bindings"];
 
     (* Decompose: LHS bracket-aware (tagged), RHS plain (reuse rearrangeAtoms). *)
-    lhsTagged = Catch[Join @@ Table[reduceAtoms[t, False], {t, First[lhs]}]];
+    lhsTagged = einCatch[Join @@ Table[reduceAtoms[t, False], {t, First[lhs]}]];
     If[lhsTagged === $Failed, Return[$Failed]];
-    rhsAtoms = Catch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
+    rhsAtoms = einCatch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
     If[rhsAtoms === $Failed, Return[$Failed]];
     lhsAtoms = lhsTagged[[All, 1]]; lhsBr = lhsTagged[[All, 2]];
     brAtoms = Pick[lhsAtoms, lhsBr];
@@ -115,7 +115,7 @@ is a reduction, use Einstoff[ArrayReduce] (a size-1 unit axis is squeezed)"];
       Return[$Failed]];
 
     x = First[tensors];
-    decompDims = Catch[atomSize[#, env] & /@ lhsAtoms];
+    decompDims = einCatch[atomSize[#, env] & /@ lhsAtoms];
     If[decompDims === $Failed,
       Message[Einstoff::unsat, "an input axis size is unbound"];
       Return[$Failed]];
@@ -144,7 +144,7 @@ Einstoff[ArrayReduce])"];
 
     recombined = ArrayReshape[mapped, Join[vmapDims, brDims]];
     (* order is recombined's atom order; materialize repeats, permute to RHS, recompose. *)
-    result = Catch[materializeOutput[recombined, order, First[rhs], env]];
+    result = einCatch[materializeOutput[recombined, order, First[rhs], env]];
     If[result === $Failed,
       Message[Einstoff::unsat,
         "an output axis size is unbound (a repeated axis needs a binding)"];

@@ -101,4 +101,19 @@ VerificationTest[
   TestID -> "inner-reject-nary-contraction"
 ];
 
+(* 12. The user-supplied combiner runs inside our tagged Catch (einCatch/einThrowTag).
+   A combiner that itself Throws (untagged) must PROPAGATE past our control flow, not be
+   swallowed as our $Failed sentinel.  Discriminating probe: wrap the call in an inert
+   head `mark` inside the user's own Catch.  If the throw propagates (correct), it skips
+   `mark` and the user Catch returns the raw payload "boom"; were it swallowed (the old
+   bug), the operator would RETURN "boom" normally and the user Catch would see the wrapped
+   mark["boom"] instead.  So `=== "boom"` holds iff the throw escaped our control flow. *)
+VerificationTest[
+  Catch @ mark @ Einstoff[Inner][Times, Function[{x, y}, Throw["boom"]]][
+    {{a_, b_}, {b_, c_}} :> {{a, c}},
+    {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}],
+  "boom",
+  TestID -> "inner-user-throw-propagates"
+];
+
 EndTestSection[];

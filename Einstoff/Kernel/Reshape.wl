@@ -66,8 +66,8 @@ EinstoffMassage[desc_, tensors_, bindings_List : {}] :=
       Message[Einstoff::unsat, m["reason"]]; Return[$Failed]];
     env = m["env"];
 
-    lhsAtoms = Catch[Join @@ (rearrangeAtoms /@ First[lhs])];
-    rhsAtoms = Catch[Join @@ (rearrangeAtoms /@ First[rhs])];
+    lhsAtoms = einCatch[Join @@ (rearrangeAtoms /@ First[lhs])];
+    rhsAtoms = einCatch[Join @@ (rearrangeAtoms /@ First[rhs])];
     If[lhsAtoms === $Failed || rhsAtoms === $Failed, Return[$Failed]];
     (* An axis name may not repeat on the output (no einsum spelling for it). *)
     If[! DuplicateFreeQ[DeleteCases[rhsAtoms, _Integer]],
@@ -76,7 +76,7 @@ EinstoffMassage[desc_, tensors_, bindings_List : {}] :=
       Return[$Failed]];
 
     (* Self-contract a within-tensor repeated (dropped) index; identity otherwise. *)
-    sc = Catch[selfContract[First[tensors], lhsAtoms, rhsAtoms, env]];
+    sc = einCatch[selfContract[First[tensors], lhsAtoms, rhsAtoms, env]];
     If[sc === $Failed, Return[$Failed]];
     {xc, atomsc} = sc;
     (* Every surviving (non-contracted) input axis must be carried to the output.  A
@@ -92,7 +92,7 @@ rearrange/contract (a size-1 unit axis is squeezed; a literal size > 1 axis has 
 carryable identity — name it); use Einstoff[ArrayReduce]"];
       Return[$Failed]];
 
-    result = Catch[materializeOutput[xc, atomsc, First[rhs], env]];
+    result = einCatch[materializeOutput[xc, atomsc, First[rhs], env]];
     If[result === $Failed,
       Message[Einstoff::unsat,
         "an output axis size is unbound or not a positive integer (a repeated axis \

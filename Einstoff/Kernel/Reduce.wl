@@ -96,9 +96,9 @@ sum/mean/var/std/prod/count_nonzero/any/all/max/min/logsumexp, or pass a functio
     env = shp["Bindings"];
 
     (* Decompose: LHS bracket-aware (tagged), RHS plain (reuse rearrangeAtoms). *)
-    lhsTagged = Catch[Join @@ Table[reduceAtoms[t, False], {t, First[lhs]}]];
+    lhsTagged = einCatch[Join @@ Table[reduceAtoms[t, False], {t, First[lhs]}]];
     If[lhsTagged === $Failed, Return[$Failed]];
-    rhsAtoms = Catch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
+    rhsAtoms = einCatch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
     If[rhsAtoms === $Failed, Return[$Failed]];
     lhsAtoms = lhsTagged[[All, 1]]; lhsBr = lhsTagged[[All, 2]];
 
@@ -116,7 +116,7 @@ elementary op (softmax/flip/sort/…) is the Einstoff[Map][f] path, not reductio
       Return[$Failed]];
 
     x = First[tensors];
-    decompDims = Catch[atomSize[#, env] & /@ lhsAtoms];
+    decompDims = einCatch[atomSize[#, env] & /@ lhsAtoms];
     If[decompDims === $Failed,
       Message[Einstoff::unsat, "an input axis size is unbound"];
       Return[$Failed]];
@@ -127,7 +127,7 @@ elementary op (softmax/flip/sort/…) is the Einstoff[Map][f] path, not reductio
     (* Surviving atoms, in their LHS-relative order (= xred's axis order); then
        materialize repeats, permute to RHS order, and recompose. *)
     keptOrder = Delete[lhsAtoms, List /@ reducedPos];
-    result = Catch[materializeOutput[xred, keptOrder, First[rhs], env]];
+    result = einCatch[materializeOutput[xred, keptOrder, First[rhs], env]];
     If[result === $Failed,
       Message[Einstoff::unsat,
         "an output axis size is unbound (a repeated axis needs a binding)"];

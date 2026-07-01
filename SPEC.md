@@ -347,9 +347,9 @@ there is no multi-arg `Slot` to guard against, because we never emit one.
 
 ### 7.4 Robustness gaps surfaced by code review (2026-06-30)
 
-A review flagged latent robustness issues; behaviour confirmed empirically. The two
-silent-wrong-output ones are **fixed** (2026-06-30); the rest remain open (none breaks
-the suite — they are fragile invariants / maintainability smells):
+A review flagged latent robustness issues; behaviour confirmed empirically. **All are now
+fixed** (2026-06-30 – 2026-07-02); none ever broke the suite — they were fragile
+invariants / maintainability smells. Retained here as a record of the hardening:
 
 - ✅ **Unknown reducer / map string** (`reduceFunction` Reduce.wl, `mapFunction` Map.wl)
   — *fixed.* A typo like `Einstoff[ArrayReduce]["summ"]` used to fall through as the bare
@@ -384,9 +384,14 @@ the suite — they are fragile invariants / maintainability smells):
   boundaries route through them, so the two forms differ only in held (parseDesc) vs
   released (descParts) RHS and cannot drift. `normHeldRhs`/`flattenDirectSum` no longer
   live in Parsing.wl. Suite unchanged (246 green).
-- **Untagged `Throw[$Failed]`/`Catch`** in shared lowering: in Dot/Inner the user-supplied
-  `mul`/`add` run *inside* a `Catch`, so a user function that throws untagged would be
-  swallowed as our `$Failed`. Narrow/low-likelihood; tagged throws would isolate it.
+- ✅ **Untagged `Throw[$Failed]`/`Catch`** in shared lowering — *fixed.* Several paths run
+  *user-supplied* functions inside a caught region (Inner's `mul`/`add`, ArrayReduce's
+  reducer, Map's `f`), so a user function that threw untagged would be swallowed by our bare
+  `Catch` and mistaken for the `$Failed` sentinel. Every internal throw/catch is now scoped
+  to a package-private tag: helpers `Throw[$Failed, einThrowTag]`, operators recover with
+  `einCatch` (a `Catch[expr, einThrowTag]`, HoldFirst). An untagged (or differently-tagged)
+  user throw now propagates out unchanged. Regression test `inner-user-throw-propagates`
+  (a combiner that throws must escape our control flow, not be returned as a result).
 - ✅ **`Association[bindings]` is unvalidated** (Parsing.wl) — *fixed.* `EinstoffMatch`
   now validates `bindings` at the entrance: it must be a list of axis-name -> size rules
   (a bare `Symbol` key, a positive-integer size; `Rule` or `RuleDelayed`; the default `{}`
@@ -397,10 +402,9 @@ the suite — they are fragile invariants / maintainability smells):
 - ✅ **Dead `Module` locals** `sizes/ends/starts` in `directSumSplit` — *removed* (the live
   ones, `sz/en/st`, live in the inner block `Module`).
 
-The two silent-wrong-output items, the context-sensitive axis resolver, the duplicated
-desc normalization, bindings validation, and the dead `directSumSplit` locals are done.
-The one remaining item (untagged throws in Dot/Inner) is lower-severity and left for a
-future cleanup pass, separate from feature work.
+All §7.4 review items are now resolved: the two silent-wrong-output items, the
+context-sensitive axis resolver, the duplicated desc normalization, bindings validation,
+the tagged-throw isolation, and the dead `directSumSplit` locals.
 
 ## 8. Resolved / verified (no further action needed)
 
