@@ -104,12 +104,14 @@ flip/sort/softmax/log_softmax/id, or pass a function"];
 no bracket is a pure rearrange — use Einstoff[ArrayReshape]"];
       Return[$Failed]];
 
-    (* Map preserves every axis (keeps the bracket, vmaps the rest); RHS-only axes
-       are repetition.  A *dropped* input axis means reduction, not map. *)
-    If[! SubsetQ[rhsAtoms, lhsAtoms],
+    (* Map preserves every axis (keeps the bracket, vmaps the rest); RHS-only axes are
+       repetition.  A dropped input axis of size > 1 is a reduction (not map); a dropped
+       size-1 (unit) axis carries no data and is squeezed by materializeOutput (einx
+       allows e.g. 'a () [b] -> a [b]'), so the guard is size-aware, like Massage/Dot. *)
+    If[AnyTrue[lhsAtoms, ! MemberQ[rhsAtoms, #] && atomSize[#, env] > 1 &],
       Message[Einstoff::unsupp,
-        "an input axis is dropped on the output — dropping an axis is a reduction, \
-use Einstoff[ArrayReduce]"];
+        "an input axis of size > 1 is dropped on the output — dropping a size > 1 axis \
+is a reduction, use Einstoff[ArrayReduce] (a size-1 unit axis is squeezed)"];
       Return[$Failed]];
 
     x = First[tensors];

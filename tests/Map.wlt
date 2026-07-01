@@ -147,4 +147,23 @@ VerificationTest[
   TestID -> "map-reject-kept-literal"
 ];
 
+(* 16. A dropped size-1 (unit) axis is squeezed, not reduced: 'a 1 [b] -> a [b]' and the
+   {}/named-unit spellings all flip along b over the squeezed input (einx allows this). *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 1, 3}], ref = Reverse /@ ArrayReshape[Range[6], {2, 3}]},
+    {Einstoff[Map]["flip"][{{a_, 1, Slot["b"]}} :> {{a, b}}, {x}],
+     Einstoff[Map]["flip"][{{a_, {}, Slot["b"]}} :> {{a, b}}, {x}],
+     Einstoff[Map]["flip"][{{a_, u_, Slot["b"]}} :> {{a, b}}, {x}]}],
+  With[{ref = Reverse /@ ArrayReshape[Range[6], {2, 3}]}, {ref, ref, ref}],
+  TestID -> "map-unit-squeeze"
+];
+
+(* 17. ...but a dropped size > 1 axis is still a reduction — rejected. *)
+VerificationTest[
+  Quiet @ Einstoff[Map]["flip"][{{a_, b_, Slot["c"]}} :> {{a, c}},
+    {ArrayReshape[Range[24], {2, 4, 3}]}],
+  $Failed,
+  TestID -> "map-reject-drop-size-gt1"
+];
+
 EndTestSection[];
