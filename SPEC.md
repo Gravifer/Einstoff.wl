@@ -376,12 +376,14 @@ the suite — they are fragile invariants / maintainability smells):
   the previously-failing adversarial-`$Context` case now succeeds (test
   `bracket-context-robust`). env stays symbol-keyed, so the CAS/`Solve` layer is
   untouched.
-- **Duplicated desc normalization** across `descParts` (Lowering.wl) and
-  `parseDesc`/`normHeldRhs`/`flattenDirectSum` (Parsing.wl): both apply the same
-  `resolveSlotStrings` + `normUnitTerms` + CirclePlus-flatten policy, differing only in
-  held (parseDesc) vs released (descParts) RHS. Three mirrors now; future syntax could
-  update one and miss another — the area most likely to breed symptom patches. Fix:
-  factor the shared normalization into one helper parameterized over held/released RHS.
+- ✅ **Duplicated desc normalization** across `descParts` (Lowering.wl) and `parseDesc`
+  (Parsing.wl) — *fixed.* The `{} -> 1` unit policy and the CirclePlus-flatten rule (which
+  were written out three times: `flattenDirectSum`, `normHeldRhs`, and inline in
+  `descParts`) are now single shared canonicalizers in the hub: `flattenDirectSum` +
+  `normShapes` (released) / `normHeldShapes` (held, `{} -> 1` at levels `>= 3`). Both desc
+  boundaries route through them, so the two forms differ only in held (parseDesc) vs
+  released (descParts) RHS and cannot drift. `normHeldRhs`/`flattenDirectSum` no longer
+  live in Parsing.wl. Suite unchanged (246 green).
 - **Untagged `Throw[$Failed]`/`Catch`** in shared lowering: in Dot/Inner the user-supplied
   `mul`/`add` run *inside* a `Catch`, so a user function that throws untagged would be
   swallowed as our `$Failed`. Narrow/low-likelihood; tagged throws would isolate it.
@@ -391,10 +393,10 @@ the suite — they are fragile invariants / maintainability smells):
 - **Dead `Module` locals** `sizes/ends/starts` in `directSumSplit` (the live ones are
   `sz/en/st`). Harmless; remove.
 
-The two silent-wrong-output items and the context-sensitive axis resolver are done. The
-remaining four (duplicated desc/flatten, untagged throws, bindings validation, dead
-`directSumSplit` locals) are lower-severity and left for a future cleanup pass, separate
-from feature work.
+The two silent-wrong-output items, the context-sensitive axis resolver, and the
+duplicated desc normalization are done. The remaining three (untagged throws, bindings
+validation, dead `directSumSplit` locals) are lower-severity and left for a future
+cleanup pass, separate from feature work.
 
 ## 8. Resolved / verified (no further action needed)
 

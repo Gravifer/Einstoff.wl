@@ -42,7 +42,8 @@ Einstoff::unsupp = "`1`";
 Einstoff::unsat =
   "description is not satisfiable against the given tensor(s): `1`";
 
-PackageScoped[{descParts, resolveSlotStrings, normUnitTerms, rearrangeAtoms, atomSize,
+PackageScoped[{descParts, resolveSlotStrings, normUnitTerms, flattenDirectSum,
+  normShapes, normHeldShapes, rearrangeAtoms, atomSize,
   reduceAtoms, materializeOutput, selfContract, reshapeTo, hasCirclePlus,
   directSumConcat, directSumSplit}]
 
@@ -66,22 +67,46 @@ resolveSlotStrings[h_Hold] :=
       s_Symbol /; Context[s] =!= "System`" :> (SymbolName[s] -> s), {0, Infinity}];
     h /. Slot[str_String] :> Slot[Lookup[byName, str, Symbol[str]]]];
 
+(* --- desc-boundary canonicalization (shared by both entry points) ---------------- *)
+(* Two orthogonal normalizations are applied once at the desc boundary so all
+   downstream code sees a single spelling: {} unit terms become the literal 1, and
+   nested CirclePlus is flattened.  descParts (here) and parseDesc (the shape layer)
+   both route through normShapes / normHeldShapes below — the only difference is that
+   the shape layer keeps the RHS held.  Keeping the policy in one place stops the two
+   boundaries from drifting apart as the grammar evolves. *)
+
 (* Normalize an in-shape unit term {} to the literal 1, at any depth WITHIN each shape
    (including inside a CircleTimes/CirclePlus), while leaving a whole-shape {} as a
    scalar (rank-0 operand).  So `{}` and `1` are the same unit axis in every term
-   position; only a shape that *is* {} stays scalar.  Applied once at the desc boundary
-   (descParts / parseDesc) so all downstream code sees one spelling. *)
+   position; only a shape that *is* {} stays scalar. *)
 normUnitTerms[shapes_] :=
   Replace[shapes, sh_List :> If[sh === {}, {}, sh /. {} -> 1], {1}];
 
-(* CirclePlus is associative; canonicalize a ⊕ (b ⊕ c) to a flat summand list so
-   the direct-sum paths see one CirclePlus with all summands (order preserved —
-   CirclePlus is not Orderless). Mirrors flattenDirectSum in the shape layer. *)
+(* CirclePlus (direct sum) is associative; canonicalize a ⊕ (b ⊕ c) to one flat summand
+   list so the direct-sum paths see a single CirclePlus with all summands.  WL gives
+   CirclePlus no attributes (neither Flat nor Orderless), so it does not collapse the
+   nesting on its own; flattening preserves order (CirclePlus is not Orderless), which
+   direct sum requires. *)
+flattenDirectSum[expr_] :=
+  expr //. CirclePlus[x___, CirclePlus[y___], z___] :> CirclePlus[x, y, z];
+
+(* The one canonicalizer, in two forms for the two entry points.  normShapes normalizes
+   a *released* list of shapes; normHeldShapes a *held* one (the shape layer holds the
+   RHS so a globally-bound symbol is not released before its value is substituted).  Both
+   apply the same policy: {} unit terms -> 1 and nested CirclePlus flattened.  In the held
+   form the {} -> 1 rule runs at levels >= 3 of Hold[{shape, ...}] — term positions and
+   deeper, never a level-2 whole-shape {} — matching normUnitTerms on the released form. *)
+normShapes[shapes_] := flattenDirectSum @ normUnitTerms @ shapes;
+normHeldShapes[hshapes_Hold] :=
+  flattenDirectSum @ Replace[hshapes, {} -> 1, {3, Infinity}];
+
+(* Operators are HoldFirst and pass Hold[desc]; descParts releases the RHS (at lowering
+   time RHS symbols are atom labels, not values to substitute) and canonicalizes both
+   sides.  parseDesc (Parsing.wl) is the held-RHS twin. *)
 descParts[h : Hold[_Rule | _RuleDelayed]] :=
   With[{hr = resolveSlotStrings[h]},
-    {normUnitTerms @ Extract[hr, {1, 1}],
-     normUnitTerms @ ReleaseHold @ Extract[hr, {1, 2}, Hold]} //.
-      CirclePlus[x___, CirclePlus[y___], z___] :> CirclePlus[x, y, z]];
+    {normShapes @ Extract[hr, {1, 1}],
+     normShapes @ ReleaseHold @ Extract[hr, {1, 2}, Hold]}];
 descParts[_] := $Failed;
 
 (* ------------------------------------------------------------------ *)

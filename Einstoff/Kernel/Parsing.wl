@@ -51,33 +51,22 @@ with \"ok\" and either \"env\" or \"reason\".";
 SetAttributes[EinstoffParse, HoldFirst];
 EinstoffParse[desc_] := parseDesc[Hold[desc]];
 
-(* CirclePlus (direct sum) is associative: a ⊕ (b ⊕ c) == a ⊕ b ⊕ c. WL gives
-   CirclePlus no attributes (neither Flat nor Orderless), so it does not collapse
-   the nesting on its own — we canonicalize it here. Flattening preserves order
-   (CirclePlus is not Orderless), which direct sum requires. Applied to the LHS so
-   the matcher (solveComposite) sees a flat list of summands; the RHS is resolved
-   through evalOutShape's CirclePlus -> Plus, and Plus is already Flat. *)
-flattenDirectSum[expr_] :=
-  expr //. CirclePlus[x___, CirclePlus[y___], z___] :> CirclePlus[x, y, z];
-
-(* resolveSlotStrings (shared, in Lowering.wl) maps each #name bracket to the symbol
-   the desc itself uses for that name, so brackets are context-safe before matching. *)
-(* The held RHS is normalized too (so EinstoffParse really returns a normalized desc),
-   symmetrically with the LHS: {} -> 1 at levels >= 3 hits term and composite-factor
-   positions but never a level-2 whole-shape {} (a scalar), and nested CirclePlus is
-   flattened (a ⊕ (b ⊕ c) -> a ⊕ b ⊕ c).  Both are structural and touch only {}/CirclePlus,
-   so held symbols are untouched. *)
-normHeldRhs[hrhs_Hold] :=
-  Replace[hrhs, {} -> 1, {3, Infinity}] //.
-    CirclePlus[x___, CirclePlus[y___], z___] :> CirclePlus[x, y, z];
+(* Both desc-boundary canonicalizers (normShapes released, normHeldShapes held) and
+   resolveSlotStrings are shared with the lowering hub (Lowering.wl).  parseDesc is the
+   held-RHS twin of descParts: it keeps the RHS held so EinstoffParse returns a normalized
+   desc whose globally-bound symbols are not released before their values are substituted
+   (evalOutShape releases it later under env).  Same {} -> 1 + CirclePlus-flatten policy as
+   descParts; the LHS is flattened so the matcher (solveComposite) sees a flat summand list.
+   resolveSlotStrings maps each #name bracket to the symbol the desc itself uses, so
+   brackets are context-safe before matching. *)
 parseDesc[h : Hold[_RuleDelayed]] :=
   With[{hr = resolveSlotStrings[h]},
-    <|"LHS" -> normUnitTerms @ flattenDirectSum @ Extract[hr, {1, 1}],
-      "RHS" -> normHeldRhs @ Extract[hr, {1, 2}, Hold]|>];
+    <|"LHS" -> normShapes @ Extract[hr, {1, 1}],
+      "RHS" -> normHeldShapes @ Extract[hr, {1, 2}, Hold]|>];
 parseDesc[h : Hold[_Rule]] :=
   With[{hr = resolveSlotStrings[h]},
-    <|"LHS" -> normUnitTerms @ flattenDirectSum @ Extract[hr, {1, 1}],
-      "RHS" -> normHeldRhs @ Extract[hr, {1, 2}, Hold],
+    <|"LHS" -> normShapes @ Extract[hr, {1, 1}],
+      "RHS" -> normHeldShapes @ Extract[hr, {1, 2}, Hold],
       "Warning" -> "prefer :> (RuleDelayed) over -> for desc"|>];
 parseDesc[_] := <|"LHS" -> $Failed, "RHS" -> $Failed|>;
 
