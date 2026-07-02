@@ -88,12 +88,30 @@ VerificationTest[
   TestID -> "bracket-shares-identity-with-bare"
 ];
 
-(* 6e. A repeated axis name within one shape is rejected (einx: "must not contain
-   multiple vectorized axes with the same name"); distinct-across-shapes is fine. *)
+(* 6e. A repeated axis name within the OUTPUT shape is rejected (einx: "must not contain
+   multiple vectorized axes with the same name") — a universal invariant (no layout);
+   distinct-across-shapes is fine. *)
 VerificationTest[
   sat @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c, c}}, {{3}}, {c -> 2}],
   False,
   TestID -> "reject-duplicate-output-axis"
+];
+
+(* 6e'. A repeated axis name within an INPUT shape is NOT rejected here — that is
+   within-tensor contraction, which EinstoffShapes resolves by unification (bind once,
+   enforce equality) so the preflight agrees with Einstoff["ArrayContract"].  The
+   Satisfiable/OutputShapes match the ArrayContract partial-trace 'a b a d -> b d'.
+   (Its admissibility for a *non-contracting* operator is that operator's policy, not the
+   resolver's — see the reduce/map/dot/direct-sum reject tests.) *)
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[{{a_, b_, a_, d_}} :> {{b, d}}, {{2, 3, 2, 5}}],
+  True,
+  TestID -> "accept-repeated-input-axis"
+];
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[{{a_, b_, a_, d_}} :> {{b, d}}, {{2, 3, 2, 5}}],
+  {{3, 5}},
+  TestID -> "accept-repeated-input-axis-shape"
 ];
 
 (* 6f. Context robustness: a #b bracket resolves to the desc's OWN symbol b (not a

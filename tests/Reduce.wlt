@@ -102,6 +102,15 @@ VerificationTest[
   TestID -> "reduce-reject-kept-bracket"
 ];
 
+(* 10b. A name repeated within an input shape is within-tensor contraction, not reduction
+   — ArrayReduce rejects it (its own policy; EinstoffShapes no longer gates this). *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReduce][Total][{{a_, b_, a_}} :> {{b}},
+    {ArrayReshape[Range[12], {2, 3, 2}]}],
+  $Failed,
+  TestID -> "reduce-reject-repeated-input-axis"
+];
+
 (* 11. A new output axis is repetition (SPEC 5.5); without a binding it is
    unsatisfiable and rejected. *)
 VerificationTest[

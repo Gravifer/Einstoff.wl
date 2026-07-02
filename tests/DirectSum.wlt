@@ -96,6 +96,16 @@ VerificationTest[
   TestID -> "concat-reject-unsat"
 ];
 
+(* 12b. A name repeated within an input shape ('a' in operand 1) is within-tensor
+   contraction, which the direct-sum path cannot do — rejected (its own policy; the
+   resolver no longer gates it).  The carrier axis 'm' shared across operands is fine. *)
+VerificationTest[
+  Quiet @ Einstoff[Join][{{m_, a_, a_}, {m_, b_}} :> {{m, CirclePlus[CircleTimes[a, a], b]}},
+    {ArrayReshape[Range[8], {2, 2, 2}], ArrayReshape[Range[6], {2, 3}]}],
+  $Failed,
+  TestID -> "concat-reject-repeated-input-axis"
+];
+
 (* ===================== splitting (einx `+` on LHS) ================ *)
 
 (* 13. Split into two outputs 'b (q + k) -> b q, b k', q=3 (SPEC ex3)

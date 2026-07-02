@@ -106,6 +106,15 @@ VerificationTest[
   TestID -> "map-reject-dropped-axis"
 ];
 
+(* 11b. A name repeated within an input shape is within-tensor contraction, which Map
+   (shape-preserving) does not do — rejected (Map's own policy, not the resolver's). *)
+VerificationTest[
+  Quiet @ Einstoff[Map][Reverse][{{a_, a_, Slot["b"]}} :> {{a, a, b}},
+    {ArrayReshape[Range[12], {2, 2, 3}]}],
+  $Failed,
+  TestID -> "map-reject-repeated-input-axis"
+];
+
 (* 12. No bracketed axis is a pure rearrange — rejected (points at ArrayReshape). *)
 VerificationTest[
   Quiet @ Einstoff[Map][Reverse][{{a_, b_}} :> {{a, b}},

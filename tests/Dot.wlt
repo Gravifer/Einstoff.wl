@@ -94,6 +94,17 @@ VerificationTest[
   TestID -> "dot-reject-within-drop"
 ];
 
+(* 10b. A name repeated *within a single operand* ('a' in operand 1) is within-tensor
+   contraction — Dot contracts *across* operands, not within one, so it is rejected (Dot's
+   own policy; EinstoffShapes no longer gates it).  'b' is a legitimate cross-operand
+   contracted axis and must NOT trip the guard (firstDuplicateAxis is per-shape). *)
+VerificationTest[
+  Quiet @ Einstoff[Dot][{{a_, b_, a_}, {b_, c_}} :> {{c}},
+    {ArrayReshape[Range[12], {2, 3, 2}], ArrayReshape[Range[12], {3, 4}]}],
+  $Failed,
+  TestID -> "dot-reject-repeated-within-operand"
+];
+
 (* 11. A new output axis is repetition (SPEC 5.5); unbound it is rejected. *)
 VerificationTest[
   Quiet @ Einstoff[Dot][{{a_, b_}, {b, c_}} :> {{a, c, d}},
