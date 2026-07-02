@@ -45,8 +45,8 @@ Einstoff::unsat =
   "description is not satisfiable against the given tensor(s): `1`";
 
 PackageScoped[{descParts, resolveSlotStrings, normUnitTerms, flattenDirectSum,
-  normShapes, normHeldShapes, rearrangeAtoms, atomSize,
-  reduceAtoms, materializeOutput, selfContract, reshapeTo, hasCirclePlus,
+  normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
+  distinctAxesQ, reduceAtoms, materializeOutput, selfContract, reshapeTo, hasCirclePlus,
   directSumConcat, directSumSplit, einThrowTag, einCatch}]
 
 (* Internal control-flow tag.  The lowering helpers signal an unsupported / unsatisfiable
@@ -154,6 +154,18 @@ reshapeTo[arr_, dims_] := ArrayReshape[arr, dims];
 (* Does any shape in `shapes` contain a CirclePlus (direct-sum) term?  Used to
    route a desc into the direct-sum path and to guard Join/Split direction. *)
 hasCirclePlus[shapes_] := ! FreeQ[shapes, CirclePlus];
+
+(* Axis-uniqueness predicate: True iff no axis name repeats *within a single shape* of
+   `shapes` (a repeat is within-tensor contraction, which only Massage/Contract/einsum
+   lower).  Complements `firstDuplicateAxis` (Parsing.wl): the predicate answers the
+   yes/no question — usable in a PatternTest (`_?distinctAxesQ`) or Condition where a bare
+   boolean suffices — while `firstDuplicateAxis` names the offending axis for a diagnostic.
+   The non-contracting operators (reduce/map/dot/direct-sum) guard with an explicit
+   `If[! distinctAxesQ[lhs], Message[..]; Return[$Failed]]` rather than a `/;`-gated
+   definition on purpose: they must emit a tailored Einstoff::unsupp message and return
+   $Failed, whereas a failed `/;`/`?` test would leave the call *unevaluated* (no message,
+   and it would break the `=== $Failed` rejection contract). *)
+distinctAxesQ[shapes_List] := MissingQ[firstDuplicateAxis[shapes]];
 
 (* Bracket-aware decomposition: like rearrangeAtoms but unwraps Slot[...]
    brackets, returning {atom, bracketedQ} pairs.  NB Table/List@@ rather than

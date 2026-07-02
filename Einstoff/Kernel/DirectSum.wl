@@ -104,6 +104,16 @@ of those (bracketed direct sums are not supported yet)"];
           " tensor(s) were given"];
       Return[$Failed]];
 
+    (* A name repeated within an input shape is within-tensor contraction; the direct-sum
+       path (concat) cannot contract.  The resolver no longer rejects a repeated LHS, so
+       guard here (this path is also reached via Einstoff["Massage"], so the message gives
+       no redirect — within+direct-sum is unsupported everywhere). *)
+    If[! distinctAxesQ[lhs],
+      Message[Einstoff::unsupp,
+        "axis " <> ToString[firstDuplicateAxis[lhs]] <> " repeats within an input \
+shape; the direct-sum path does not contract a repeated axis"];
+      Return[$Failed]];
+
     shp = EinstoffShapes[desc, Dimensions /@ tensors, bindings];
     If[! TrueQ[shp["Satisfiable"]],
       Message[Einstoff::unsat, shp["Reason"]]; Return[$Failed]];
@@ -177,6 +187,15 @@ of those (bracketed direct sums are not supported yet)"];
         "direct-sum splitting needs one output per summand: the input has " <>
           ToString[k] <> " summand(s) but " <> ToString[Length[rhs]] <>
           " output shape(s) were given"];
+      Return[$Failed]];
+
+    (* A name repeated within the input shape is within-tensor contraction; the direct-sum
+       path (split) cannot contract.  Guard here since the resolver no longer rejects a
+       repeated LHS (also reachable via Einstoff["Massage"] — no redirect). *)
+    If[! distinctAxesQ[lhs],
+      Message[Einstoff::unsupp,
+        "axis " <> ToString[firstDuplicateAxis[lhs]] <> " repeats within an input \
+shape; the direct-sum path does not contract a repeated axis"];
       Return[$Failed]];
 
     shp = EinstoffShapes[desc, Dimensions /@ tensors, bindings];

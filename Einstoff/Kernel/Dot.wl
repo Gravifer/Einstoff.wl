@@ -124,6 +124,18 @@ for one)"];
         "contraction needs one input shape per tensor and exactly one output shape"];
       Return[$Failed]];
 
+    (* A name repeated *within a single operand* is within-tensor contraction; Dot/Inner
+       contracts *across* operands (a name shared by two operands), not within one.  The
+       resolver no longer rejects a repeated LHS, so guard here before contractPair builds
+       an invalid permutation.  (`firstDuplicateAxis` checks each operand shape
+       independently, so a genuine cross-operand contracted axis is not flagged.) *)
+    If[! distinctAxesQ[lhs],
+      Message[Einstoff::unsupp,
+        "axis " <> ToString[firstDuplicateAxis[lhs]] <> " repeats within a single \
+operand; Dot/Inner contracts across operands, not within one — use \
+Einstoff[\"einsum\"] for within-tensor contraction"];
+      Return[$Failed]];
+
     shp = EinstoffShapes[desc, Dimensions /@ tensors, bindings];
     If[! TrueQ[shp["Satisfiable"]],
       Message[Einstoff::unsat, shp["Reason"]]; Return[$Failed]];

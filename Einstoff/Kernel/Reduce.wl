@@ -89,6 +89,16 @@ EinstoffReduce[reducerSpec_][desc_, tensors_, bindings_List : {}] :=
 sum/mean/var/std/prod/count_nonzero/any/all/max/min/logsumexp, or pass a function"];
       Return[$Failed]];
 
+    (* A name repeated within an input shape is within-tensor contraction, which
+       ArrayReduce does not do (the shape resolver no longer rejects it — that policy is
+       now per-operator).  Reject here before lowering silently mis-reduces both slots. *)
+    If[! distinctAxesQ[lhs],
+      Message[Einstoff::unsupp,
+        "axis " <> ToString[firstDuplicateAxis[lhs]] <> " repeats within an input \
+shape; ArrayReduce does not contract a repeated axis — within-tensor contraction is \
+Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
+      Return[$Failed]];
+
     inShapes = Dimensions /@ tensors;
     shp = EinstoffShapes[desc, inShapes, bindings];
     If[! TrueQ[shp["Satisfiable"]],

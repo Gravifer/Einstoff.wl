@@ -81,6 +81,16 @@ EinstoffMap[fSpec_][desc_, tensors_, bindings_List : {}] :=
 flip/sort/softmax/log_softmax/id, or pass a function"];
       Return[$Failed]];
 
+    (* A name repeated within an input shape is within-tensor contraction (Massage/
+       Contract/einsum only); the resolver no longer rejects it, so guard here before the
+       layout builds an invalid permutation (InversePermutation on a duplicated index). *)
+    If[! distinctAxesQ[lhs],
+      Message[Einstoff::unsupp,
+        "axis " <> ToString[firstDuplicateAxis[lhs]] <> " repeats within an input \
+shape; Map is shape-preserving and does not contract — within-tensor contraction is \
+Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
+      Return[$Failed]];
+
     inShapes = Dimensions /@ tensors;
     shp = EinstoffShapes[desc, inShapes, bindings];
     If[! TrueQ[shp["Satisfiable"]],
