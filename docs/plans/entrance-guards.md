@@ -78,6 +78,65 @@ carry, unit squeeze) are inherited unchanged.
 
 Suite green: 224 WL + 51 xval = 275.
 
+## Follow-up: purify `EinstoffShapes` (next task, NOT this branch)
+
+A code review surfaced that the public `EinstoffShapes` preflight disagrees with
+the contraction surface this branch promoted: `EinstoffShapes[{{a_,b_,a,d_}} :>
+{{b,d}}, {{2,3,2,5}}]` returns `Satisfiable -> False` ("axis a appears more than
+once within a single shape"), while `Einstoff["ArrayContract"]` lowers the same
+desc correctly to a `{3,5}` tensor. Root cause: the duplicate-axis check
+(`Parsing.wl`, `firstDuplicateAxis[Join[lhs, relRhs]]`) rejects a repeated **LHS**
+name, which is a caller-specific *policy*, not shape truth — `EinstoffMatch`'s
+`unify` already resolves repeated LHS names by binding once and enforcing equality.
+
+**Do NOT patch this on `feat/entrance-guards`, and do NOT apply a blanket
+"RHS-only" relaxation.** The current mismatch is *conservative* (the preflight is
+stricter than the operator): a false negative on satisfiability, which never
+authorizes a bad lowering. A blanket RHS-only patch would flip that risk — it
+would let `Reduce`/`Map`/`Dot`/`DirectSum`, which call `EinstoffShapes` and are
+not all hardened against a repeated-LHS desc, trust an input they cannot lower
+(false *positive* → possible mis-lowering). Trading a harmless conservative
+false-negative for a latent correctness hazard is a bad trade. The contraction
+paths (`Massage`/`Contract`/`einsum`) already bypass `EinstoffShapes` via
+`EinstoffMatch`, so no internal code path is currently wrong — this is purely an
+external-preflight-consistency gap.
+
+**Target (einx-aligned).** einx's public solver surface — `solve_shapes`,
+`solve_axes`, `matches` — is entirely operator-agnostic; einx exposes no public
+per-operator preflight (operator applicability is decided *inside* the operator
+call). Mirror that:
+
+- **`EinstoffMatch`** — pure axis unification / shape solving. Already exists,
+  already used by the repeat-capable paths. Low-level.
+- **`EinstoffShapes`** — an operator-**agnostic** *transformation* shape resolver:
+  parse desc, solve LHS bindings, derive RHS output shapes. It keeps only
+  **universal shape invariants** — positive-integer output dims and **RHS axis
+  uniqueness** (a duplicate *output* axis has no well-defined layout and every
+  lowering assumes RHS identities are unique; `Massage` already re-asserts this).
+  It stops rejecting a repeated **LHS** axis merely for repeating. Note it is
+  *not* `einx.solve_shapes` (which is operation-free and symmetric); "pure" here
+  means **policy-free, not operation-free** — it still derives `lhs -> rhs` output
+  shapes.
+- **Operator front doors** — each asserts its own LHS-repeat admissibility:
+  `ArrayReshape` rejects a contraction repeat; `"ArrayContract"`/`"Massage"`/
+  single-input `"einsum"` accept a pairwise-dropped repeat; `ArrayReduce`/`Map`
+  reject a repeated LHS name until a meaning is defined; `Dot` already rejects
+  within-operand repeats in multi-tensor descs. This layer already effectively
+  exists — the `massageCore` policy gate is exactly it — so "call the operator,
+  get a classified `$Failed`" is already the operator-aware check.
+
+**Split, precisely:** RHS-duplicate = central invariant (stays in the shape
+layer); LHS-duplicate = operator policy (moves to the callers). An optional future
+`EinstoffCheck[op][desc, shapes, bindings]` non-executing dry-run is a *convenience
+only* (einx ships none) — do not make it a prerequisite of the purification.
+
+Roadmap-note form: *Make `EinstoffShapes` an operator-agnostic transformation
+shape resolver. Keep universal shape invariants (RHS axis uniqueness, positive
+integer dims); stop rejecting repeated LHS axes merely because they repeat
+(`EinstoffMatch` already resolves those by unification/equality). Move LHS-repeat
+admissibility into operator-specific guards. This preserves the current safe
+conservative behavior until all callers have explicit policy checks.*
+
 ## Deferred (feature roadmap, not this change)
 
 Combiner-generalized contraction (`ArrayContract[…, add]` / `Tr[…, add]`,
