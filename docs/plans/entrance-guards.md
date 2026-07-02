@@ -89,13 +89,17 @@ desc correctly to a `{3,5}` tensor. Root cause: the duplicate-axis check
 name, which is a caller-specific *policy*, not shape truth — `EinstoffMatch`'s
 `unify` already resolves repeated LHS names by binding once and enforcing equality.
 
-**Do NOT patch this on `feat/entrance-guards`, and do NOT apply a blanket
-"RHS-only" relaxation.** The current mismatch is *conservative* (the preflight is
-stricter than the operator): a false negative on satisfiability, which never
-authorizes a bad lowering. A blanket RHS-only patch would flip that risk — it
-would let `Reduce`/`Map`/`Dot`/`DirectSum`, which call `EinstoffShapes` and are
-not all hardened against a repeated-LHS desc, trust an input they cannot lower
-(false *positive* → possible mis-lowering). Trading a harmless conservative
+**Do NOT patch this on `feat/entrance-guards`, and do NOT relax `EinstoffShapes`
+to "RHS-only" as an immediate one-line change.** This is a rejection of the
+*sequencing*, not of the eventual end state — the target shape-layer behavior
+genuinely *is* "RHS duplicate stays central, LHS duplicate is no longer rejected"
+(see the two-phase plan below). The point is you cannot get there by flipping the
+check now: the current mismatch is *conservative* (the preflight is stricter than
+the operator) — a false negative on satisfiability, which never authorizes a bad
+lowering. Relaxing the LHS check *before* the callers are hardened would flip that
+risk — it would let `Reduce`/`Map`/`Dot`/`DirectSum`, which call `EinstoffShapes`
+and are not all hardened against a repeated-LHS desc, trust an input they cannot
+lower (false *positive* → possible mis-lowering). Trading a harmless conservative
 false-negative for a latent correctness hazard is a bad trade. The contraction
 paths (`Massage`/`Contract`/`einsum`) already bypass `EinstoffShapes` via
 `EinstoffMatch`, so no internal code path is currently wrong — this is purely an
@@ -126,16 +130,26 @@ call). Mirror that:
   get a classified `$Failed`" is already the operator-aware check.
 
 **Split, precisely:** RHS-duplicate = central invariant (stays in the shape
-layer); LHS-duplicate = operator policy (moves to the callers). An optional future
-`EinstoffCheck[op][desc, shapes, bindings]` non-executing dry-run is a *convenience
-only* (einx ships none) — do not make it a prerequisite of the purification.
+layer); LHS-duplicate = operator policy (moves to the callers). Sequence it as a
+**two-phase invariant** so there is never a window where the preflight is more
+permissive than a caller can handle:
+
+1. **Harden first** — give every caller of `EinstoffShapes` (`Reduce`, `Map`,
+   `Dot`, `DirectSum`) an explicit repeated-LHS policy guard.
+2. **Then relax** — once all callers self-guard, drop the LHS-repeat rejection
+   from `EinstoffShapes` (RHS uniqueness + positive dims remain).
+
+A possible future dry-run helper (an operator-aware, non-executing check) is a
+*convenience only* — einx ships none, so it is out of the critical path; do not
+make it a prerequisite of the purification.
 
 Roadmap-note form: *Make `EinstoffShapes` an operator-agnostic transformation
 shape resolver. Keep universal shape invariants (RHS axis uniqueness, positive
 integer dims); stop rejecting repeated LHS axes merely because they repeat
 (`EinstoffMatch` already resolves those by unification/equality). Move LHS-repeat
-admissibility into operator-specific guards. This preserves the current safe
-conservative behavior until all callers have explicit policy checks.*
+admissibility into operator-specific guards — hardening the callers first, then
+relaxing `EinstoffShapes`. This preserves the current safe conservative behavior
+until all callers have explicit policy checks.*
 
 ## Deferred (feature roadmap, not this change)
 
