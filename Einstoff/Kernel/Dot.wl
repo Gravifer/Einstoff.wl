@@ -132,8 +132,9 @@ for one)"];
     If[! distinctAxesQ[lhs],
       Message[Einstoff::unsupp,
         "axis " <> ToString[firstDuplicateAxis[lhs]] <> " repeats within a single \
-operand; Dot/Inner contracts across operands, not within one — use \
-Einstoff[\"einsum\"] for within-tensor contraction"];
+operand; Dot/Inner contracts across operands, not within one (the mixed within+cross \
+case is unsupported) — contract that operand first with Einstoff[\"ArrayContract\"] \
+(or single-tensor Einstoff[\"einsum\"]), then Dot"];
       Return[$Failed]];
 
     shp = EinstoffShapes[desc, Dimensions /@ tensors, bindings];
