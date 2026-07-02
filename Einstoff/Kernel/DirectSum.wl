@@ -104,14 +104,18 @@ of those (bracketed direct sums are not supported yet)"];
           " tensor(s) were given"];
       Return[$Failed]];
 
-    (* A name repeated within an input shape is within-tensor contraction; the direct-sum
-       path (concat) cannot contract.  The resolver no longer rejects a repeated LHS, so
-       guard here (this path is also reached via Einstoff["Massage"], so the message gives
-       no redirect — within+direct-sum is unsupported everywhere). *)
+    (* The resolver no longer rejects a repeated LHS, so guard here.  A repeated name is
+       read as within-tensor contraction (Massage/Contract/einsum only); this path is also
+       reached via Einstoff["Massage"], so the message gives no redirect.  NB: a repeated
+       *direct-sum summand* (b (q + q) -> …) would be an equal-size split, which the
+       positional split machinery could support — that is a deferred feature; today the
+       rule is simply "axis names distinct within a shape", so the message says so rather
+       than asserting the user attempted a contraction. *)
     If[! distinctAxesQ[lhs],
       Message[Einstoff::unsupp,
         "axis " <> ToString[firstDuplicateAxis[lhs]] <> " repeats within an input \
-shape; the direct-sum path does not contract a repeated axis"];
+shape; the direct-sum path requires axis names distinct within a shape (name a repeated \
+summand distinctly; within-tensor contraction is not supported here)"];
       Return[$Failed]];
 
     shp = EinstoffShapes[desc, Dimensions /@ tensors, bindings];
@@ -189,13 +193,15 @@ of those (bracketed direct sums are not supported yet)"];
           " output shape(s) were given"];
       Return[$Failed]];
 
-    (* A name repeated within the input shape is within-tensor contraction; the direct-sum
-       path (split) cannot contract.  Guard here since the resolver no longer rejects a
-       repeated LHS (also reachable via Einstoff["Massage"] — no redirect). *)
+    (* Guard here since the resolver no longer rejects a repeated LHS.  A repeated name is
+       read as within-tensor contraction (unsupported on this path).  NB the equal-summand
+       case b (q + q) -> b q, b q is a deferred feature (see directSumConcat); today the
+       rule is "axis names distinct within a shape", so the message states that plainly. *)
     If[! distinctAxesQ[lhs],
       Message[Einstoff::unsupp,
         "axis " <> ToString[firstDuplicateAxis[lhs]] <> " repeats within an input \
-shape; the direct-sum path does not contract a repeated axis"];
+shape; the direct-sum path requires axis names distinct within a shape (name a repeated \
+summand distinctly; within-tensor contraction is not supported here)"];
       Return[$Failed]];
 
     shp = EinstoffShapes[desc, Dimensions /@ tensors, bindings];

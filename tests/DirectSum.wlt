@@ -97,10 +97,13 @@ VerificationTest[
 ];
 
 (* 12b. A name repeated within an input shape ('a' in operand 1) is within-tensor
-   contraction, which the direct-sum path cannot do — rejected (its own policy; the
-   resolver no longer gates it).  The carrier axis 'm' shared across operands is fine. *)
+   contraction, which the direct-sum path cannot do — rejected by its own guard.  The
+   output {{m, a (+) b}} is duplicate-free, so EinstoffShapes is Satisfiable and the
+   rejection is the concat guard's alone (without it the desc reaches lowering and
+   mis-reshapes — verified, so this test isolates the guard).  Carrier 'm' shared across
+   operands is fine (firstDuplicateAxis is per-shape). *)
 VerificationTest[
-  Quiet @ Einstoff[Join][{{m_, a_, a_}, {m_, b_}} :> {{m, CirclePlus[CircleTimes[a, a], b]}},
+  Quiet @ Einstoff[Join][{{m_, a_, a_}, {m_, b_}} :> {{m, CirclePlus[a, b]}},
     {ArrayReshape[Range[8], {2, 2, 2}], ArrayReshape[Range[6], {2, 3}]}],
   $Failed,
   TestID -> "concat-reject-repeated-input-axis"
@@ -177,6 +180,19 @@ VerificationTest[
     {ArrayReshape[Range[20], {2, 10}]}],
   $Failed,
   TestID -> "split-reject-underdetermined"
+];
+
+(* 20b. A name repeated within the input shape ('b' as a carried axis) is within-tensor
+   contraction, which the split path cannot do — rejected by its own guard.  Each output
+   {{b, q}, {b, k}} is duplicate-free, so EinstoffShapes is Satisfiable and the rejection
+   is the split guard's alone (without it the desc reaches lowering and mis-slices —
+   verified, so this test isolates the guard).  (A repeated direct-sum *summand* q (+) q
+   is a distinct, deferred equal-split case; here the repeat is a carried axis.) *)
+VerificationTest[
+  Quiet @ Einstoff[Split][{{b_, b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}},
+    {ArrayReshape[Range[20], {2, 2, 5}]}, {q -> 2}],
+  $Failed,
+  TestID -> "split-reject-repeated-input-axis"
 ];
 
 (* ===================== nested CirclePlus (associativity) ========= *)

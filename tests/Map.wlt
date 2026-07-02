@@ -107,10 +107,13 @@ VerificationTest[
 ];
 
 (* 11b. A name repeated within an input shape is within-tensor contraction, which Map
-   (shape-preserving) does not do — rejected (Map's own policy, not the resolver's). *)
+   (shape-preserving) does not do — rejected.  The output {{a, b}} is duplicate-free, so
+   EinstoffShapes is Satisfiable and the rejection comes from Map itself (the distinctAxesQ
+   guard, backed by Map's shape-preserving drop-check — defense in depth), not the
+   resolver's output-uniqueness check. *)
 VerificationTest[
-  Quiet @ Einstoff[Map][Reverse][{{a_, a_, Slot["b"]}} :> {{a, a, b}},
-    {ArrayReshape[Range[12], {2, 2, 3}]}],
+  Quiet @ Einstoff[Map][Reverse][{{a_, a_, Slot["b"]}} :> {{a, b}},
+    {ArrayReshape[Range[16], {2, 2, 4}]}],
   $Failed,
   TestID -> "map-reject-repeated-input-axis"
 ];

@@ -157,14 +157,14 @@ hasCirclePlus[shapes_] := ! FreeQ[shapes, CirclePlus];
 
 (* Axis-uniqueness predicate: True iff no axis name repeats *within a single shape* of
    `shapes` (a repeat is within-tensor contraction, which only Massage/Contract/einsum
-   lower).  Complements `firstDuplicateAxis` (Parsing.wl): the predicate answers the
-   yes/no question — usable in a PatternTest (`_?distinctAxesQ`) or Condition where a bare
-   boolean suffices — while `firstDuplicateAxis` names the offending axis for a diagnostic.
-   The non-contracting operators (reduce/map/dot/direct-sum) guard with an explicit
-   `If[! distinctAxesQ[lhs], Message[..]; Return[$Failed]]` rather than a `/;`-gated
-   definition on purpose: they must emit a tailored Einstoff::unsupp message and return
-   $Failed, whereas a failed `/;`/`?` test would leave the call *unevaluated* (no message,
-   and it would break the `=== $Failed` rejection contract). *)
+   lower).  The boolean companion of `firstDuplicateAxis` (Parsing.wl), which names the
+   offending axis for a diagnostic.  The non-contracting operators (reduce/map/dot/
+   direct-sum) guard with an explicit `If[! distinctAxesQ[lhs], Message[..]; Return[$Failed]]`
+   — NOT a `/;`/`?`-gated definition — because they must emit a tailored Einstoff::unsupp
+   message and return $Failed, whereas a failed pattern test would leave the call
+   unevaluated (no message, breaking the `=== $Failed` contract).  Kept as a named predicate
+   so the yes/no question has one spelling; `firstDuplicateAxis` supplies the axis on the
+   reject path. *)
 distinctAxesQ[shapes_List] := MissingQ[firstDuplicateAxis[shapes]];
 
 (* Bracket-aware decomposition: like rearrangeAtoms but unwraps Slot[...]
