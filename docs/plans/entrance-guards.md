@@ -78,7 +78,14 @@ carry, unit squeeze) are inherited unchanged.
 
 Suite green: 224 WL + 51 xval = 275.
 
-## Follow-up: purify `EinstoffShapes` (next task, NOT this branch)
+## Follow-up: purify `EinstoffShapes` — DONE (branch `refactor/purify-einstoffshapes`)
+
+**Implemented** as the two-phase invariant below (commits `e33e3ef` phase 1, `878d2fc`
+phase 2, `c11a904` tests; suite 281 = 230 WL + 51 xval). `EinstoffShapes` is now an
+operator-agnostic resolver that rejects only a duplicate **output** axis; a repeated
+**input** axis resolves (matching `Einstoff["ArrayContract"]`) and is rejected by each
+non-contracting operator itself via the shared predicate `distinctAxesQ` (built on
+`firstDuplicateAxis`, both PackageScoped in Lowering.wl). The original analysis follows.
 
 A code review surfaced that the public `EinstoffShapes` preflight disagrees with
 the contraction surface this branch promoted: `EinstoffShapes[{{a_,b_,a,d_}} :>
