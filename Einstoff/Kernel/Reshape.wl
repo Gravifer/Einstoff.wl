@@ -18,10 +18,13 @@
    / the design note).
 
    Sizing uses EinstoffMatch directly rather than EinstoffShapes: a within-tensor
-   repeated index must be allowed here, whereas EinstoffShapes' axis-uniqueness check
-   rejects a repeated name to protect the reduce / map / pure-reshape paths that cannot
-   handle it.  Shared helpers (descParts, rearrangeAtoms, atomSize, selfContract,
-   materializeOutput) live in Lowering.wl. *)
+   repeated index must be allowed here (unification binds it once and enforces equality),
+   and EinstoffMatch is the bare resolver with no operator policy.  EinstoffShapes only
+   adds the universal output-axis-uniqueness invariant, which this path does not need —
+   the reduce / map / pure-reshape paths that cannot handle a repeated INPUT axis reject it
+   themselves (distinctAxesQ), so that policy no longer lives in EinstoffShapes.  Shared
+   helpers (descParts, rearrangeAtoms, atomSize, selfContract, materializeOutput) live in
+   Lowering.wl. *)
 
 PackageExported[{EinstoffMassage, EinstoffReshape, EinstoffContract}]
 

@@ -362,13 +362,18 @@ invariants / maintainability smells. Retained here as a record of the hardening:
 - ✅ **Duplicate output axis names** (`EinstoffShapes`, Parsing.wl) — *fixed.*
   `{{a_}} :> {{a, c, c}}` used to resolve shapes and then build a bad
   `InversePermutation[{3,1,1}]`, returning an unevaluated `ArrayReshape[Transpose[…]]`.
-  `EinstoffShapes` now rejects any axis name that repeats *within a single shape* (LHS or
-  RHS) as unsatisfiable, mirroring einx's `SemanticError: "the output expression must not
-  contain multiple vectorized axes with the same name"` (verified against the venv — einx
-  raises rather than replicating). Distinct-across-shapes (shared/contracted/kept axes) is
-  unaffected. `firstDuplicateAxis`/`termAxisNames` helpers; test
-  `reject-duplicate-output-axis`. (A single new RHS axis still broadcasts — §5.5
-  repetition — only a *repeated name* is rejected.)
+  `EinstoffShapes` rejects any axis name that repeats *within the output shape (RHS)* as
+  unsatisfiable — a universal invariant (a duplicate output axis has no layout), mirroring
+  einx's `SemanticError: "the output expression must not contain multiple vectorized axes
+  with the same name"` (verified against the venv — einx raises rather than replicating).
+  A name repeated *within an input shape* is **not** rejected here: that is within-tensor
+  contraction, which the resolver handles by unification and which `Massage`/
+  `ArrayContract`/single-tensor `einsum` lower; its admissibility is per-operator policy
+  (the non-contracting reduce/map/dot/direct-sum paths reject it themselves via
+  `distinctAxesQ`). `firstDuplicateAxis`/`termAxisNames`/`distinctAxesQ` helpers; tests
+  `reject-duplicate-output-axis` (RHS reject) and `accept-repeated-input-axis` (LHS now
+  resolves). Distinct-across-shapes (shared/contracted/kept axes) is unaffected. (A single
+  new RHS axis still broadcasts — §5.5 repetition — only a *repeated name* is rejected.)
 - ✅ **`Symbol[string]` for `#name` axes was `$Context`-sensitive** — *fixed.* A single
   resolver `resolveSlotStrings` (Lowering.wl, shared by `descParts` and `parseDesc`) now
   maps each `#name` bracket to the *symbol the desc itself already uses* for that name

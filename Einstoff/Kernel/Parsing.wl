@@ -327,17 +327,23 @@ EinstoffShapes[desc_, inputShapes_, bindings_ : {}] :=
         "OutputShapes" -> Missing[], "Bindings" -> <||>, "Bracketed" -> {}|>]];
     lhs = p["LHS"]; heldRhs = p["RHS"];
     bracketed = bracketedNames[lhs];
-    (* An axis name must be distinct within each shape (einx: "the output expression
-       must not contain multiple vectorized axes with the same name").  Check the
-       LHS shapes and the released RHS shapes; a globally bound RHS symbol releases
-       to its literal (excluded from names), matching the desc-not-held convention. *)
+    (* Universal shape invariant: an axis name must be distinct within the OUTPUT shape
+       (einx: "the output expression must not contain multiple vectorized axes with the
+       same name") — a duplicate output axis has no well-defined layout.  Only the RHS is
+       checked: a name repeated within an INPUT shape is within-tensor contraction, which
+       the resolver handles by unification (bind once, enforce equality) and is a valid,
+       supported case for Massage/Contract/einsum.  Admissibility of a repeated INPUT axis
+       is therefore operator policy, enforced by each operator (the non-contracting
+       reduce/map/dot/direct-sum paths reject it via distinctAxesQ), not here.  A globally
+       bound RHS symbol releases to its literal (excluded from names), matching the
+       desc-not-held convention. *)
     relRhs = Quiet @ Check[ReleaseHold[heldRhs], $Failed];
-    dup = firstDuplicateAxis[Join[lhs, If[MatchQ[relRhs, {___List}], relRhs, {}]]];
+    dup = firstDuplicateAxis[If[MatchQ[relRhs, {___List}], relRhs, {}]];
     If[! MissingQ[dup],
       Return[<|"Satisfiable" -> False,
-        "Reason" -> "axis " <> ToString[dup] <> " appears more than once within a \
-single shape; axis names must be distinct within a shape (einx forbids multiple \
-vectorized axes with the same name)",
+        "Reason" -> "axis " <> ToString[dup] <> " appears more than once within the \
+output shape; output axis names must be distinct (einx forbids multiple vectorized \
+axes with the same name)",
         "OutputShapes" -> Missing[], "Bindings" -> <||>, "Bracketed" -> bracketed|>]];
     m = EinstoffMatch[lhs, inputShapes, bindings];
     If[! TrueQ[m["ok"]],
