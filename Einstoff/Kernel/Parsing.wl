@@ -241,6 +241,13 @@ matchTerms[terms_, dims_, env_] :=
       Head[t] === Symbol,
         With[{e2 = unify[t, d, env]},
           If[e2 === $Failed, {}, matchTerms[rest, drest, e2]]],
+      (* A string term "a" is the string-tier axis named `a` (SPEC §5.6): unify it as
+         the symbol `a`, exactly as a bracket string #a = Slot["a"] is spliced to
+         Symbol["a"] above.  This makes the raw public EinstoffMatch accept string axes
+         consistently with EinstoffShapes (whose desc parse canonicalizes them first). *)
+      StringQ[t],
+        With[{e2 = unify[Symbol[t], d, env]},
+          If[e2 === $Failed, {}, matchTerms[rest, drest, e2]]],
       True,
         (Sow["unrecognized dimension term: " <> ToString[t]]; {})]];
 

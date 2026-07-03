@@ -252,6 +252,20 @@ VerificationTest[
   TestID -> "unit-empty-term-match"
 ];
 
+(* 26b-c. The raw public EinstoffMatch accepts a string-tier axis (SPEC §5.6): "a" is
+   the axis named `a`, unified like a bare symbol — consistent with EinstoffShapes, whose
+   desc parse canonicalizes strings before matching. *)
+VerificationTest[
+  Einstoff`EinstoffMatch[{{"a"}}, {{3}}]["ok"],
+  True,
+  TestID -> "match-string-axis-ok"
+];
+VerificationTest[
+  SymbolName /@ Keys[Einstoff`EinstoffMatch[{{"a"}}, {{3}}]["env"]],
+  {"a"},
+  TestID -> "match-string-axis-binding-name"
+];
+
 (* 27-30. Scalars (rank 0): squeeze/insert a singleton, no leaked ArrayReshape[s,{}]. *)
 VerificationTest[
   Einstoff[ArrayReshape][{{}} :> {{}}, {7}], 7, TestID -> "scalar-identity"];
