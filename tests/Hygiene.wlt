@@ -213,5 +213,12 @@ VerificationTest[
   {{3, 2}},
   TestID -> "hyg-bare-key-binds-bare-axis"
 ];
+(* ...and the positive counterpart through the public shape resolver: an all-string desc
+   whose RHS-only string axis "c" is supplied with the string-tier key "c" -> n. *)
+VerificationTest[
+  Einstoff`EinstoffShapes[{{"a"}} :> {{"a", "c"}}, {{3}}, {"c" -> 2}]["OutputShapes"],
+  {{3, 2}},
+  TestID -> "hyg-string-key-binds-string-axis-shapes"
+];
 
 EndTestSection[];

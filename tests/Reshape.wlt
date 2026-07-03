@@ -289,6 +289,19 @@ VerificationTest[
   TestID -> "match-string-key-invalid-name-reject"
 ];
 
+(* 26g-h. Invalid string names are also validated inside a bracket (Slot) and inside a
+   composite factor — clean unsat, not a Symbol::symname crash. *)
+VerificationTest[
+  Einstoff`EinstoffMatch[{{Slot["a b"]}}, {{3}}]["ok"],
+  False,
+  TestID -> "match-slot-invalid-name-reject"
+];
+VerificationTest[
+  Einstoff`EinstoffMatch[{{CircleTimes["a b", "c"]}}, {{6}}]["ok"],
+  False,
+  TestID -> "match-composite-invalid-factor-reject"
+];
+
 (* 27-30. Scalars (rank 0): squeeze/insert a singleton, no leaked ArrayReshape[s,{}]. *)
 VerificationTest[
   Einstoff[ArrayReshape][{{}} :> {{}}, {7}], 7, TestID -> "scalar-identity"];
