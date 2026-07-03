@@ -55,3 +55,9 @@ For more details on the design, see `SPEC.md`
   there are aliases matching common `bash` utilities, but the syntax for stuff like parameters can be different.
   You don't need to generate terminal commands with full powershell verbosity,
   just keep in mind this is a possible cause of issue.
+
+- The Python cross-validation tests (`wolframscript -script scripts/run-tests.wls python -q`)
+  use Wolfram `ExternalEvaluate`/pyzmq and may fail to start the Python portion under
+  Windows sandbox restrictions even when the same command works in the user's normal shell.
+  If the Python portion fails to run for five consecutive attempts, stop retrying and report it clearly. It may not point to regression in the code,
+  but the user would have to run the suite manually for feeding back the results.

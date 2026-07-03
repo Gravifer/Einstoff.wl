@@ -2,3 +2,7 @@ sandbox_mode = "workspace-write"
 
 [sandbox_workspace_write]
 network_access = true
+
+[features.network_proxy]
+enabled = false
+allow_local_binding = true
