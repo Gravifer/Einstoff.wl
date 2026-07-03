@@ -48,7 +48,8 @@ Einstoff::unsat =
    resolution continues (it fails later only if the shapes are then unsatisfiable). *)
 Einstoff::evalkey = "`1`";
 
-PackageScoped[{descParts, canonHeld, canonBindingList, withAxisScope, $axisFresh,
+PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
+  withAxisScopeDeCanon, $axisFresh,
   normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
   distinctAxesQ, reduceAtoms, materializeOutput, selfContract, reshapeTo, hasCirclePlus,
@@ -71,19 +72,226 @@ einCatch[expr_] := Catch[expr, einThrowTag];
 (* (released) rhs shape lists.  Returns $Failed if desc isn't lhs :> rhs. *)
 (* ------------------------------------------------------------------ *)
 
-(* A bracketed axis #name == Slot["name"] denotes the axis `name`.  Resolve each
-   bracket string to the *symbol the desc itself uses* for that name — collected from
-   the desc's own symbols (System` heads like List/CircleTimes/Slot excluded) — so #b
-   and a bare b are the same axis regardless of $Context.  This removes the
-   Symbol["b"]-resolved-in-the-wrong-context hazard (a string would otherwise become a
-   symbol in whatever $Context happens to be live).  A name that appears only as a
-   string (never bare) is internal-only, so the Symbol[] fallback is harmless.  Shared
-   by both desc entry points (descParts here, parseDesc in the shape layer). *)
-resolveSlotStrings[h_Hold] :=
-  Module[{byName},
-    byName = Association @ Cases[h,
-      s_Symbol /; Context[s] =!= "System`" :> (SymbolName[s] -> s), {0, Infinity}];
-    h /. Slot[str_String] :> Slot[Lookup[byName, str, Symbol[str]]]];
+(* --- desc-boundary evaluation hygiene: axis-identity canonicalization ------------ *)
+(* Three surface spellings denote a named axis — a binder `a_`, a bracket `#a` =
+   Slot["a"], and a string "a" — plus bare references `a`.  A globally *shadowed* axis
+   symbol (Block[{c=3}, …]) must not leak its value into an axis identity.  We fix this
+   at the desc boundary: every *established* axis name (spelled as a binder, a bracket,
+   or a string somewhere in the desc) is rewritten to a fresh, value-less Temporary
+   symbol shared by all its occurrences; a *bare* symbol whose name is NOT established
+   is left untouched, so it env-captures on ReleaseHold (a bound `k` reads as its
+   literal dimension — the opt-in "bare = value" path, SPEC).  The fresh symbols live
+   in a per-parse dynamic scope ($axisFresh), so the two desc parses every operator
+   runs (descParts for atoms; EinstoffShapes/EinstoffMatch for sizes) mint the SAME
+   identities; being Temporary they are GC'd when the scope closes.  Shared by both desc
+   entry points (descParts here, parseDesc in the shape layer). *)
+
+$axisFresh = None;   (* Association name->fresh while an axis scope is open, else None *)
+$axisKind  = None;   (* Association name->{kinds}: binder/bare/slot/string             *)
+
+(* Open a per-parse identity scope around an operator body.  Re-entrant: a nested call
+   (an operator's own EinstoffShapes/EinstoffMatch) reuses the already-open scope, so
+   both parses share one identity memo.  HoldFirst — the body is the operator Module. *)
+SetAttributes[withAxisScope, HoldFirst];
+withAxisScope[body_] :=
+  If[AssociationQ[$axisFresh], body,
+    Block[{$axisFresh = <||>, $axisKind = <||>}, body]];
+
+(* Like withAxisScope, but for the user-facing public entries (EinstoffShapes,
+   EinstoffParse): if THIS call owns the scope (it was not already open), de-canonicalize
+   the result — mapping fresh axis identities back to the user's names.  When nested
+   inside an operator (scope already open) it returns the fresh-keyed result untouched,
+   because the operator consumes those identities internally (e.g. env keys must match
+   the fresh atoms it decomposed). *)
+SetAttributes[withAxisScopeDeCanon, HoldFirst];
+withAxisScopeDeCanon[body_] :=
+  If[AssociationQ[$axisFresh], body,
+    Block[{$axisFresh = <||>, $axisKind = <||>}, deCanon[body]]];
+
+(* A legal axis name string: an identifier (letter/$ start, letters/digits/$ tail).
+   Rolled locally, NOT ResourceFunction["ValidSymbolIdentifierQ"] — that RF's CodeParser
+   backend is unavailable in some kernels (returns False for every input) and is ~150x
+   slower with per-call cloud traffic (benchmarked). *)
+validAxisNameQ[s_String] :=
+  StringMatchQ[s, (LetterCharacter | "$") ~~ (LetterCharacter | DigitCharacter | "$") ...];
+validAxisNameQ[_] := False;
+
+(* Fresh Temporary identity for a name, memoized within the open scope. *)
+mkFresh[name_String] :=
+  Lookup[$axisFresh, name,
+    With[{u = Unique[name <> "$", {Temporary}]}, AssociateTo[$axisFresh, name -> u]; u]];
+
+recordKind[name_String, kind_String] :=
+  $axisKind[name] = Union[Lookup[$axisKind, name, {}], {kind}];
+
+(* All axis-name strings appearing anywhere in a held-or-plain expression (binders,
+   bare symbols, slot symbols/strings, string terms), hygienically.  Over-collects
+   across kinds — used only for the composite-factor / on-LHS membership questions. *)
+axisNamesOf[e_] := DeleteDuplicates @ Join[
+  Cases[e, Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> SymbolName[Unevaluated[s]], {0, Infinity}],
+  Cases[e, Slot[s_Symbol] :> SymbolName[Unevaluated[s]], {0, Infinity}],
+  Cases[e, str_String :> str, {0, Infinity}],
+  Cases[e, s_Symbol /; Context[s] =!= "System`" :> SymbolName[Unevaluated[s]], {0, Infinity}]];
+
+(* Collect axis-name kinds from the held desc without evaluating any symbol (names via
+   SymbolName[Unevaluated[…]]).  Detect a tier "mishmash" (a name spelled BOTH as a
+   symbol/slot AND as a string) and reject an invalid string identifier.  Returns the
+   established names (binder/slot/string — a bare-only name is NOT established) or
+   $Failed on a rejected desc.  Populates $axisKind as a side effect. *)
+collectEstablished[h_Hold] :=
+  Module[{slotSyms, slotStrs, hNoSlot, binderNames, hNoBinder, bareNames, stringNames,
+          allStr, bad, symslot, mish},
+    slotSyms = Cases[h, Slot[s_Symbol] :> SymbolName[Unevaluated[s]], {0, Infinity}];
+    slotStrs = Cases[h, Slot[str_String] :> str, {0, Infinity}];
+    hNoSlot = h /. _Slot :> Null;
+    binderNames = Cases[hNoSlot,
+      Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> SymbolName[Unevaluated[s]],
+      {0, Infinity}];
+    hNoBinder = hNoSlot /. Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> Null;
+    bareNames = Cases[hNoBinder,
+      s_Symbol /; Context[s] =!= "System`" :> SymbolName[Unevaluated[s]], {0, Infinity}];
+    stringNames = Cases[hNoSlot, str_String :> str, {0, Infinity}];
+    allStr = DeleteDuplicates @ Join[slotStrs, stringNames];
+    bad = Select[allStr, ! validAxisNameQ[#] &];
+    If[bad =!= {},
+      Message[Einstoff::unsupp,
+        "invalid axis name string(s): " <> ToString[bad, InputForm] <>
+          " (an axis name must be a valid identifier)"];
+      Return[$Failed]];
+    Scan[recordKind[#, "binder"] &, binderNames];
+    Scan[recordKind[#, "bare"] &, bareNames];
+    Scan[recordKind[#, "slot"] &, Join[slotSyms, slotStrs]];
+    Scan[recordKind[#, "string"] &, stringNames];
+    (* A name appearing inside a CircleTimes / CirclePlus is a *composite factor* — it
+       genuinely needs a binding to split/size the composite, so it is bindable even as
+       a binder.  A binder that is NEVER a composite factor (nor slot/string) is a
+       whole-axis binder: inference-only.  (SPEC 7.2: Cases patterns, no Slot in a `&`.) *)
+    Scan[recordKind[#, "composite"] &,
+      DeleteDuplicates @ Flatten @ Cases[h,
+        (CircleTimes | CirclePlus)[xs___] :> axisNamesOf[Hold[xs]], {0, Infinity}]];
+    (* A name appearing anywhere in the LHS shapes is inferable from a tensor. *)
+    Scan[recordKind[#, "onlhs"] &, axisNamesOf @ Extract[h, {1, 1}, Hold]];
+    (* mishmash: the string tier mixed with the symbol/slot tier for one name *)
+    symslot = DeleteDuplicates @ Join[binderNames, bareNames, slotSyms, slotStrs];
+    mish = Intersection[symslot, DeleteDuplicates[stringNames]];
+    If[mish =!= {},
+      Message[Einstoff::unsupp,
+        "axis " <> First[mish] <> " is spelled both as a symbol/bracket and as the \
+string \"" <> First[mish] <> "\"; use one spelling consistently"];
+      Return[$Failed]];
+    DeleteDuplicates @ Join[binderNames, slotSyms, slotStrs, stringNames]];
+
+(* Rewrite the held desc: every established name -> its fresh Temporary symbol, at
+   binder / bracket / string / bare-reference positions.  Bare names that are NOT
+   established are left untouched (they env-capture on ReleaseHold).  One ReplaceAll
+   pass: the fresh symbols carry a distinct name ("a$nn"), so no rule re-fires on them.
+   Assumes an open axis scope (via withAxisScope). *)
+canonHeld[h_Hold] :=
+  Module[{estab, rules},
+    estab = collectEstablished[h];
+    If[estab === $Failed, Return[$Failed]];
+    Scan[mkFresh, estab];
+    (* Table, not `&`/Map: the rule bodies contain Slot[...], which an anonymous
+       Function would capture as its own argument slots (SPEC 7.2). *)
+    rules = Flatten @ Table[
+      With[{name = nm, fr = $axisFresh[nm]},
+        {Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] /;
+            SymbolName[Unevaluated[s]] === name :> Pattern[fr, Blank[]],
+         Slot[s_Symbol] /; SymbolName[Unevaluated[s]] === name :> Slot[fr],
+         Slot[name] :> Slot[fr],
+         ss_String /; ss === name :> fr,
+         s_Symbol /; Context[s] =!= "System`" &&
+            SymbolName[Unevaluated[s]] === name :> fr}],
+      {nm, estab}];
+    h /. rules];
+
+(* Map fresh internal axis symbols back to symbols of their original user names, for
+   user-facing output (EinstoffParse's normalized desc, EinstoffShapes' Bindings /
+   Bracketed).  Replaces at all levels including Association keys.  Outside a scope, or
+   with no axes, it is the identity.  A shadowed name maps back to its (valued) symbol —
+   acceptable for display; the engine already ran on the fresh identities. *)
+deCanon[expr_] :=
+  If[AssociationQ[$axisFresh] && Length[$axisFresh] > 0,
+    deCanonApply[expr, Table[$axisFresh[nm] -> Symbol[nm], {nm, Keys[$axisFresh]}]],
+    expr];
+(* ReplaceAll does not rewrite Association KEYS, so recurse: remap keys and values of
+   every Association; a held desc (RHS) and plain shapes just take the value rules. *)
+deCanonApply[a_Association, rules_] :=
+  Association @ KeyValueMap[(Replace[#1, rules] -> deCanonApply[#2, rules]) &, a];
+deCanonApply[l_List, rules_] := deCanonApply[#, rules] & /@ l;
+deCanonApply[x_, rules_] := x /. rules;
+
+(* Read the current global value of an axis name, hygienically-ish, for the shadowed-key
+   diagnostic only (best effort; no axis symbol is created that ValueQ wouldn't see). *)
+axisCurrentValue[name_String] :=
+  Quiet @ Module[{h = ToExpression[name, InputForm, Hold]},
+    If[MatchQ[h, Hold[_Symbol]] && (ValueQ @@ h), ReleaseHold[h], Null]];
+
+(* Canonicalize + validate `bindings` against the parsed desc's axis identities.  Runs
+   only inside an open axis scope (the operator path); the public raw EinstoffMatch (no
+   scope) passes bindings through untouched.  Returns a fresh-keyed binding list (junk
+   entries warned + dropped), or a reason string on a hard reject.  Only keys naming an
+   *established* desc axis are canonicalized; an unestablished key is left as-is so it
+   still matches a legacy bare/unbound desc axis. *)
+canonBindingList[bindings_] :=
+  Module[{out = {}},
+    If[! AssociationQ[$axisFresh] || ! MatchQ[bindings, {(_Rule | _RuleDelayed) ...}],
+      Return[bindings]];
+    (* A hard reject Throws its reason string past the per-entry Module and the Do; a
+       plain Return there would only exit the inner Module and be lost. *)
+    Catch[
+      Do[
+        Module[{k = First[bd], v = Last[bd], kn, kk, kinds, hasSlot, hasStr, hit},
+          (* classify the (already-evaluated) key *)
+          Which[
+            MatchQ[k, _Slot] && Length[k] === 1,
+              kn = Replace[First[k],
+                {s_Symbol :> SymbolName[Unevaluated[s]], str_String :> str, _ :> $Failed}];
+              kk = "slot",
+            StringQ[k], kn = k; kk = "string",
+            (* k is a Module local holding the (unbound) key symbol; SymbolName[k]
+               evaluates through to that symbol's name.  Safe: Head[k]===Symbol means
+               the key is unbound (a bound key would have evaluated to its value and
+               taken the junk branch below). *)
+            Head[k] === Symbol, kn = SymbolName[k]; kk = "bare",
+            True, kn = $Failed; kk = "junk"];
+          Which[
+            (* junk key (an evaluated shadowed symbol, e.g. {3->2} from c=3): warn + drop *)
+            kn === $Failed,
+              hit = SelectFirst[Keys[$axisFresh], axisCurrentValue[#] === k &];
+              Message[Einstoff::evalkey,
+                If[MissingQ[hit],
+                  "binding key " <> ToString[k, InputForm] <>
+                    " is not an axis name; ignoring it",
+                  "binding key " <> ToString[k, InputForm] <> " is the current value of \
+axis " <> hit <> " (probably a shadowed symbol); write #" <> hit <> " -> … or \"" <>
+                    hit <> "\" -> …; ignoring it"]],
+            (* key names an established axis: check the spelling tier, canonicalize *)
+            KeyExistsQ[$axisFresh, kn],
+              kinds = Lookup[$axisKind, kn, {}];
+              hasSlot = MemberQ[kinds, "slot"]; hasStr = MemberQ[kinds, "string"];
+              Which[
+                (* whole-axis binder (on LHS, never a composite factor / slot / string):
+                   inference-only — its size comes from the tensor, not a binding.  A
+                   composite split-factor binder, by contrast, legitimately needs its
+                   binding, so it is bindable. *)
+                MemberQ[kinds, "onlhs"] && ! MemberQ[kinds, "composite"] &&
+                    ! hasSlot && ! hasStr,
+                  Throw["axis " <> kn <> " is inferred from the tensor (a whole-axis \
+binder a_); to supply a size make it a bracket #" <> kn <> " or a string \"" <> kn <>
+                    "\", or bind a composite factor", "cblReject"],
+                hasStr && kk =!= "string",
+                  Throw["axis \"" <> kn <> "\" is a string axis; bind it with \"" <> kn <>
+                    "\" -> …, not " <> ToString[k, InputForm], "cblReject"],
+                hasSlot && kk === "string",
+                  Throw["axis " <> kn <> " is a bracket axis; bind it with #" <> kn <>
+                    " -> … (or " <> kn <> " -> …), not a string key", "cblReject"],
+                True, AppendTo[out, $axisFresh[kn] -> v]],
+            (* key names no established axis: leave as-is (legacy bare/unbound axis) *)
+            True, AppendTo[out, k -> v]]],
+        {bd, bindings}];
+      out,
+      "cblReject"]];
 
 (* --- desc-boundary canonicalization (shared by both entry points) ---------------- *)
 (* Two orthogonal normalizations are applied once at the desc boundary so all
@@ -122,9 +330,10 @@ normHeldShapes[hshapes_Hold] :=
    time RHS symbols are atom labels, not values to substitute) and canonicalizes both
    sides.  parseDesc (Parsing.wl) is the held-RHS twin. *)
 descParts[h : Hold[_Rule | _RuleDelayed]] :=
-  With[{hr = resolveSlotStrings[h]},
-    {normShapes @ Extract[hr, {1, 1}],
-     normShapes @ ReleaseHold @ Extract[hr, {1, 2}, Hold]}];
+  Module[{hr = canonHeld[h]},
+    If[hr === $Failed, $Failed,
+      {normShapes @ Extract[hr, {1, 1}],
+       normShapes @ ReleaseHold @ Extract[hr, {1, 2}, Hold]}]];
 descParts[_] := $Failed;
 
 (* ------------------------------------------------------------------ *)

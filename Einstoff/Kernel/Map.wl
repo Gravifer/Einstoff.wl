@@ -56,7 +56,7 @@ mapFunction[f_] := f;
 
 (* Curried: Einstoff[Map][f] is the operator, applied to [desc, tensors, bindings].
    A subvalue of EinstoffMap, exactly as EinstoffReduce[reducer][…]. *)
-EinstoffMap[fSpec_][desc_, tensors_, bindings_List : {}] :=
+EinstoffMap[fSpec_][desc_, tensors_, bindings_List : {}] := withAxisScope @
   Module[{parts, lhs, rhs, inShapes, shp, env, f, x,
           lhsTagged, lhsAtoms, lhsBr, rhsAtoms, brAtoms, vmapAtoms,
           decompDims, order, srcPerm, xr, vmapDims, brDims, vmapProd, brProd,

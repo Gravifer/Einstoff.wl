@@ -106,7 +106,7 @@ sanitizeOperand[t_, atoms_, env_] :=
    (uniform convention): a globally bound axis symbol substitutes — a bound integer
    reads as a literal dimension, illegal values rejected downstream; Pattern still
    holds each binding `name_` and `:>` holds the RHS. *)
-innerLower[mul_, add_, desc_, tensors_, bindings_] :=
+innerLower[mul_, add_, desc_, tensors_, bindings_] := withAxisScope @
   Module[{parts, lhs, rhs, shp, env, labs, outA, sanitized, stensors, slabs, result},
     parts = descParts[Hold[desc]];
     If[parts === $Failed,

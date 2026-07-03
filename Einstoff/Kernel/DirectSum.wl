@@ -60,7 +60,7 @@ directSumSummandQ[s_] :=
 
 SetAttributes[directSumConcat, HoldFirst];
 
-directSumConcat[desc_, tensors_, bindings_List] :=
+directSumConcat[desc_, tensors_, bindings_List] := withAxisScope @
   Module[{parts, lhs, rhs, out, cpos, cp, summands, k, shp, env,
           aligned, n},
     parts = descParts[Hold[desc]];
@@ -148,7 +148,7 @@ summand distinctly; within-tensor contraction is not supported here)"];
 
 SetAttributes[directSumSplit, HoldFirst];
 
-directSumSplit[desc_, tensors_, bindings_List] :=
+directSumSplit[desc_, tensors_, bindings_List] := withAxisScope @
   Module[{parts, lhs, rhs, inShape, cpos, cp, summands, k, shp, env, x,
           ndims, n, outs},
     parts = descParts[Hold[desc]];
@@ -240,7 +240,7 @@ summand distinctly; within-tensor contraction is not supported here)"];
 
 (* desc not held (uniform convention); the internal directSum* / EinstoffShapes
    layer still holds it for structural resolution. *)
-EinstoffJoin[desc_, tensors_, bindings_List : {}] :=
+EinstoffJoin[desc_, tensors_, bindings_List : {}] := withAxisScope @
   Module[{parts},
     parts = descParts[Hold[desc]];
     If[parts === $Failed,
@@ -259,7 +259,7 @@ not the input (LHS) — use Einstoff[Split] for an input direct sum"];
     directSumConcat[desc, tensors, bindings]
   ];
 
-EinstoffSplit[desc_, tensors_, bindings_List : {}] :=
+EinstoffSplit[desc_, tensors_, bindings_List : {}] := withAxisScope @
   Module[{parts},
     parts = descParts[Hold[desc]];
     If[parts === $Failed,

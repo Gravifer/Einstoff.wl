@@ -49,31 +49,36 @@ with \"ok\" and either \"env\" or \"reason\".";
 (* ------------------------------------------------------------------ *)
 
 SetAttributes[EinstoffParse, HoldFirst];
-EinstoffParse[desc_] := parseDesc[Hold[desc]];
+EinstoffParse[desc_] := withAxisScopeDeCanon @ parseDesc[Hold[desc]];
 
 (* Both desc-boundary canonicalizers (normShapes released, normHeldShapes held) and
-   resolveSlotStrings are shared with the lowering hub (Lowering.wl).  parseDesc is the
-   held-RHS twin of descParts: it keeps the RHS held so EinstoffParse returns a normalized
-   desc whose globally-bound symbols are not released before their values are substituted
-   (evalOutShape releases it later under env).  Same {} -> 1 + CirclePlus-flatten policy as
-   descParts; the LHS is flattened so the matcher (solveComposite) sees a flat summand list.
-   resolveSlotStrings maps each #name bracket to the symbol the desc itself uses, so
-   brackets are context-safe before matching. *)
+   canonHeld are shared with the lowering hub (Lowering.wl).  parseDesc is the held-RHS
+   twin of descParts: it keeps the RHS held so EinstoffParse returns a normalized desc
+   whose (fresh-canonicalized) axis symbols are not released before their sizes are
+   substituted (evalOutShape releases it later under env).  Same {} -> 1 + CirclePlus-
+   flatten policy as descParts; the LHS is flattened so the matcher (solveComposite) sees
+   a flat summand list.  canonHeld rewrites every established axis name — binder `a_`,
+   bracket `#a`, string "a" — to a fresh Temporary identity shared across its
+   occurrences, so a shadowed global symbol cannot leak its value into an axis (and
+   brackets are context-safe). *)
 parseDesc[h : Hold[_RuleDelayed]] :=
-  With[{hr = resolveSlotStrings[h]},
-    <|"LHS" -> normShapes @ Extract[hr, {1, 1}],
-      "RHS" -> normHeldShapes @ Extract[hr, {1, 2}, Hold]|>];
+  Module[{hr = canonHeld[h]},
+    If[hr === $Failed, <|"LHS" -> $Failed, "RHS" -> $Failed|>,
+      <|"LHS" -> normShapes @ Extract[hr, {1, 1}],
+        "RHS" -> normHeldShapes @ Extract[hr, {1, 2}, Hold]|>]];
 parseDesc[h : Hold[_Rule]] :=
-  With[{hr = resolveSlotStrings[h]},
-    <|"LHS" -> normShapes @ Extract[hr, {1, 1}],
-      "RHS" -> normHeldShapes @ Extract[hr, {1, 2}, Hold],
-      "Warning" -> "prefer :> (RuleDelayed) over -> for desc"|>];
+  Module[{hr = canonHeld[h]},
+    If[hr === $Failed, <|"LHS" -> $Failed, "RHS" -> $Failed|>,
+      <|"LHS" -> normShapes @ Extract[hr, {1, 1}],
+        "RHS" -> normHeldShapes @ Extract[hr, {1, 2}, Hold],
+        "Warning" -> "prefer :> (RuleDelayed) over -> for desc"|>]];
 parseDesc[_] := <|"LHS" -> $Failed, "RHS" -> $Failed|>;
 
 (* Names that appear inside a Slot[...] (bracket) anywhere in lhs.  By the time this
-   runs the desc has been through resolveSlotStrings, so a #name bracket is Slot[name]
-   (a bare symbol); composites keep their pattern symbols.  Collect every non-System`
-   symbol inside any Slot.  Used only for the informational "Bracketed" field (§5.2). *)
+   runs the desc has been through canonHeld, so a #name bracket is Slot[freshSym] (a bare
+   symbol); composites keep their pattern symbols.  Collect every non-System` symbol
+   inside any Slot.  Used only for the informational "Bracketed" field (§5.2); the fresh
+   symbols are mapped back to the user's names by deCanon on the public output. *)
 bracketedNames[lhs_] :=
   DeleteDuplicates @ Flatten @
     Cases[lhs,
@@ -258,8 +263,8 @@ matchStep[envs_, pair_] :=
 (* Public: match.                                                      *)
 (* ------------------------------------------------------------------ *)
 
-EinstoffMatch[lhsShapes_, inputShapes_, bindings_ : {}] :=
-  Module[{env0, res, sown},
+EinstoffMatch[lhsShapes_, inputShapes_, bindingsIn_ : {}] :=
+  Module[{bindings, env0, res, sown},
     If[! MatchQ[lhsShapes, {___List}],
       Return[<|"ok" -> False, "reason" -> "LHS is not a list of shapes"|>]];
     If[! MatchQ[inputShapes, {___List}],
@@ -270,6 +275,13 @@ EinstoffMatch[lhsShapes_, inputShapes_, bindings_ : {}] :=
         "reason" -> "operand count: desc has " <> ToString[Length[lhsShapes]] <>
           " shape(s) but " <> ToString[Length[inputShapes]] <>
           " tensor shape(s) given"|>]];
+    (* Canonicalize + validate binding keys against the parsed desc's axis identities
+       (only inside an open axis scope; standalone raw use passes through).  A hard
+       reject (a Pattern key, binding an inference-only a_, a wrong-tier key) returns a
+       reason string; a shadowed/junk key is warned and dropped inside canonBindingList. *)
+    bindings = canonBindingList[bindingsIn];
+    If[StringQ[bindings],
+      Return[<|"ok" -> False, "reason" -> bindings|>]];
     (* Validate `bindings` at the entrance so a malformed spec fails locally here, rather
        than degrading into a deeper, less-obvious unsat message (or an unevaluated
        Association[...] leaking through matchTerms).  A binding is an axis-name -> size
@@ -318,7 +330,7 @@ evalOutShape[Hold[rhs_], env_] :=
 (* ------------------------------------------------------------------ *)
 
 SetAttributes[EinstoffShapes, HoldFirst];
-EinstoffShapes[desc_, inputShapes_, bindings_ : {}] :=
+EinstoffShapes[desc_, inputShapes_, bindings_ : {}] := withAxisScopeDeCanon @
   Module[{p, lhs, heldRhs, bracketed, relRhs, dup, m, env, out},
     p = parseDesc[Hold[desc]];
     If[p["LHS"] === $Failed,

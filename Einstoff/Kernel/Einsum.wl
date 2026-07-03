@@ -32,7 +32,7 @@ are out of scope (use Einstoff[\"Massage\"] / Einstoff[ArrayReduce]).";
 Einstoff["einsum"] := EinstoffEinsum;
 Einstoff["Einsum"] := EinstoffEinsum;
 
-EinstoffEinsum[desc_, tensors_, bindings_List : {}] :=
+EinstoffEinsum[desc_, tensors_, bindings_List : {}] := withAxisScope @
   Module[{parts, lhs, rhs, opAtoms, rhsAtoms, allLhs},
     parts = descParts[Hold[desc]];
     If[parts === $Failed,

@@ -72,7 +72,7 @@ EinstoffContract[desc_, tensors_, bindings_List : {}] := massageCore[desc, tenso
 
 (* desc is NOT held (uniform convention): Pattern holds each binding `name_` and `:>`
    holds the RHS, so only a bare reference to a globally bound symbol is substituted. *)
-massageCore[desc_, tensors_, bindings_List, policy_] :=
+massageCore[desc_, tensors_, bindings_List, policy_] := withAxisScope @
   Module[{parts, lhs, rhs, m, env, lhsAtoms, rhsAtoms, sc, xc, atomsc, result,
           outOnly, repeated, contracted},
     parts = descParts[Hold[desc]];

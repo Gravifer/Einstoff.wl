@@ -65,7 +65,7 @@ reduceFunction[f_] := f;
 
 (* Curried: Einstoff[ArrayReduce][reducer] is the operator, applied to
    [desc, tensors, bindings]. A subvalue of EinstoffReduce. *)
-EinstoffReduce[reducerSpec_][desc_, tensors_, bindings_List : {}] :=
+EinstoffReduce[reducerSpec_][desc_, tensors_, bindings_List : {}] := withAxisScope @
   Module[{parts, lhs, rhs, inShapes, shp, env, x, reducer,
           lhsTagged, lhsAtoms, lhsBr, rhsAtoms, reducedPos, keptOrder,
           decompDims, xr, xred, result},
