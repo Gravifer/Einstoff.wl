@@ -231,6 +231,14 @@ binder, use as bare.)
 (`a_`/`a`/`#a`) and the string tier (`"a"`) within one desc — rejected at the
 boundary. Within the symbol/slot tier the three spellings interoperate as before.
 
+**Contexts are ignored.** Axis identity is the axis *name*, not the Wolfram Language
+context of the symbol used to spell it. Thus ``Foo`a_``, ``Bar`a_``, `a_`, `#a`,
+and `"a"` all denote the same surface name `a` (subject to the tier-mishmash rule above).
+This is deliberate: axis names in the eDSL are small local labels, not WL namespace
+entities. If a desc needs so many axis names that contexts look necessary to avoid
+collisions, the desc should be refactored or use clearer local names instead of
+expecting contexts to carry semantic identity.
+
 **Canonicalization.** Each established name is rewritten to one fresh
 `Unique[name <> "$", {Temporary}]` symbol shared across all its occurrences (binder,
 reference, bracket, binding key); the symbols are per-parse hermetic and GC'd when the
@@ -465,7 +473,9 @@ invariants / maintainability smells. Retained here as a record of the hardening:
   **Superseded (2026-07, desc-hygiene branch, §5.6):** `resolveSlotStrings` was replaced
   by `canonHeld`, which canonicalizes *every* axis identity — binder, bracket, string —
   to a fresh `Temporary` symbol, so the `Block[{c=3},…]` value-leak (not just the
-  `$Context` variant) is closed, and a string axis tier `"a"` is added.
+  `$Context` variant) is closed, and a string axis tier `"a"` is added. The new
+  canonicalizer intentionally keys identities by `SymbolName`, not full symbol context:
+  contexts are not part of axis identity in this eDSL.
 - ✅ **Duplicated desc normalization** across `descParts` (Lowering.wl) and `parseDesc`
   (Parsing.wl) — *fixed.* The `{} -> 1` unit policy and the CirclePlus-flatten rule (which
   were written out three times: `flattenDirectSum`, `normHeldRhs`, and inline in
