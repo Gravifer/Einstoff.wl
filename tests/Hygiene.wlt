@@ -176,13 +176,13 @@ VerificationTest[
 
 (* 15e. A bare binding key that evaluated to a System` symbol (e.g. {c->2} under c=Null
        arrives as {Null->2}) is an evaluated shadow-capture, not a bare axis "Null": it
-       is dropped as junk (bracket #c is sized from the tensor), so no Null leaks into
-       the resolved bindings. *)
+       is dropped as junk (bracket #c is sized from the tensor), so no Null survives as a
+       resolved-bindings KEY.  (Check via Keys — FreeQ does not inspect Association keys.) *)
 VerificationTest[
   Block[{c = Null},
-    FreeQ[Quiet @ Einstoff`EinstoffShapes[
-      {{a_, Slot["c"]}} :> {{a, c}}, {{2, 3}}, {c -> 2}]["Bindings"], Null]],
-  True,
+    Sort[SymbolName /@ Keys[Quiet @ Einstoff`EinstoffShapes[
+      {{a_, Slot["c"]}} :> {{a, c}}, {{2, 3}}, {c -> 2}]["Bindings"]]]],
+  {"a", "c"},
   TestID -> "hyg-system-symbol-key-dropped"
 ];
 

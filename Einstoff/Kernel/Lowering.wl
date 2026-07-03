@@ -287,13 +287,17 @@ canonBindingList[bindings_] :=
                 {s_Symbol :> SymbolName[Unevaluated[s]], str_String :> str, _ :> $Failed}];
               kk = "slot",
             StringQ[k], kn = k; kk = "string",
-            (* a bare (unbound) NON-System symbol is a legacy bare axis key; SymbolName[k]
-               evaluates the Module local through to that symbol's name.  A System` symbol
-               key (Null, True, E, …) is not a legal axis name — axis names are always
-               non-System — so it is an evaluated shadow-capture (e.g. {c->2} under
-               c=Null arrives as {Null->2}); route it to the junk branch, warned +
-               dropped, not treated as a bare axis "Null". *)
-            Head[k] === Symbol && Context[k] =!= "System`", kn = SymbolName[k]; kk = "bare",
+            (* An evaluated shadow-capture whose value is a System` symbol (e.g. {c->2}
+               under c=Null arrives as {Null->2}; also True/False/E/…): never a legal axis
+               name (axis names are always non-System), so treat it as junk — warned and
+               dropped, not a bare axis "Null".  NB `Context` is HoldFirst, so `Context[k]`
+               would inspect the Module local k rather than the key VALUE; `Evaluate[k]`
+               forces the value through (`SymbolName[k]` already evaluates, since
+               SymbolName is not HoldFirst). *)
+            Head[k] === Symbol && Context[Evaluate[k]] === "System`",
+              kn = $Failed; kk = "junk",
+            (* a bare (unbound) non-System symbol is a legacy bare axis key *)
+            Head[k] === Symbol, kn = SymbolName[k]; kk = "bare",
             True, kn = $Failed; kk = "junk"];
           Which[
             (* a Pattern key is a category error — the axis is bound by its name, not a
