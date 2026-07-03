@@ -109,10 +109,12 @@ VerificationTest[
   TestID -> "hyg-bare-lhs-literal-dim"
 ];
 
-(* 12. A binder `a_` is inference-only: binding it is rejected even when the size
-       agrees with the tensor. *)
+(* 12. A whole-axis binder `a_` is inference-only: binding it is rejected even when the
+       size agrees with the tensor (a composite split-factor binder, by contrast, IS
+       bindable — see ex2 in Parsing.wlt).  Block[{a}] keeps the bare `a` key unshadowed
+       so it reaches the axis rather than evaluating to a junk key. *)
 VerificationTest[
-  Quiet @ Einstoff["Massage"][{{a_}} :> {{a}}, {{1, 2, 3}}, {a -> 3}],
+  Block[{a}, Quiet @ Einstoff["Massage"][{{a_}} :> {{a}}, {{1, 2, 3}}, {a -> 3}]],
   $Failed,
   TestID -> "hyg-binder-not-bindable"
 ];

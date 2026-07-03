@@ -274,11 +274,14 @@ VerificationTest[
   TestID -> "bindings-reject-non-rule-reason"
 ];
 
-(* A non-symbol key (an integer immediate as a key) is not an axis name — rejected. *)
+(* A non-symbol key (an integer immediate as a key) is not an axis name.  Under the
+   desc-hygiene policy this is treated as a probable shadowed/junk key: it WARNS
+   (Einstoff::evalkey) and is dropped rather than aborting, so with the remaining valid
+   binding the desc still resolves. *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {2 -> 3, c -> 2}],
-  False,
-  TestID -> "bindings-reject-nonsymbol-key"
+  sat @ Quiet @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {2 -> 3, c -> 2}],
+  True,
+  TestID -> "bindings-nonsymbol-key-warns-continues"
 ];
 
 (* A non-positive or non-integer size is rejected with the size-specific reason. *)

@@ -179,9 +179,12 @@ VerificationTest[
   TestID -> "reduce-global-dim-mismatch"
 ];
 
-(* 19. A globally bound non-size value is rejected by the existing checks. *)
+(* 19. A globally bound non-size value is rejected by the existing checks.  NB the
+   shadow value must be neither a valid size NOR a valid axis-name string (a string is
+   now a legal axis spelling): a Real like 2.5 is a genuine non-size that env-captures
+   into an illegal dimension term and is rejected. *)
 VerificationTest[
-  Block[{k = "oops"}, Quiet @ With[{x = ArrayReshape[Range[12], {3, 4}]},
+  Block[{k = 2.5}, Quiet @ With[{x = ArrayReshape[Range[12], {3, 4}]},
     Einstoff[ArrayReduce][Total][{{a_, k}} :> {{a}}, {x}]]],
   $Failed,
   TestID -> "reduce-global-illegal"
