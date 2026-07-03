@@ -240,19 +240,24 @@ deCanonApply[a_Association, rules_] :=
 deCanonApply[l_List, rules_] := deCanonApply[#, rules] & /@ l;
 deCanonApply[x_, rules_] := x /. rules;
 
-(* True iff the user's symbol for this axis name currently HAS a value (is shadowed),
-   tested with a held ValueQ so an actual Null value counts as shadowed (unlike a
-   value === Null test).  ValueQ holds its argument, so the value is never evaluated. *)
+(* True iff the user's symbol for this axis name currently HAS a value (is shadowed).
+   Parse the name to its symbol under HoldComplete, then extract it explicitly with
+   Replace and ask ValueQ.  The test is "has a value", NOT "value =!= Null", so a symbol
+   shadowed to Null counts as shadowed; ValueQ holds its argument, so the value itself is
+   never evaluated. *)
 axisShadowedQ[name_String] :=
-  Quiet @ Module[{h = ToExpression[name, InputForm, Hold]},
-    MatchQ[h, Hold[_Symbol]] && (ValueQ @@ h)];
+  Quiet @ Module[{h = ToExpression[name, InputForm, HoldComplete]},
+    Replace[h, {HoldComplete[s_Symbol] :> ValueQ[s], _ :> False}]];
 
-(* Read the current global value of an axis name (or Missing["Unbound"] when it has
-   none), hygienically-ish, for the shadowed-key diagnostic only.  Missing (not Null) is
-   the unbound sentinel so a symbol shadowed to Null is not mistaken for unbound. *)
+(* The current value of an axis name, or Missing["Unbound"] when it has none — for the
+   shadowed-key diagnostic only.  `s` is returned only after ValueQ[s] confirms a value,
+   so it then evaluates to that value; Missing (not Null) is the unbound sentinel so a
+   Null-shadowed symbol is not mistaken for unbound. *)
 axisCurrentValue[name_String] :=
-  Quiet @ Module[{h = ToExpression[name, InputForm, Hold]},
-    If[axisShadowedQ[name], ReleaseHold[h], Missing["Unbound"]]];
+  Quiet @ Module[{h = ToExpression[name, InputForm, HoldComplete]},
+    Replace[h, {
+      HoldComplete[s_Symbol] :> If[ValueQ[s], s, Missing["Unbound"]],
+      _ :> Missing["Unbound"]}]];
 
 (* Canonicalize + validate `bindings` against the parsed desc's axis identities.  Runs
    only inside an open axis scope (the operator path); the public raw EinstoffMatch (no
@@ -282,11 +287,13 @@ canonBindingList[bindings_] :=
                 {s_Symbol :> SymbolName[Unevaluated[s]], str_String :> str, _ :> $Failed}];
               kk = "slot",
             StringQ[k], kn = k; kk = "string",
-            (* k is a Module local holding the (unbound) key symbol; SymbolName[k]
-               evaluates through to that symbol's name.  Safe: Head[k]===Symbol means
-               the key is unbound (a bound key would have evaluated to its value and
-               taken the junk branch below). *)
-            Head[k] === Symbol, kn = SymbolName[k]; kk = "bare",
+            (* a bare (unbound) NON-System symbol is a legacy bare axis key; SymbolName[k]
+               evaluates the Module local through to that symbol's name.  A System` symbol
+               key (Null, True, E, …) is not a legal axis name — axis names are always
+               non-System — so it is an evaluated shadow-capture (e.g. {c->2} under
+               c=Null arrives as {Null->2}); route it to the junk branch, warned +
+               dropped, not treated as a bare axis "Null". *)
+            Head[k] === Symbol && Context[k] =!= "System`", kn = SymbolName[k]; kk = "bare",
             True, kn = $Failed; kk = "junk"];
           Which[
             (* a Pattern key is a category error — the axis is bound by its name, not a

@@ -174,6 +174,18 @@ VerificationTest[
   TestID -> "hyg-decanon-null-shadow-parse"
 ];
 
+(* 15e. A bare binding key that evaluated to a System` symbol (e.g. {c->2} under c=Null
+       arrives as {Null->2}) is an evaluated shadow-capture, not a bare axis "Null": it
+       is dropped as junk (bracket #c is sized from the tensor), so no Null leaks into
+       the resolved bindings. *)
+VerificationTest[
+  Block[{c = Null},
+    FreeQ[Quiet @ Einstoff`EinstoffShapes[
+      {{a_, Slot["c"]}} :> {{a, c}}, {{2, 3}}, {c -> 2}]["Bindings"], Null]],
+  True,
+  TestID -> "hyg-system-symbol-key-dropped"
+];
+
 (* 16. An axis name inside a bracketed composite (Slot[(c d)]) is canonicalized like any
        grammar position: under a shadowing Block it still resolves, matching the
        unshadowed result. *)
