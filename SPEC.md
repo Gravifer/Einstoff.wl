@@ -42,8 +42,9 @@ matching do double duty as both parser and shape-binder.
 
 | Concept | einops/einx string | Einstoff form | WL construct |
 |---|---|---|---|
-| Named dimension (binding) | `a` | `a_` | `Pattern[a, Blank[]]` |
-| Named dimension (reference to an already-bound name) | `a` (repeated) | `a` | bare symbol |
+| Named dimension (binding — "solve for this") | `a` | `a_` | `Pattern[a, Blank[]]` |
+| Named dimension (reference / env-capture) | `a` (repeated) | `a` | bare symbol |
+| Named dimension (string tier — fully hygienic) | `a` | `"a"` | a `String` (a valid identifier) — see §5.6 |
 | Integer immediate | `2` | `2` | literal integer |
 | Anonymous dimension | `_` | `_` | `Blank[]` |
 | Ellipsis (anonymous) | `...` | `___` | `BlankNullSequence[]` |
@@ -63,7 +64,8 @@ matching do double duty as both parser and shape-binder.
 
 A *shape* is a `List` of dimension terms. A dimension term is one of:
 
-- a bare symbol (reference) or `name_` (binding)
+- a bare symbol (reference / env-capture) or `name_` (binding)
+- a `String` `"a"` (a hygienic named axis — must be a valid identifier; §5.6)
 - an integer
 - `_`, `__`, `___`
 - `name : Repeated[term]` (named ellipsis) or bare `Repeated[term]` /
@@ -197,6 +199,83 @@ Implementation: every lowering path routes its output through one shared
 materialization step that broadcasts the repeat axes (replicate), permutes the
 atomic axes into RHS order, and recomposes composites — so repetition is written
 once and obtained uniformly.
+
+### 5.6 Evaluation hygiene and the axis-name spelling tiers
+
+A desc is an *ordinary WL expression*, so a global binding of an axis symbol
+(`Block[{c = 3}, …]`) would leak its value into the axis identity — turning axis
+`c` into the literal `3`, corrupting shapes and (as an `Association` key) the size
+environment. Einstoff removes this hazard by **canonicalizing every axis identity at
+the desc boundary** to a fresh, value-less `Temporary` symbol *before* any downstream
+code inspects it. The three surface spellings of a *named* axis are therefore hygiene
+tiers, not merely syntax:
+
+| Spelling | WL | Role | Hygiene |
+|---|---|---|---|
+| `a_` (binder) | `Pattern[a, _]` | "solve for this" — inferred from the tensor | safe (canonicalized) |
+| bare `a` | `Symbol` | reference to an *established* axis, else env-capture | opt-in: a bound `a` reads as its literal size |
+| `#a` (bracket) | `Slot["a"]` | elementary-op axis (§5.2), name-keyed | safe (string-keyed) |
+| `"a"` (string) | `String` | fully-hygienic named axis | immune to any `Block` |
+
+**Established vs. captured.** A bare symbol is an axis *reference* only if its name is
+**established** — spelled somewhere in the desc as a binder `a_`, a bracket `#a`, or a
+string `"a"`. An *unestablished* bare symbol env-captures: it evaluates, so a globally
+bound `k` reads as its literal dimension (`{{a_, k}} :> {{a}}` with `k = 4` reduces a
+size-4 axis) and an unbound one is an ordinary (unsafe) axis. This holds symmetrically
+on LHS and RHS — a bare RHS name is **not** automatically hygienic just because `:>`
+holds it; it is a reference iff established, else a captured value. (The desc's own
+`a_` on the LHS ↔ bare `a` on the RHS is WL's native `x_ :> f[x]` idiom: declare as a
+binder, use as bare.)
+
+**No mishmash.** A single name may not be spelled in both the symbol/slot tier
+(`a_`/`a`/`#a`) and the string tier (`"a"`) within one desc — rejected at the
+boundary. Within the symbol/slot tier the three spellings interoperate as before.
+
+**Canonicalization.** Each established name is rewritten to one fresh
+`Unique[name <> "$", {Temporary}]` symbol shared across all its occurrences (binder,
+reference, bracket, binding key); the symbols are per-parse hermetic and GC'd when the
+parse scope closes. Names *inside a bracketed composite* (`Slot[(c d)]` =
+`Slot[CircleTimes[c_, d_]]`) are grammar positions and are canonicalized too. A string
+name must be a valid identifier (a locally-rolled `validAxisNameQ` — not the cloud
+`ResourceFunction["ValidSymbolIdentifierQ"]`, which is unavailable/slow in some
+kernels). Public output (`EinstoffParse`; `EinstoffShapes`' `Bindings`/`Bracketed`) is
+mapped back to the user's names for display; a *shadowed* name maps to a value-less
+`Einstoff`Axis`nm` (still `SymbolName`-recoverable) rather than leaking its value.
+
+Implementation: `canonHeld` / `collectEstablished` / `canonBindingList` / `deCanon` in
+Lowering.wl, opened per operator by `withAxisScope`; the functional/backtracking
+matcher is untouched (it simply sees fresh symbols). Tests: `tests/Hygiene.wlt`.
+
+### 5.7 Binding-key grammar
+
+`bindings` supplies sizes for axes not inferable from the tensors (repetition §5.5,
+composite split-factors). A key names an axis; accepted spellings mirror the desc
+tiers and are canonicalized to the axis's fresh identity:
+
+- **`#a -> n`** (`Slot["a"]` key) — hygienic; binds a bracket axis.
+- **`a -> n`** (bare symbol key) — convenient but unsafe: a shadowed `a` evaluates
+  before we see it (`{a -> 2}` under `a = 3` arrives as `{3 -> 2}`).
+- **`"a" -> n`** (string key) — the only key form for a string-tier axis.
+- **`->` and `:>`** are accepted indistinguishably for any non-`Pattern` key (the size
+  is a concrete value; the arrow is moot).
+
+Rejections and tolerances:
+
+- A **`Pattern` key** `a_ -> n` / `a_ :> n` is a category error (a matcher, not a name)
+  — **hard reject** with a redirect (do not silently ignore, which would let a
+  whole-axis binder be "bound" and still succeed by tensor inference).
+- A **whole-axis binder** `a_` (top-level on the LHS, never a composite factor,
+  bracket, or string) is **inference-only**: binding it is rejected. A
+  **composite-factor** binder — the `b_` in `(a b)` — *is* bindable, since a split
+  needs it.
+- A cross-**tier** key (a string axis bound by a symbol/slot key, or vice versa) is
+  rejected.
+- An **evaluated / junk key** (a non-name, e.g. the integer `3` from a shadowed
+  `c = 3`) **warns and is dropped**, and resolution continues — failing only if the
+  shapes are then unsatisfiable. The warning is targeted when the key equals the
+  current value of a desc axis.
+
+Tests: `hyg-*` (`tests/Hygiene.wlt`); `bindings-*` (`tests/Parsing.wlt`).
 
 ## 6. Worked examples
 
@@ -383,6 +462,10 @@ invariants / maintainability smells. Retained here as a record of the hardening:
   the previously-failing adversarial-`$Context` case now succeeds (test
   `bracket-context-robust`). env stays symbol-keyed, so the CAS/`Solve` layer is
   untouched.
+  **Superseded (2026-07, desc-hygiene branch, §5.6):** `resolveSlotStrings` was replaced
+  by `canonHeld`, which canonicalizes *every* axis identity — binder, bracket, string —
+  to a fresh `Temporary` symbol, so the `Block[{c=3},…]` value-leak (not just the
+  `$Context` variant) is closed, and a string axis tier `"a"` is added.
 - ✅ **Duplicated desc normalization** across `descParts` (Lowering.wl) and `parseDesc`
   (Parsing.wl) — *fixed.* The `{} -> 1` unit policy and the CirclePlus-flatten rule (which
   were written out three times: `flattenDirectSum`, `normHeldRhs`, and inline in
