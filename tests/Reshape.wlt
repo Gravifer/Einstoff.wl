@@ -266,6 +266,15 @@ VerificationTest[
   TestID -> "match-string-axis-binding-name"
 ];
 
+(* 26d. A string-tier axis that needs an explicit size (a composite split factor) can be
+   supplied with the string-tier key "a" -> n in the raw matcher (SPEC §5.7), converted
+   to the same Symbol["a"] identity the term side uses. *)
+VerificationTest[
+  Einstoff`EinstoffMatch[{{CircleTimes["a", "b"]}}, {{6}}, {"a" -> 2}]["ok"],
+  True,
+  TestID -> "match-string-axis-string-binding-ok"
+];
+
 (* 27-30. Scalars (rank 0): squeeze/insert a singleton, no leaked ArrayReshape[s,{}]. *)
 VerificationTest[
   Einstoff[ArrayReshape][{{}} :> {{}}, {7}], 7, TestID -> "scalar-identity"];
