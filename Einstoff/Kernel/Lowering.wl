@@ -49,7 +49,7 @@ Einstoff::unsat =
 Einstoff::evalkey = "`1`";
 
 PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
-  withAxisScopeDeCanon, $axisFresh,
+  withAxisScopeDeCanon, validAxisNameQ, $axisFresh,
   normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
   distinctAxesQ, reduceAtoms, materializeOutput, selfContract, reshapeTo, hasCirclePlus,
@@ -259,18 +259,31 @@ axisCurrentValue[name_String] :=
       HoldComplete[s_Symbol] :> If[ValueQ[s], s, Missing["Unbound"]],
       _ :> Missing["Unbound"]}]];
 
-(* Canonicalize + validate `bindings` against the parsed desc's axis identities.  Runs
-   only inside an open axis scope (the operator path); the public raw EinstoffMatch (no
-   scope) passes bindings through untouched.  Returns a fresh-keyed binding list (junk
-   entries warned + dropped), or a reason string on a hard reject.  Only keys naming an
-   *established* desc axis are canonicalized; an unestablished key is left as-is so it
-   still matches a legacy bare/unbound desc axis. *)
-canonBindingList[bindings_] :=
+(* Normalize + validate `bindings` for the matcher, in one of two modes — the single
+   place binding-key policy lives.  "Scoped" (an open desc axis scope: the operator /
+   EinstoffShapes path) canonicalizes each key against the parsed desc's axis identities
+   ($axisFresh / $axisKind): a key naming an *established* axis becomes its fresh symbol,
+   tier / Pattern / inference-only violations hard-reject, and a shadowed/junk key is
+   warned and dropped; an unestablished key is left as-is.  "Raw" (standalone
+   EinstoffMatch, no scope) has no desc to check against, so it only converts a
+   string-tier key "a" -> n to Symbol["a"] -> n (the same identity matchTerms' StringQ
+   term uses), *validating the name* so an illegal string is a clean reject rather than a
+   Symbol::symname crash; other keys pass to the _Symbol / dup / size checks in
+   EinstoffMatch.  Returns the normalized list, or a reason string on a hard reject. *)
+canonBindingList[bindings_, mode_] :=
   Module[{out = {}},
-    If[! AssociationQ[$axisFresh] || ! MatchQ[bindings, {(_Rule | _RuleDelayed) ...}],
-      Return[bindings]];
-    (* A hard reject Throws its reason string past the per-entry Module and the Do; a
-       plain Return there would only exit the inner Module and be lost. *)
+    If[! MatchQ[bindings, {(_Rule | _RuleDelayed) ...}], Return[bindings]];
+    If[mode === "Raw",
+      Return[Catch[
+        Replace[bindings,
+          (h : (Rule | RuleDelayed))[k_String, v_] :>
+            If[validAxisNameQ[k], h[Symbol[k], v],
+              Throw["invalid axis name \"" <> k <> "\" in a binding key \
+(must be a valid identifier)", "cblReject"]],
+          {1}],
+        "cblReject"]]];
+    (* mode === "Scoped".  A hard reject Throws its reason string past the per-entry
+       Module and the Do; a plain Return there would only exit the inner Module. *)
     Catch[
       Do[
         Module[{k = First[bd], v = Last[bd], kn, kk, kinds, hasSlot, hasStr, hit},

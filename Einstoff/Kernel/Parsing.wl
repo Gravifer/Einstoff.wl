@@ -134,8 +134,9 @@ factorToExpr[f_, env_] :=
     MatchQ[f, Verbatim[Pattern][_Symbol, Verbatim[Blank][]]],
       With[{n = f[[1]]}, If[KeyExistsQ[env, n], {env[n], {}, {}}, {n, {n}, {}}]],
     MatchQ[f, Verbatim[Blank[]]], With[{u = Unique["anon$"]}, {u, {}, {u}}],
-    StringQ[f],            (* a #name bracket inside a composite, e.g. (g #c) *)
-      With[{n = Symbol[f]}, If[KeyExistsQ[env, n], {env[n], {}, {}}, {n, {n}, {}}]],
+    StringQ[f],            (* a string / #name axis inside a composite, e.g. (g #c) or ("a" "b") *)
+      If[! validAxisNameQ[f], $opaque,   (* illegal name -> unsupported factor (rejected) *)
+        With[{n = Symbol[f]}, If[KeyExistsQ[env, n], {env[n], {}, {}}, {n, {n}, {}}]]],
     Head[f] === Slot && Length[f] === 1, factorToExpr[First[f], env],
     Head[f] === Symbol, If[KeyExistsQ[env, f], {env[f], {}, {}}, {f, {f}, {}}],
     Head[f] === CircleTimes,
@@ -197,16 +198,18 @@ matchTerms[terms_, dims_, env_] :=
        case — and the mirroring {} cases in rearrangeAtoms/reduceAtoms/factorToExpr —
        exist for the *public* EinstoffMatch entry, which takes raw shape lists. *)
     If[t === {}, Return[matchTerms[Join[{1}, rest], dims, env]]];
-    (* Slot is a transparent bracket: splice its contents into the stream.  A
-       string slot #name == Slot["name"] denotes axis `name`, so its content string
-       is mapped to that symbol on the way in (then handled by the Symbol case),
-       exactly as Slot[name_]/Slot[name] splice to a pattern/symbol — bracketing is
-       irrelevant to shape matching.  NB the string is promoted to a symbol ONLY
-       here, inside a bracket: a bare top-level string is still an illegal axis term
-       (so a globally bound non-size value remains rejected — SPEC §2 note). *)
+    (* Slot is a transparent bracket: splice its contents into the stream.  A string slot
+       #name == Slot["name"] denotes axis `name`, so its content string is mapped to that
+       symbol on the way in (then handled by the Symbol case), exactly as Slot[name_]/
+       Slot[name] splice to a pattern/symbol — bracketing is irrelevant to shape matching.
+       Each string is validated as an axis identifier before Symbol[…] (SPEC §5.6), so an
+       illegal name yields a clean unsat reason, not a Symbol::symname crash. *)
     If[Head[t] === Slot,
-      Return[matchTerms[
-        Join[Replace[List @@ t, s_String :> Symbol[s], {1}], rest], dims, env]]];
+      Module[{parts = List @@ t, bad},
+        bad = Select[Cases[parts, _String], ! validAxisNameQ[#] &];
+        Return[If[bad =!= {},
+          (Sow["invalid axis name(s) " <> ToString[bad, InputForm] <> " in a bracket"]; {}),
+          matchTerms[Join[Replace[parts, s_String :> Symbol[s], {1}], rest], dims, env]]]]];
     (* SlotSequence (##, the anonymous variadic bracket [...]) is an ellipsis of
        bracketed axes — treat like ___ for shape matching (lowering is deferred,
        like Slot[___]). *)
@@ -244,10 +247,14 @@ matchTerms[terms_, dims_, env_] :=
       (* A string term "a" is the string-tier axis named `a` (SPEC §5.6): unify it as
          the symbol `a`, exactly as a bracket string #a = Slot["a"] is spliced to
          Symbol["a"] above.  This makes the raw public EinstoffMatch accept string axes
-         consistently with EinstoffShapes (whose desc parse canonicalizes them first). *)
+         consistently with EinstoffShapes (whose desc parse canonicalizes them first).
+         The name is validated first, so an illegal string is a clean unsat reason rather
+         than a Symbol::symname crash. *)
       StringQ[t],
-        With[{e2 = unify[Symbol[t], d, env]},
-          If[e2 === $Failed, {}, matchTerms[rest, drest, e2]]],
+        If[! validAxisNameQ[t],
+          (Sow["invalid axis name \"" <> t <> "\" (must be a valid identifier)"]; {}),
+          With[{e2 = unify[Symbol[t], d, env]},
+            If[e2 === $Failed, {}, matchTerms[rest, drest, e2]]]],
       True,
         (Sow["unrecognized dimension term: " <> ToString[t]]; {})]];
 
@@ -286,22 +293,10 @@ EinstoffMatch[lhsShapes_, inputShapes_, bindingsIn_ : {}] :=
        (only inside an open axis scope; standalone raw use passes through).  A hard
        reject (a Pattern key, binding an inference-only a_, a wrong-tier key) returns a
        reason string; a shadowed/junk key is warned and dropped inside canonBindingList. *)
-    bindings = canonBindingList[bindingsIn];
+    bindings = canonBindingList[bindingsIn,
+      If[AssociationQ[$axisFresh], "Scoped", "Raw"]];
     If[StringQ[bindings],
       Return[<|"ok" -> False, "reason" -> bindings|>]];
-    (* Raw string-tier binding keys ("a" -> n): ONLY on the standalone raw path (no axis
-       scope active).  There the keys are not canonicalized, so convert a string key to
-       its axis symbol Symbol["a"] — the same identity the StringQ term case in matchTerms
-       uses (§5.6, §5.7) — so a standalone EinstoffMatch accepts string axes AND their
-       string-keyed bindings consistently.  Guarded by ! AssociationQ[$axisFresh]: inside
-       a desc scope (EinstoffShapes / operators), canonBindingList has already mapped
-       established string keys to fresh symbols and enforces the tier rule, so an
-       *unestablished* string key must stay a string here and be rejected below — NOT be
-       silently promoted to a symbol (which would let "c" -> n bind a bare/env-capture
-       axis c, bypassing tier separation). *)
-    If[! AssociationQ[$axisFresh],
-      bindings = Replace[bindings,
-        (h : (Rule | RuleDelayed))[k_String, v_] :> h[Symbol[k], v], {1}]];
     (* Validate `bindings` at the entrance so a malformed spec fails locally here, rather
        than degrading into a deeper, less-obvious unsat message (or an unevaluated
        Association[...] leaking through matchTerms).  A binding is an axis-name -> size

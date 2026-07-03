@@ -275,6 +275,20 @@ VerificationTest[
   TestID -> "match-string-axis-string-binding-ok"
 ];
 
+(* 26e-f. An invalid string axis name (not an identifier) is a clean unsat reason in the
+   raw matcher, NOT a Symbol::symname crash — for a string term and a string binding key
+   alike (string names validated before Symbol[…], SPEC §5.6). *)
+VerificationTest[
+  Einstoff`EinstoffMatch[{{"a b"}}, {{3}}]["ok"],
+  False,
+  TestID -> "match-string-axis-invalid-name-reject"
+];
+VerificationTest[
+  Einstoff`EinstoffMatch[{{CircleTimes["a", "b"]}}, {{6}}, {"a b" -> 2}]["ok"],
+  False,
+  TestID -> "match-string-key-invalid-name-reject"
+];
+
 (* 27-30. Scalars (rank 0): squeeze/insert a singleton, no leaked ArrayReshape[s,{}]. *)
 VerificationTest[
   Einstoff[ArrayReshape][{{}} :> {{}}, {7}], 7, TestID -> "scalar-identity"];
