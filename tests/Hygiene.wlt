@@ -1,0 +1,131 @@
+(* ::Package:: *)
+
+(* Tests for desc evaluation-hygiene and the string axis tier (feat/desc-hygiene).
+
+   The desc eDSL must distinguish three uses of the same surface syntax: a binder
+   `a_` (an axis to be solved), a bracket `#a` = Slot["a"] (a named op-axis), and a
+   bare `a` (env capture — evaluates to its value UNLESS its name is an established
+   axis identity, then a hygienic reference).  A globally shadowed axis symbol (a
+   `Block[{c=3},...]`) must not leak its value into an axis identity.  A string `"a"`
+   (valid identifier) is the fully-hygienic axis spelling.
+
+   Run via: wolframscript -script scripts/run-tests.wls
+   BeginTestSection/EndTestSection are MUnit markers; the runner loads MUnit`. *)
+
+BeginTestSection["Einstoff`DescHygiene"];
+
+ClearAll[a, b, c, k, r, n];
+
+(* Fixtures. *)
+(* x23 = {{1,2,3},{4,5,6}} ; x24 = {{1,..,4},{5,..,8}} *)
+
+(* 1. HEADLINE: a shadowed binder must not capture its value.  Today this is $Failed
+      (the `{s}` extraction re-evaluates c -> 3); it must equal the unshadowed swap. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
+    Block[{c = 3}, Einstoff[ArrayReshape][{{a_, c_}} :> {{c, a}}, {x}]]],
+  Transpose[ArrayReshape[Range[6], {2, 3}]],
+  TestID -> "hyg-shadowed-binder-reshape"
+];
+
+(* 2. A shadowed bracket axis (#c = Slot["c"]) must resolve to axis c, not to 3. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
+    Block[{c = 3}, Einstoff[Map]["flip"][{{a_, Slot["c"]}} :> {{a, c}}, {x}]]],
+  Reverse /@ ArrayReshape[Range[6], {2, 3}],
+  TestID -> "hyg-shadowed-bracket-map-flip"
+];
+
+(* 3. STRING TIER: an all-string desc rearranges (transpose). *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
+    Einstoff[ArrayReshape][{{"a", "b"}} :> {{"b", "a"}}, {x}]],
+  Transpose[ArrayReshape[Range[6], {2, 3}]],
+  TestID -> "hyg-string-reshape-transpose"
+];
+
+(* 4. String axes drive a reduction (drop "b", sum over it). *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
+    Einstoff[ArrayReduce][Total][{{"a", "b"}} :> {{"a"}}, {x}]],
+  Total[ArrayReshape[Range[6], {2, 3}], {2}],
+  TestID -> "hyg-string-reduce"
+];
+
+(* 5. A string axis is sized by a string-keyed binding (repetition). *)
+VerificationTest[
+  Dimensions @ Einstoff["Massage"][{{"a"}} :> {{"a", "b"}}, {{1, 2, 3}}, {"b" -> 2}],
+  {3, 2},
+  TestID -> "hyg-string-repeat-binding"
+];
+
+(* 6. The string tier is immune to any Block on the same-named symbol (no symbol
+      is involved at all). *)
+VerificationTest[
+  Block[{b = 9},
+    Dimensions @ Einstoff["Massage"][{{"a"}} :> {{"a", "b"}}, {{1, 2, 3}}, {"b" -> 2}]],
+  {3, 2},
+  TestID -> "hyg-string-binding-shadowproof"
+];
+
+(* 7. An invalid identifier string is rejected (not a legal axis name). *)
+VerificationTest[
+  Quiet @ Einstoff[ArrayReshape][{{"a b"}} :> {{"a b"}}, {{1, 2, 3}}],
+  $Failed,
+  TestID -> "hyg-string-invalid-identifier-reject"
+];
+
+(* 8. Mixing the string tier with a symbol/slot spelling of the SAME name (mishmash)
+      is rejected. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
+    Quiet @ Einstoff[ArrayReshape][{{a_, "a"}} :> {{a, "a"}}, {x}]],
+  $Failed,
+  TestID -> "hyg-mishmash-reject"
+];
+
+(* 9. REGRESSION: a bare, unestablished RHS symbol env-captures (literal repeat),
+      exactly as a bound bare axis does on the LHS. *)
+VerificationTest[
+  Block[{k = 4}, Quiet @ Dimensions @ Einstoff["Massage"][{{a_}} :> {{a, k}}, {{1, 2, 3}}]],
+  {3, 4},
+  TestID -> "hyg-bare-rhs-unestablished-literal"
+];
+
+(* 10. ...but the SAME shape with the axis established hygienically (string tier)
+       uses the binding size and ignores the shadow. *)
+VerificationTest[
+  Block[{k = 4},
+    Dimensions @ Einstoff["Massage"][{{a_}} :> {{a, "k"}}, {{1, 2, 3}}, {"k" -> 2}]],
+  {3, 2},
+  TestID -> "hyg-string-established-repeat-ignores-shadow"
+];
+
+(* 11. REGRESSION: a bound bare LHS axis still reads as its literal dimension. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[8], {2, 4}]},
+    Block[{k = 4}, Einstoff[ArrayReduce][Total][{{a_, k}} :> {{a}}, {x}]]],
+  Total[ArrayReshape[Range[8], {2, 4}], {2}],
+  TestID -> "hyg-bare-lhs-literal-dim"
+];
+
+(* 12. A binder `a_` is inference-only: binding it is rejected even when the size
+       agrees with the tensor. *)
+VerificationTest[
+  Quiet @ Einstoff["Massage"][{{a_}} :> {{a}}, {{1, 2, 3}}, {a -> 3}],
+  $Failed,
+  TestID -> "hyg-binder-not-bindable"
+];
+
+(* 13. An evaluated/junk binding key ({3 -> 2} from c = 3) WARNS but carries on: the
+       bracket axis c is sized from the tensor, the junk binding is dropped, and the
+       op succeeds. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
+    Block[{c = 3},
+      Quiet @ Einstoff[Map]["flip"][{{a_, Slot["c"]}} :> {{a, c}}, {x}, {c -> 2}]]],
+  Reverse /@ ArrayReshape[Range[6], {2, 3}],
+  TestID -> "hyg-evaluated-binding-key-warns-continues"
+];
+
+EndTestSection[];

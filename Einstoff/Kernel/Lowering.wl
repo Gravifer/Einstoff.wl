@@ -43,8 +43,13 @@ op[desc, tensors, bindings]; the reducer, map fn and (mul, add) are curried.";
 Einstoff::unsupp = "`1`";
 Einstoff::unsat =
   "description is not satisfiable against the given tensor(s): `1`";
+(* A binding key that arrived as a plain value — probably a shadowed axis symbol
+   (Block[{c=3}, {c->2}] reaches us as {3->2}).  Non-fatal: the entry is dropped and
+   resolution continues (it fails later only if the shapes are then unsatisfiable). *)
+Einstoff::evalkey = "`1`";
 
-PackageScoped[{descParts, resolveSlotStrings, normUnitTerms, flattenDirectSum,
+PackageScoped[{descParts, canonHeld, canonBindingList, withAxisScope, $axisFresh,
+  normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
   distinctAxesQ, reduceAtoms, materializeOutput, selfContract, reshapeTo, hasCirclePlus,
   directSumConcat, directSumSplit, einThrowTag, einCatch}]
