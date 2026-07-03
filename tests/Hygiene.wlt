@@ -130,4 +130,45 @@ VerificationTest[
   TestID -> "hyg-evaluated-binding-key-warns-continues"
 ];
 
+(* 14. A Pattern-form binding key `r_ -> n` is a category error (a matcher, not an axis
+       name) — rejected, not silently ignored (which would let a whole-axis binder be
+       "bound" and still succeed by tensor inference). *)
+VerificationTest[
+  Block[{r}, Quiet @ Einstoff["Massage"][{{r_}} :> {{r}}, {{1, 2}}, {r_ -> 2}]],
+  $Failed,
+  TestID -> "hyg-pattern-key-reject"
+];
+
+(* 15. Public output is hygienic under a shadowing Block: EinstoffShapes' Bindings keys
+       are axis identities (SymbolName recovers the user name), never the shadowed VALUE. *)
+VerificationTest[
+  Block[{c = 3},
+    Sort[SymbolName /@ Keys[
+      Einstoff`EinstoffShapes[{{a_, c_}} :> {{c, a}}, {{2, 3}}]["Bindings"]]]],
+  {"a", "c"},
+  TestID -> "hyg-decanon-bindings-no-value-leak"
+];
+
+(* 15b. …and EinstoffParse's normalized LHS keeps the binder `c_`, not `Pattern[3, _]`. *)
+VerificationTest[
+  Block[{c = 3},
+    FreeQ[Einstoff`EinstoffParse[{{a_, c_}} :> {{c, a}}]["LHS"], 3]],
+  True,
+  TestID -> "hyg-decanon-parse-no-value-leak"
+];
+
+(* 16. An axis name inside a bracketed composite (Slot[(c d)]) is canonicalized like any
+       grammar position: under a shadowing Block it still resolves, matching the
+       unshadowed result. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[18], {3, 6}]},
+    Block[{c = 3},
+      Einstoff[ArrayReduce][Total][
+        {{a_, Slot[CircleTimes[c_, d_]]}} :> {{a}}, {x}, {d -> 2}]]],
+  With[{x = ArrayReshape[Range[18], {3, 6}]},
+    Einstoff[ArrayReduce][Total][
+      {{a_, Slot[CircleTimes[c_, d_]]}} :> {{a}}, {x}, {d -> 2}]],
+  TestID -> "hyg-bracketed-composite-canon"
+];
+
 EndTestSection[];
