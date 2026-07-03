@@ -289,15 +289,19 @@ EinstoffMatch[lhsShapes_, inputShapes_, bindingsIn_ : {}] :=
     bindings = canonBindingList[bindingsIn];
     If[StringQ[bindings],
       Return[<|"ok" -> False, "reason" -> bindings|>]];
-    (* Raw string-tier binding keys ("a" -> n): outside a canonicalization scope the keys
-       are not rewritten, so convert a string key to its axis symbol Symbol["a"] — the
-       same identity the StringQ term case in matchTerms uses (§5.6, §5.7).  So a
-       standalone EinstoffMatch accepts string axes AND their string-keyed bindings,
-       consistently.  In-scope, canonBindingList has already mapped established string
-       keys to fresh symbols, so none remain here.  (An invalid string is left as an
-       unevaluated Symbol[...] and rejected by the _Symbol key check below.) *)
-    bindings = Replace[bindings,
-      (h : (Rule | RuleDelayed))[k_String, v_] :> h[Symbol[k], v], {1}];
+    (* Raw string-tier binding keys ("a" -> n): ONLY on the standalone raw path (no axis
+       scope active).  There the keys are not canonicalized, so convert a string key to
+       its axis symbol Symbol["a"] — the same identity the StringQ term case in matchTerms
+       uses (§5.6, §5.7) — so a standalone EinstoffMatch accepts string axes AND their
+       string-keyed bindings consistently.  Guarded by ! AssociationQ[$axisFresh]: inside
+       a desc scope (EinstoffShapes / operators), canonBindingList has already mapped
+       established string keys to fresh symbols and enforces the tier rule, so an
+       *unestablished* string key must stay a string here and be rejected below — NOT be
+       silently promoted to a symbol (which would let "c" -> n bind a bare/env-capture
+       axis c, bypassing tier separation). *)
+    If[! AssociationQ[$axisFresh],
+      bindings = Replace[bindings,
+        (h : (Rule | RuleDelayed))[k_String, v_] :> h[Symbol[k], v], {1}]];
     (* Validate `bindings` at the entrance so a malformed spec fails locally here, rather
        than degrading into a deeper, less-obvious unsat message (or an unevaluated
        Association[...] leaking through matchTerms).  A binding is an axis-name -> size

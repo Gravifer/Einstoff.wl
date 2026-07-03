@@ -200,4 +200,18 @@ VerificationTest[
   TestID -> "hyg-bracketed-composite-canon"
 ];
 
+(* 17. Tier separation inside a desc scope: a bare/env-capture axis `c` (RHS-only,
+       unestablished as a string) must be bound with the bare key `c -> n`, NOT the
+       string key `"c" -> n` (which is only for a string-tier axis). *)
+VerificationTest[
+  Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {"c" -> 2}]["Satisfiable"],
+  False,
+  TestID -> "hyg-string-key-rejected-for-bare-axis"
+];
+VerificationTest[
+  Block[{c}, Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2}]["OutputShapes"]],
+  {{3, 2}},
+  TestID -> "hyg-bare-key-binds-bare-axis"
+];
+
 EndTestSection[];
