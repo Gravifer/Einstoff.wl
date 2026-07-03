@@ -225,12 +225,14 @@ deCanon[expr_] :=
     deCanonApply[expr, Table[$axisFresh[nm] -> deCanonSym[nm], {nm, Keys[$axisFresh]}]],
     expr];
 (* The public symbol for a name.  If the user's symbol is UNBOUND, use it directly (the
-   clean Global`nm the caller expects).  If it is SHADOWED (Block[{c=3},…]), Symbol[nm]
-   would evaluate to 3 and leak the value into public metadata/syntax, so instead use a
-   value-less symbol of the same name in a private context — SymbolName stays "nm", but
-   no global value can leak. *)
+   clean Global`nm the caller expects).  If it is SHADOWED (Block[{c=3},…] — or even
+   Block[{c=Null},…]), Symbol[nm] would evaluate to the value and leak it into public
+   metadata/syntax, so instead use a value-less symbol of the same name in a private
+   context — SymbolName stays "nm", but no global value can leak.  The test is *has a
+   value* (ValueQ), NOT *value =!= Null*, so a symbol shadowed to Null is still treated
+   as shadowed. *)
 deCanonSym[nm_String] :=
-  If[axisCurrentValue[nm] === Null, Symbol[nm], Symbol["Einstoff`Axis`" <> nm]];
+  If[axisShadowedQ[nm], Symbol["Einstoff`Axis`" <> nm], Symbol[nm]];
 (* ReplaceAll does not rewrite Association KEYS, so recurse: remap keys and values of
    every Association; a held desc (RHS) and plain shapes just take the value rules. *)
 deCanonApply[a_Association, rules_] :=
@@ -238,11 +240,19 @@ deCanonApply[a_Association, rules_] :=
 deCanonApply[l_List, rules_] := deCanonApply[#, rules] & /@ l;
 deCanonApply[x_, rules_] := x /. rules;
 
-(* Read the current global value of an axis name, hygienically-ish, for the shadowed-key
-   diagnostic only (best effort; no axis symbol is created that ValueQ wouldn't see). *)
+(* True iff the user's symbol for this axis name currently HAS a value (is shadowed),
+   tested with a held ValueQ so an actual Null value counts as shadowed (unlike a
+   value === Null test).  ValueQ holds its argument, so the value is never evaluated. *)
+axisShadowedQ[name_String] :=
+  Quiet @ Module[{h = ToExpression[name, InputForm, Hold]},
+    MatchQ[h, Hold[_Symbol]] && (ValueQ @@ h)];
+
+(* Read the current global value of an axis name (or Missing["Unbound"] when it has
+   none), hygienically-ish, for the shadowed-key diagnostic only.  Missing (not Null) is
+   the unbound sentinel so a symbol shadowed to Null is not mistaken for unbound. *)
 axisCurrentValue[name_String] :=
   Quiet @ Module[{h = ToExpression[name, InputForm, Hold]},
-    If[MatchQ[h, Hold[_Symbol]] && (ValueQ @@ h), ReleaseHold[h], Null]];
+    If[axisShadowedQ[name], ReleaseHold[h], Missing["Unbound"]]];
 
 (* Canonicalize + validate `bindings` against the parsed desc's axis identities.  Runs
    only inside an open axis scope (the operator path); the public raw EinstoffMatch (no

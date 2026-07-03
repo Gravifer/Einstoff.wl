@@ -157,6 +157,23 @@ VerificationTest[
   TestID -> "hyg-decanon-parse-no-value-leak"
 ];
 
+(* 15c. A symbol shadowed to the VALUE Null must also be treated as shadowed — the
+       hygiene test is ValueQ, not value =!= Null (else Block[{c=Null},…] leaks). *)
+VerificationTest[
+  Block[{c = Null},
+    Sort[SymbolName /@ Keys[
+      Einstoff`EinstoffShapes[{{a_, c_}} :> {{c, a}}, {{2, 3}}]["Bindings"]]]],
+  {"a", "c"},
+  TestID -> "hyg-decanon-null-shadow-no-leak"
+];
+
+VerificationTest[
+  Block[{c = Null},
+    FreeQ[Einstoff`EinstoffParse[{{a_, c_}} :> {{c, a}}]["LHS"], Null]],
+  True,
+  TestID -> "hyg-decanon-null-shadow-parse"
+];
+
 (* 16. An axis name inside a bracketed composite (Slot[(c d)]) is canonicalized like any
        grammar position: under a shadowing Block it still resolves, matching the
        unshadowed result. *)
