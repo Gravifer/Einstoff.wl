@@ -47,6 +47,16 @@ Einstoff::unsat =
    (Block[{c=3}, {c->2}] reaches us as {3->2}).  Non-fatal: the entry is dropped and
    resolution continues (it fails later only if the shapes are then unsatisfiable). *)
 Einstoff::evalkey = "`1`";
+(* The internal Einstoff`Axis` identity context has been externally populated with a value
+   that cannot be cleared (Protected and Locked).  Non-fatal: a fresh internal identity is
+   used instead, but the user should not assign to Einstoff`Axis` symbols. *)
+(* NB the template text carries NO literal backticks: a backtick collides with the `1`
+   slot syntax (StringForm::sfr).  The Protected+Locked symbol's full name is passed as
+   the argument, whose value backticks are rendered literally, not re-parsed. *)
+Einstoff::privctx =
+  "the internal axis symbol `1` carries an external value that cannot be cleared (it is \
+Protected and Locked); using a fresh internal identity instead. Do not assign to symbols \
+in Einstoff's reserved internal axis-identity context.";
 
 PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
   withAxisScopeDeCanon, validAxisNameQ, axisSymbol, axisDisplayName,
@@ -290,7 +300,8 @@ axisSymbol[nm_String] :=
     (Quiet[Unprotect["Einstoff`Axis`*"]; Clear["Einstoff`Axis`*"];
            ClearAll["Einstoff`Axis`*"]];
      If[axisShadowedQ["Einstoff`Axis`" <> nm],
-       Unique[nm <> "$", {Temporary}],
+       (Message[Einstoff::privctx, "Einstoff`Axis`" <> nm];
+        Unique[nm <> "$", {Temporary}]),
        Symbol["Einstoff`Axis`" <> nm]]),
     Symbol[nm]];
 (* ReplaceAll does not rewrite Association KEYS, so recurse: remap keys and values of

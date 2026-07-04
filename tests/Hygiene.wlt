@@ -326,6 +326,16 @@ VerificationTest[
   TestID -> "hyg-private-context-protected-locked-fresh-fallback"
 ];
 
+(* 22d. ...and the fresh-fallback path warns the user that they populated our reserved
+        Einstoff`Axis` context (rather than silently working around it). *)
+VerificationTest[
+  (Einstoff`Axis`protlk2 = 21; SetAttributes[Einstoff`Axis`protlk2, {Protected, Locked}];
+   Block[{protlk2 = 1}, Einstoff`EinstoffMatch[{{"protlk2"}}, {{5}}]["ok"]]),
+  True,
+  {Einstoff::privctx},
+  TestID -> "hyg-private-context-protected-locked-warns"
+];
+
 (* 23. A duplicate binding-key reason names the user's axis, not the fresh identity. *)
 VerificationTest[
   StringContainsQ[
