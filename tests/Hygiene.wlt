@@ -314,6 +314,18 @@ VerificationTest[
   TestID -> "hyg-private-context-locked-no-leak"
 ];
 
+(* 22c. A Protected+Locked stray token survives every purge step, so axisSymbol stops
+        sanitizing the public context and falls back to a genuinely fresh Unique identity:
+        the env key is a value-less Symbol (name "protlk$nn"), never the leaked value. *)
+VerificationTest[
+  (Einstoff`Axis`protlk = 21; SetAttributes[Einstoff`Axis`protlk, {Protected, Locked}];
+   With[{env = Block[{protlk = 1},
+       Quiet @ Einstoff`EinstoffMatch[{{"protlk"}}, {{5}}]["env"]]},
+     {MatchQ[Keys[env], {_Symbol}], FreeQ[Keys[env], 21], Values[env]}]),
+  {True, True, {5}},
+  TestID -> "hyg-private-context-protected-locked-fresh-fallback"
+];
+
 (* 23. A duplicate binding-key reason names the user's axis, not the fresh identity. *)
 VerificationTest[
   StringContainsQ[

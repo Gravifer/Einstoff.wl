@@ -275,19 +275,23 @@ axisDisplayName[x_] :=
    which would otherwise leak a shadowed global into env keys. *)
 axisSymbol[nm_String] :=
   If[axisShadowedQ[nm],
-    (* The Einstoff`Axis` context is for value-less identity tokens ONLY; a user must not
-       populate it.  Purge the WHOLE context (all take a "ctx`*" pattern — no need to
-       enumerate symbols) so a stray OwnValue on any Einstoff`Axis` symbol — even Protected
-       or Locked — cannot re-introduce the shadowed-value leak this branch guards against.
-       All take name strings, so nothing is evaluated.  The three steps handle the three
-       obstructions: Unprotect drops Protected; Clear removes VALUES even on a Locked symbol
-       (Clear touches only values, not attributes, so Locked does not block it — this is the
-       key step); ClearAll then fully resets an ordinary symbol (values + attributes).  Our
-       symbols are never Set by us, so clearing is always safe — they stay valid value-less
-       env-key identities. *)
+    (* A shadowed name needs an identity other than the (valued) global symbol.  Prefer a
+       value-less token in our private Einstoff`Axis` context (its SymbolName stays "nm").
+       That context is for value-less tokens ONLY; a user must not populate it, but as a
+       defense we purge the WHOLE context first (all take a "ctx`*" pattern — no enumerating
+       symbols; all take name strings, so nothing is evaluated).  The three steps clear the
+       three obstructions: Unprotect drops Protected; Clear removes VALUES even on a Locked
+       symbol (Clear touches only values, not attributes, so Locked cannot block it);
+       ClearAll fully resets an ordinary symbol.  A symbol that is BOTH Protected and Locked
+       survives all three (can't Unprotect through Locked, Protected blocks Clear) — so if
+       the token is STILL valued, stop sanitizing a public context and use a genuinely
+       fresh, unreachable Unique identity instead (its name is "nm$nn", acceptable in this
+       adversarial corner), which no external state can have polluted. *)
     (Quiet[Unprotect["Einstoff`Axis`*"]; Clear["Einstoff`Axis`*"];
            ClearAll["Einstoff`Axis`*"]];
-     Symbol["Einstoff`Axis`" <> nm]),
+     If[axisShadowedQ["Einstoff`Axis`" <> nm],
+       Unique[nm <> "$", {Temporary}],
+       Symbol["Einstoff`Axis`" <> nm]]),
     Symbol[nm]];
 (* ReplaceAll does not rewrite Association KEYS, so recurse: remap keys and values of
    every Association; a held desc (RHS) and plain shapes just take the value rules. *)
