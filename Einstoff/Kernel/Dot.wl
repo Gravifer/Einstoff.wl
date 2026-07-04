@@ -109,9 +109,7 @@ sanitizeOperand[t_, atoms_, env_] :=
 innerLower[mul_, add_, desc_, tensors_, bindings_] := withAxisScope @
   Module[{parts, lhs, rhs, shp, env, labs, outA, sanitized, stensors, slabs, result},
     parts = descParts[Hold[desc]];
-    If[parts === $Failed,
-      Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
-      Return[$Failed]];
+    If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
     If[! MatchQ[tensors, {_, __}],
       Message[Einstoff::unsupp,

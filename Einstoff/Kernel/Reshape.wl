@@ -76,9 +76,7 @@ massageCore[desc_, tensors_, bindings_List, policy_] := withAxisScope @
   Module[{parts, lhs, rhs, m, env, lhsAtoms, rhsAtoms, sc, xc, atomsc, result,
           outOnly, repeated, contracted},
     parts = descParts[Hold[desc]];
-    If[parts === $Failed,
-      Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
-      Return[$Failed]];
+    If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
     (* Direct sum: einx folds `+` into id. CirclePlus on the RHS is concatenation, on
        the LHS splitting.  Only the permissive engine admits it; the bijective / contract

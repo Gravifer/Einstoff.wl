@@ -221,4 +221,30 @@ VerificationTest[
   TestID -> "hyg-string-key-binds-string-axis-shapes"
 ];
 
+(* 18. A canonHeld hygiene reject (invalid axis name / tier mishmash) of a well-FORMED
+       lhs :> rhs must surface the accurate reason, NOT the generic "desc must be of the
+       form lhs :> rhs" — which would misdescribe a structurally-correct desc. *)
+VerificationTest[
+  StringContainsQ[
+    Quiet @ Einstoff`EinstoffShapes[{{"a b"}} :> {{"a b"}}, {{3}}]["Reason"],
+    "invalid axis name"],
+  True,
+  TestID -> "hyg-reject-reason-invalid-name"
+];
+VerificationTest[
+  StringContainsQ[
+    Quiet @ Einstoff`EinstoffShapes[{{a_}} :> {{"a"}}, {{3}}]["Reason"],
+    "spelled both"],
+  True,
+  TestID -> "hyg-reject-reason-mishmash"
+];
+(* ...while a genuinely malformed desc (not lhs :> rhs) still gets the generic reason. *)
+VerificationTest[
+  StringContainsQ[
+    Einstoff`EinstoffShapes[{{a_}}, {{3}}]["Reason"],
+    "must be of the form"],
+  True,
+  TestID -> "hyg-reject-reason-structural"
+];
+
 EndTestSection[];

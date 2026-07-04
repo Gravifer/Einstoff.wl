@@ -64,9 +64,7 @@ directSumConcat[desc_, tensors_, bindings_List] := withAxisScope @
   Module[{parts, lhs, rhs, out, cpos, cp, summands, k, shp, env,
           aligned, n},
     parts = descParts[Hold[desc]];
-    If[parts === $Failed,
-      Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
-      Return[$Failed]];
+    If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
 
     (* Exactly one output shape, with exactly one top-level CirclePlus term. *)
@@ -152,9 +150,7 @@ directSumSplit[desc_, tensors_, bindings_List] := withAxisScope @
   Module[{parts, lhs, rhs, inShape, cpos, cp, summands, k, shp, env, x,
           ndims, n, outs},
     parts = descParts[Hold[desc]];
-    If[parts === $Failed,
-      Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
-      Return[$Failed]];
+    If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
 
     (* Exactly one input shape with exactly one top-level CirclePlus term. *)
@@ -243,9 +239,7 @@ summand distinctly; within-tensor contraction is not supported here)"];
 EinstoffJoin[desc_, tensors_, bindings_List : {}] := withAxisScope @
   Module[{parts},
     parts = descParts[Hold[desc]];
-    If[parts === $Failed,
-      Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
-      Return[$Failed]];
+    If[parts === $Failed, Return[descFailReturn[]]];
     (* Guard: Join is concatenation — CirclePlus must be on the RHS only. *)
     If[hasCirclePlus[parts[[1]]],
       Message[Einstoff::unsupp,
@@ -262,9 +256,7 @@ not the input (LHS) — use Einstoff[Split] for an input direct sum"];
 EinstoffSplit[desc_, tensors_, bindings_List : {}] := withAxisScope @
   Module[{parts},
     parts = descParts[Hold[desc]];
-    If[parts === $Failed,
-      Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
-      Return[$Failed]];
+    If[parts === $Failed, Return[descFailReturn[]]];
     (* Guard: Split is the input direct sum — CirclePlus on the LHS only. *)
     If[hasCirclePlus[parts[[2]]],
       Message[Einstoff::unsupp,

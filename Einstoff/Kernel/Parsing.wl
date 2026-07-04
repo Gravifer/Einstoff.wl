@@ -354,8 +354,10 @@ EinstoffShapes[desc_, inputShapes_, bindings_ : {}] := withAxisScopeDeCanon @
   Module[{p, lhs, heldRhs, bracketed, relRhs, dup, m, env, out},
     p = parseDesc[Hold[desc]];
     If[p["LHS"] === $Failed,
+      (* descFailReason surfaces the accurate canonHeld reject reason (invalid axis name /
+         tier mishmash) when there is one, else the generic desc-shape reason. *)
       Return[<|"Satisfiable" -> False,
-        "Reason" -> "desc must be of the form lhs :> rhs (or lhs -> rhs)",
+        "Reason" -> descFailReason[],
         "OutputShapes" -> Missing[], "Bindings" -> <||>, "Bracketed" -> {}|>]];
     lhs = p["LHS"]; heldRhs = p["RHS"];
     bracketed = bracketedNames[lhs];

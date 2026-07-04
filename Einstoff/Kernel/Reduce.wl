@@ -70,9 +70,7 @@ EinstoffReduce[reducerSpec_][desc_, tensors_, bindings_List : {}] := withAxisSco
           lhsTagged, lhsAtoms, lhsBr, rhsAtoms, reducedPos, keptOrder,
           decompDims, xr, xred, result},
     parts = descParts[Hold[desc]];
-    If[parts === $Failed,
-      Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"];
-      Return[$Failed]];
+    If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
     If[! MatchQ[tensors, {__}],
       Message[Einstoff::unsupp,

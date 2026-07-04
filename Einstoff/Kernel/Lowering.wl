@@ -49,7 +49,8 @@ Einstoff::unsat =
 Einstoff::evalkey = "`1`";
 
 PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
-  withAxisScopeDeCanon, validAxisNameQ, axisSymbol, $axisFresh,
+  withAxisScopeDeCanon, validAxisNameQ, axisSymbol, descFailReturn, descFailReason,
+  $axisFresh,
   normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
   distinctAxesQ, reduceAtoms, materializeOutput, selfContract, reshapeTo, hasCirclePlus,
@@ -88,6 +89,9 @@ einCatch[expr_] := Catch[expr, einThrowTag];
 
 $axisFresh = None;   (* Association name->fresh while an axis scope is open, else None *)
 $axisKind  = None;   (* Association name->{kinds}: binder/bare/slot/string             *)
+$descRejectReason = None;  (* set by collectEstablished when it rejects a desc with an
+                              accurate Einstoff::unsupp reason, so the generic
+                              "desc must be of the form lhs :> rhs" is not ALSO emitted *)
 
 (* Open a per-parse identity scope around an operator body.  Re-entrant: a nested call
    (an operator's own EinstoffShapes/EinstoffMatch) reuses the already-open scope, so
@@ -95,7 +99,7 @@ $axisKind  = None;   (* Association name->{kinds}: binder/bare/slot/string      
 SetAttributes[withAxisScope, HoldFirst];
 withAxisScope[body_] :=
   If[AssociationQ[$axisFresh], body,
-    Block[{$axisFresh = <||>, $axisKind = <||>}, body]];
+    Block[{$axisFresh = <||>, $axisKind = <||>, $descRejectReason = None}, body]];
 
 (* Like withAxisScope, but for the user-facing public entries (EinstoffShapes,
    EinstoffParse): if THIS call owns the scope (it was not already open), de-canonicalize
@@ -106,7 +110,24 @@ withAxisScope[body_] :=
 SetAttributes[withAxisScopeDeCanon, HoldFirst];
 withAxisScopeDeCanon[body_] :=
   If[AssociationQ[$axisFresh], body,
-    Block[{$axisFresh = <||>, $axisKind = <||>}, deCanon[body]]];
+    Block[{$axisFresh = <||>, $axisKind = <||>, $descRejectReason = None}, deCanon[body]]];
+
+(* Shared desc-shape failure return for the operators.  descParts returns $Failed for
+   BOTH a structurally-malformed desc (not lhs :> rhs) AND a canonHeld hygiene reject
+   (invalid axis name / tier mishmash) — but the latter has already emitted an accurate
+   Einstoff::unsupp via collectEstablished (recorded in $descRejectReason).  So emit the
+   generic "must be of the form lhs :> rhs" message ONLY when there is no accurate reason,
+   avoiding the double / misleading second message.  Returns $Failed. *)
+descFailReturn[] := (
+  If[$descRejectReason === None,
+    Message[Einstoff::unsupp, "desc must be of the form lhs :> rhs"]];
+  $Failed);
+
+(* The reason string for a desc-shape failure, for EinstoffShapes' Reason field: the
+   accurate canonHeld reason if one was recorded, else the generic shape reason. *)
+descFailReason[] :=
+  If[StringQ[$descRejectReason], $descRejectReason,
+    "desc must be of the form lhs :> rhs (or lhs -> rhs)"];
 
 (* A legal axis name string: an identifier (letter/$ start, letters/digits/$ tail).
    Rolled locally, NOT ResourceFunction["ValidSymbolIdentifierQ"] — that RF's CodeParser
@@ -162,9 +183,9 @@ collectEstablished[h_Hold] :=
     allStr = DeleteDuplicates @ Cases[h, str_String :> str, {0, Infinity}];
     bad = Select[allStr, ! validAxisNameQ[#] &];
     If[bad =!= {},
-      Message[Einstoff::unsupp,
-        "invalid axis name string(s): " <> ToString[bad, InputForm] <>
-          " (an axis name must be a valid identifier)"];
+      With[{r = "invalid axis name string(s): " <> ToString[bad, InputForm] <>
+          " (an axis name must be a valid identifier)"},
+        $descRejectReason = r; Message[Einstoff::unsupp, r]];
       Return[$Failed]];
     Scan[recordKind[#, "binder"] &, binderNames];
     Scan[recordKind[#, "bare"] &, bareNames];
@@ -185,9 +206,9 @@ collectEstablished[h_Hold] :=
     symslot = DeleteDuplicates @ Join[binderNames, bareNames, slotNames];
     mish = Intersection[symslot, DeleteDuplicates[stringNames]];
     If[mish =!= {},
-      Message[Einstoff::unsupp,
-        "axis " <> First[mish] <> " is spelled both as a symbol/bracket and as the \
-string \"" <> First[mish] <> "\"; use one spelling consistently"];
+      With[{r = "axis " <> First[mish] <> " is spelled both as a symbol/bracket and as \
+the string \"" <> First[mish] <> "\"; use one spelling consistently"},
+        $descRejectReason = r; Message[Einstoff::unsupp, r]];
       Return[$Failed]];
     DeleteDuplicates @ Join[binderNames, slotNames, stringNames]];
 
