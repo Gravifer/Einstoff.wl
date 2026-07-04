@@ -118,7 +118,9 @@ firstDuplicateAxis[shapes_List] :=
 unify[n_, d_, env_] :=
   If[KeyExistsQ[env, n],
     If[env[n] === d, env,
-      (Sow["axis " <> ToString[n] <> ": expected " <> ToString[env[n]] <>
+      (* axisDisplayName maps a fresh canonical symbol back to the user's axis name, so
+         the reason reads "axis a: …" not the internal "axis a$11: …". *)
+      (Sow["axis " <> axisDisplayName[n] <> ": expected " <> ToString[env[n]] <>
            " but tensor dimension is " <> ToString[d]]; $Failed)],
     Append[env, n -> d]];
 
@@ -375,8 +377,8 @@ EinstoffShapes[desc_, inputShapes_, bindings_ : {}] := withAxisScopeDeCanon @
     dup = firstDuplicateAxis[If[MatchQ[relRhs, {___List}], relRhs, {}]];
     If[! MissingQ[dup],
       Return[<|"Satisfiable" -> False,
-        "Reason" -> "axis " <> ToString[dup] <> " appears more than once within the \
-output shape; output axis names must be distinct (einx forbids multiple vectorized \
+        "Reason" -> "axis " <> axisDisplayName[dup] <> " appears more than once within \
+the output shape; output axis names must be distinct (einx forbids multiple vectorized \
 axes with the same name)",
         "OutputShapes" -> Missing[], "Bindings" -> <||>, "Bracketed" -> bracketed|>]];
     m = EinstoffMatch[lhs, inputShapes, bindings];

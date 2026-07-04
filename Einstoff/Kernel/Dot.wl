@@ -129,7 +129,7 @@ for one)"];
        independently, so a genuine cross-operand contracted axis is not flagged.) *)
     If[! distinctAxesQ[lhs],
       Message[Einstoff::unsupp,
-        "axis " <> ToString[firstDuplicateAxis[lhs]] <> " repeats within a single \
+        "axis " <> axisDisplayName[firstDuplicateAxis[lhs]] <> " repeats within a single \
 operand; Dot/Inner contracts across operands, not within one (the mixed within+cross \
 case is unsupported) — contract that operand first with Einstoff[\"ArrayContract\"] \
 (or single-tensor Einstoff[\"einsum\"]), then Dot"];

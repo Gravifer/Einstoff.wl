@@ -111,7 +111,7 @@ of those (bracketed direct sums are not supported yet)"];
        than asserting the user attempted a contraction. *)
     If[! distinctAxesQ[lhs],
       Message[Einstoff::unsupp,
-        "axis " <> ToString[firstDuplicateAxis[lhs]] <> " repeats within an input \
+        "axis " <> axisDisplayName[firstDuplicateAxis[lhs]] <> " repeats within an input \
 shape; the direct-sum path requires axis names distinct within a shape (name a repeated \
 summand distinctly; within-tensor contraction is not supported here)"];
       Return[$Failed]];
@@ -195,7 +195,7 @@ of those (bracketed direct sums are not supported yet)"];
        rule is "axis names distinct within a shape", so the message states that plainly. *)
     If[! distinctAxesQ[lhs],
       Message[Einstoff::unsupp,
-        "axis " <> ToString[firstDuplicateAxis[lhs]] <> " repeats within an input \
+        "axis " <> axisDisplayName[firstDuplicateAxis[lhs]] <> " repeats within an input \
 shape; the direct-sum path requires axis names distinct within a shape (name a repeated \
 summand distinctly; within-tensor contraction is not supported here)"];
       Return[$Failed]];

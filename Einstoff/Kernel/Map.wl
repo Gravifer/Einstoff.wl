@@ -84,7 +84,7 @@ flip/sort/softmax/log_softmax/id, or pass a function"];
        layout builds an invalid permutation (InversePermutation on a duplicated index). *)
     If[! distinctAxesQ[lhs],
       Message[Einstoff::unsupp,
-        "axis " <> ToString[firstDuplicateAxis[lhs]] <> " repeats within an input \
+        "axis " <> axisDisplayName[firstDuplicateAxis[lhs]] <> " repeats within an input \
 shape; Map is shape-preserving and does not contract — within-tensor contraction is \
 Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
       Return[$Failed]];

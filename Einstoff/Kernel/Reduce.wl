@@ -92,7 +92,7 @@ sum/mean/var/std/prod/count_nonzero/any/all/max/min/logsumexp, or pass a functio
        now per-operator).  Reject here before lowering silently mis-reduces both slots. *)
     If[! distinctAxesQ[lhs],
       Message[Einstoff::unsupp,
-        "axis " <> ToString[firstDuplicateAxis[lhs]] <> " repeats within an input \
+        "axis " <> axisDisplayName[firstDuplicateAxis[lhs]] <> " repeats within an input \
 shape; ArrayReduce does not contract a repeated axis — within-tensor contraction is \
 Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
       Return[$Failed]];

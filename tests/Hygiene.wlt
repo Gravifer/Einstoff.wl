@@ -247,4 +247,26 @@ VerificationTest[
   TestID -> "hyg-reject-reason-structural"
 ];
 
+(* 19. Diagnostic strings show the USER's axis name, not the internal fresh identity
+       (axisDisplayName maps a$nn back to "a"); a shadowed name still displays cleanly,
+       never its leaked value. *)
+VerificationTest[
+  Einstoff`EinstoffShapes[{{a_}, {a_}} :> {{a}}, {{4}, {7}}]["Reason"],
+  "axis a: expected 4 but tensor dimension is 7",
+  TestID -> "hyg-reason-user-name-mismatch"
+];
+VerificationTest[
+  StringStartsQ[
+    Einstoff`EinstoffShapes[{{a_}} :> {{a, a}}, {{3}}]["Reason"],
+    "axis a appears more than once"],
+  True,
+  TestID -> "hyg-reason-user-name-dup-output"
+];
+VerificationTest[
+  Block[{a = 9},
+    Einstoff`EinstoffShapes[{{a_}, {a_}} :> {{a}}, {{4}, {7}}]["Reason"]],
+  "axis a: expected 4 but tensor dimension is 7",
+  TestID -> "hyg-reason-user-name-shadowed-no-leak"
+];
+
 EndTestSection[];
