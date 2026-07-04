@@ -26,7 +26,8 @@ Needs["MUnit`"];
 
 ClearAll[
   nbCellID, heldBoxes, heldInputCell, testToCells, testCellGroup, envCells,
-  chapterLabel, relativeParts, sectionName, testFilesByChapter
+  commentCell, sourceItems, codeStringToCells, fileToCells, chapterLabel,
+  relativeParts, sectionName, testFilesByChapter
 ];
 
 cellIDs = CreateDataStructure["HashSet"];
@@ -50,9 +51,20 @@ heldInputCell[held_HoldComplete, init_: True] :=
 SetAttributes[testToCells, HoldAllComplete];
 
 testToCells[
+  HoldComplete[expressions__],
+  init_: False
+] /; Length[HoldComplete[expressions]] > 1 :=
+  Join @@ (testToCells[#, init] & /@ Thread @ HoldComplete[{expressions}]);
+
+testToCells[
   HoldComplete[CompoundExpression[expressions__]],
   init_: False
 ] := Join @@ (testToCells[#, init] & /@ Thread @ HoldComplete[{expressions}]);
+
+testToCells[
+  HoldComplete[Null],
+  init_: False
+] := {};
 
 testToCells[
   HoldComplete[VerificationTest[in_]],
@@ -100,6 +112,108 @@ testCellGroup[in_, out_, msgs_, opts_] :=
     },
     Open
   ];
+
+commentCell[text_String] := Module[{trimmed, lines},
+  trimmed = StringTrim[text];
+  If[StringMatchQ[trimmed, "::" ~~ ___ ~~ "::"], Nothing,
+    lines = StringTrim /@ StringSplit[trimmed, {"\r\n", "\n", "\r"}, All];
+    Cell[StringRiffle[lines, "\n"], "Text", CellID -> nbCellID[]]
+  ]
+];
+
+sourceItems[text_String] := Module[
+  {n = StringLength[text], i = 1, code = "", items = {}, ch, pair, comment,
+    rawComment, depth, inString = False, escaped = False},
+  While[i <= n,
+    ch = StringTake[text, {i}];
+    pair = If[i < n, StringTake[text, {i, i + 1}], ""];
+    Which[
+      inString,
+        code = code <> ch;
+        Which[
+          escaped, escaped = False,
+          ch === "\\", escaped = True,
+          ch === "\"", inString = False
+        ];
+        i++,
+      ch === "\"",
+        inString = True;
+        code = code <> ch;
+        i++,
+      pair === "(*",
+        If[StringTrim[code] =!= "" &&
+            Quiet @ Check[ToExpression[code, InputForm, HoldComplete]; True, False],
+          AppendTo[items, <|"Type" -> "Code", "Text" -> code|>];
+          code = ""];
+        i += 2;
+        depth = 1;
+        comment = "";
+        rawComment = "(*";
+        While[i <= n && depth > 0,
+          pair = If[i < n, StringTake[text, {i, i + 1}], ""];
+          Which[
+            pair === "(*",
+              depth++;
+              comment = comment <> pair;
+              rawComment = rawComment <> pair;
+              i += 2,
+            pair === "*)",
+              depth--;
+              rawComment = rawComment <> pair;
+              If[depth > 0, comment = comment <> pair];
+              i += 2,
+            True,
+              comment = comment <> StringTake[text, {i}];
+              rawComment = rawComment <> StringTake[text, {i}];
+              i++
+          ]
+        ];
+        If[StringTrim[code] === "",
+          AppendTo[items, <|"Type" -> "Comment", "Text" -> comment|>],
+          code = code <> rawComment
+        ],
+      True,
+        code = code <> ch;
+        i++
+    ]
+  ];
+  If[StringTrim[code] =!= "",
+    AppendTo[items, <|"Type" -> "Code", "Text" -> code|>]];
+  items
+];
+
+codeStringToCells[code_String] := Module[{held},
+  held = Quiet @ Check[
+    ToExpression[code, InputForm, HoldComplete],
+    $Failed
+  ];
+  If[held === $Failed,
+    {
+      Cell["Could not parse source chunk:", "Text", CellID -> nbCellID[]],
+      Cell[code, "Program", CellID -> nbCellID[]]
+    },
+    Apply[testToCells, {held, True}]
+  ]
+];
+
+fileToCells[file_] := Module[{text, items},
+  text = Quiet @ Check[Import[file, "Text"], $Failed];
+  If[text === $Failed,
+    {
+      Cell[sectionName[file], "Section", CellID -> nbCellID[]],
+      Cell["Import failed: " <> file, "Text", CellID -> nbCellID[]]
+    },
+    items = sourceItems[text];
+    Join[
+      {Cell[sectionName[file], "Section", CellID -> nbCellID[]]},
+      Join @@ Replace[items, {
+        item_ /; item["Type"] === "Comment" :>
+          Replace[commentCell[item["Text"]], {Nothing -> {}, cell_Cell :> {cell}}],
+        item_ /; item["Type"] === "Code" :> codeStringToCells[item["Text"]]
+      }, {1}]
+    ]
+  ]
+];
 
 envCells[] := {
   Cell["Environment", "Chapter", CellID -> nbCellID[]],
@@ -151,24 +265,7 @@ bodyCells =
     Function[{chapter, files},
       Join[
         {Cell[chapter, "Chapter", CellID -> nbCellID[]]},
-        Join @@ (Function[file,
-            Module[{held},
-              held = Quiet @ Check[
-                Import[file, {"WL", "HeldExpressions"}],
-                $Failed
-              ];
-              If[held === $Failed,
-                {
-                  Cell[sectionName[file], "Section", CellID -> nbCellID[]],
-                  Cell["Import failed: " <> file, "Text", CellID -> nbCellID[]]
-                },
-                Join[
-                  {Cell[sectionName[file], "Section", CellID -> nbCellID[]]},
-                  Join @@ (testToCells[#, True] & /@ held)
-                ]
-              ]
-            ]
-          ] /@ files)
+        Join @@ (fileToCells /@ files)
       ]
     ],
     testFilesByChapter
