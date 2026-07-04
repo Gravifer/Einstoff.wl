@@ -317,7 +317,14 @@ axisSymbol[nm_String] :=
           use); it holds the symbol, so no Temporary is used (it is intentionally stable). *)
        Lookup[$axisFallbackMemo, nm,
          (Message[Einstoff::privctx, "Einstoff`Axis`" <> nm];
-          With[{u = Unique[nm <> "$"]}, AssociateTo[$axisFallbackMemo, nm -> u]; u])],
+          (* mint the fresh identity in our OWN Einstoff`Fallback` context, not the
+             caller's (which is usually Global`), so even the adversarial path leaves no
+             generated symbol in the user's namespace.  A separate context from
+             Einstoff`Axis` so the purge above ("Einstoff`Axis`*") never touches it — and
+             the fresh number makes it unreachable regardless. *)
+          With[{u = Block[{$Context = "Einstoff`Fallback`", $ContextPath = {"System`"}},
+              Unique[nm <> "$"]]},
+            AssociateTo[$axisFallbackMemo, nm -> u]; u])],
        Symbol["Einstoff`Axis`" <> nm]]),
     Symbol[nm]];
 (* ReplaceAll does not rewrite Association KEYS, so recurse: remap keys and values of
