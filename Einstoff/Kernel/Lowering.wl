@@ -276,11 +276,12 @@ axisDisplayName[x_] :=
 axisSymbol[nm_String] :=
   If[axisShadowedQ[nm],
     (* The Einstoff`Axis` context is for value-less identity tokens ONLY; a user must not
-       populate it.  Forcibly clear the symbol before use so a stray OwnValue on
-       Einstoff`Axis`nm (e.g. someone Set it) cannot re-introduce the very shadowed-value
-       leak this branch guards against — ClearAll takes the name string, so the symbol is
-       never evaluated. *)
-    With[{qn = "Einstoff`Axis`" <> nm}, ClearAll[qn]; Symbol[qn]],
+       populate it.  Forcibly Unprotect + ClearAll the symbol before use so a stray (even
+       Protected) OwnValue on Einstoff`Axis`nm cannot re-introduce the very shadowed-value
+       leak this branch guards against — both take the name string, so the symbol is never
+       evaluated; Unprotect must precede ClearAll (ClearAll alone cannot clear a Protected
+       symbol, leaving Symbol[...] to evaluate the stray value). *)
+    With[{qn = "Einstoff`Axis`" <> nm}, Quiet[Unprotect[qn]; ClearAll[qn]]; Symbol[qn]],
     Symbol[nm]];
 (* ReplaceAll does not rewrite Association KEYS, so recurse: remap keys and values of
    every Association; a held desc (RHS) and plain shapes just take the value rules. *)

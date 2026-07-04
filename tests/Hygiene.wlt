@@ -293,4 +293,23 @@ VerificationTest[
   TestID -> "hyg-reject-reason-no-stale-leak"
 ];
 
+(* 22. Even a PROTECTED stray value in the private axis context cannot leak — axisSymbol
+       Unprotects before clearing (ClearAll alone cannot clear a Protected symbol). *)
+VerificationTest[
+  (Einstoff`Axis`ztest = 88; Protect[Einstoff`Axis`ztest];
+   Block[{ztest = 1},
+     SymbolName /@ Keys[Quiet @ Einstoff`EinstoffMatch[{{"ztest"}}, {{5}}]["env"]]]),
+  {"ztest"},
+  TestID -> "hyg-private-context-protected-no-leak"
+];
+
+(* 23. A duplicate binding-key reason names the user's axis, not the fresh identity. *)
+VerificationTest[
+  StringContainsQ[
+    Einstoff`EinstoffShapes[{{"a"}} :> {{"a", "c"}}, {{3}}, {"c" -> 2, "c" -> 2}]["Reason"],
+    "key(s) {c};"],
+  True,
+  TestID -> "hyg-duplicate-key-reason-user-name"
+];
+
 EndTestSection[];

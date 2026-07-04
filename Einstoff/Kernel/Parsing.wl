@@ -322,10 +322,14 @@ EinstoffMatch[lhsShapes_, inputShapes_, bindingsIn_ : {}] :=
        {c -> 2, c -> 99} and {c -> 99, c -> 2} would mean different things with no
        diagnostic — reject a duplicate key outright rather than pick order-dependently. *)
     If[! DuplicateFreeQ[First /@ bindings],
+      (* Keys here are canonical (fresh / axisSymbol) identities; render them through
+         axisDisplayName so the reason names the user's axis (e.g. {c}) not the internal
+         {c$15}. *)
       Return[<|"ok" -> False,
-        "reason" -> "duplicate binding key(s) " <>
-          ToString[Keys @ Select[Counts[First /@ bindings], # > 1 &], InputForm] <>
-          "; each axis may be bound at most once"|>]];
+        "reason" -> "duplicate binding key(s) {" <>
+          StringRiffle[
+            axisDisplayName /@ Keys @ Select[Counts[First /@ bindings], # > 1 &], ", "] <>
+          "}; each axis may be bound at most once"|>]];
     env0 = Association[bindings];
     If[! AllTrue[env0, IntegerQ[#] && # >= 1 &],
       Return[<|"ok" -> False,
