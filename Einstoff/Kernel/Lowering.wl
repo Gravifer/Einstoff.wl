@@ -49,7 +49,7 @@ Einstoff::unsat =
 Einstoff::evalkey = "`1`";
 
 PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
-  withAxisScopeDeCanon, validAxisNameQ, $axisFresh,
+  withAxisScopeDeCanon, validAxisNameQ, axisSymbol, $axisFresh,
   normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
   distinctAxesQ, reduceAtoms, materializeOutput, selfContract, reshapeTo, hasCirclePlus,
@@ -222,16 +222,19 @@ canonHeld[h_Hold] :=
    acceptable for display; the engine already ran on the fresh identities. *)
 deCanon[expr_] :=
   If[AssociationQ[$axisFresh] && Length[$axisFresh] > 0,
-    deCanonApply[expr, Table[$axisFresh[nm] -> deCanonSym[nm], {nm, Keys[$axisFresh]}]],
+    deCanonApply[expr, Table[$axisFresh[nm] -> axisSymbol[nm], {nm, Keys[$axisFresh]}]],
     expr];
-(* The public symbol for a name.  If the user's symbol is UNBOUND, use it directly (the
-   clean Global`nm the caller expects).  If it is SHADOWED (Block[{c=3},…] — or even
-   Block[{c=Null},…]), Symbol[nm] would evaluate to the value and leak it into public
-   metadata/syntax, so instead use a value-less symbol of the same name in a private
-   context — SymbolName stays "nm", but no global value can leak.  The test is *has a
-   value* (ValueQ), NOT *value =!= Null*, so a symbol shadowed to Null is still treated
-   as shadowed. *)
-deCanonSym[nm_String] :=
+(* The axis symbol for a (validated) name string, without leaking a shadowed global.
+   If the user's symbol is UNBOUND, use it directly (the clean Global`nm the caller
+   expects).  If it is SHADOWED (Block[{c=3},…] — or even Block[{c=Null},…]), Symbol[nm]
+   would evaluate to the value and leak it, so instead use a value-less symbol of the
+   same name in a private context — SymbolName stays "nm", but no global value can leak.
+   The test is *has a value* (ValueQ), NOT *value =!= Null*, so a symbol shadowed to Null
+   is still treated as shadowed.  Deterministic per name, so every spelling of one axis
+   ("a" / Slot["a"] / a composite factor "a") maps to the SAME identity and unifies.
+   Shared by deCanon (display) and the raw EinstoffMatch string-tier path (Parsing.wl),
+   which would otherwise leak a shadowed global into env keys. *)
+axisSymbol[nm_String] :=
   If[axisShadowedQ[nm], Symbol["Einstoff`Axis`" <> nm], Symbol[nm]];
 (* ReplaceAll does not rewrite Association KEYS, so recurse: remap keys and values of
    every Association; a held desc (RHS) and plain shapes just take the value rules. *)
@@ -277,7 +280,7 @@ canonBindingList[bindings_, mode_] :=
       Return[Catch[
         Replace[bindings,
           (h : (Rule | RuleDelayed))[k_String, v_] :>
-            If[validAxisNameQ[k], h[Symbol[k], v],
+            If[validAxisNameQ[k], h[axisSymbol[k], v],
               Throw["invalid axis name \"" <> k <> "\" in a binding key \
 (must be a valid identifier)", "cblReject"]],
           {1}],

@@ -302,6 +302,35 @@ VerificationTest[
   TestID -> "match-composite-invalid-factor-reject"
 ];
 
+(* 26i-l. The raw string tier is Block-immune: a shadowed global of the axis name does
+   NOT leak its value into the env key (axisSymbol maps a shadowed name to a value-less
+   private-context symbol whose SymbolName is still the user name).  An UNBOUND name keeps
+   the clean Global` symbol as key. *)
+VerificationTest[
+  Block[{c = 3},
+    {Einstoff`EinstoffMatch[{{"c"}}, {{5}}]["ok"],
+     SymbolName /@ Keys[Einstoff`EinstoffMatch[{{"c"}}, {{5}}]["env"]]}],
+  {True, {"c"}},
+  TestID -> "match-string-axis-shadowed-no-leak"
+];
+VerificationTest[
+  Block[{c = 3},
+    Einstoff`EinstoffMatch[{{"c"}}, {{5}}, {"c" -> 5}]["ok"]],
+  True,
+  TestID -> "match-string-key-shadowed-no-leak"
+];
+VerificationTest[
+  Block[{c = 3},
+    SymbolName /@ Keys[Einstoff`EinstoffMatch[{{Slot["c"]}}, {{5}}]["env"]]],
+  {"c"},
+  TestID -> "match-slot-axis-shadowed-no-leak"
+];
+VerificationTest[
+  Keys[Einstoff`EinstoffMatch[{{"c"}}, {{5}}]["env"]],
+  {c},
+  TestID -> "match-string-axis-unbound-clean-key"
+];
+
 (* 27-30. Scalars (rank 0): squeeze/insert a singleton, no leaked ArrayReshape[s,{}]. *)
 VerificationTest[
   Einstoff[ArrayReshape][{{}} :> {{}}, {7}], 7, TestID -> "scalar-identity"];

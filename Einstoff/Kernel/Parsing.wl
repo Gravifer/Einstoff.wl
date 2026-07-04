@@ -91,7 +91,11 @@ bracketedNames[lhs_] :=
    (_/__/___/##) are not names.  Composites/brackets recurse into their parts. *)
 termAxisNames[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]]] := {s};
 termAxisNames[s_Symbol] := {s};
-termAxisNames[s_String] := {Symbol[s]};
+(* A string axis "a" is the axis `a`.  Route through axisSymbol (valueless when the name
+   is shadowed) and validate first, so a raw shape that reaches the uniqueness check
+   neither crashes on Symbol::symname nor mis-tallies a shadowed global's value.  An
+   invalid string is not an axis name, so it contributes nothing. *)
+termAxisNames[s_String] := If[validAxisNameQ[s], {axisSymbol[s]}, {}];
 termAxisNames[(CircleTimes | CirclePlus | Slot)[xs___]] := Join @@ (termAxisNames /@ {xs});
 termAxisNames[_] := {};
 
@@ -136,7 +140,8 @@ factorToExpr[f_, env_] :=
     MatchQ[f, Verbatim[Blank[]]], With[{u = Unique["anon$"]}, {u, {}, {u}}],
     StringQ[f],            (* a string / #name axis inside a composite, e.g. (g #c) or ("a" "b") *)
       If[! validAxisNameQ[f], $opaque,   (* illegal name -> unsupported factor (rejected) *)
-        With[{n = Symbol[f]}, If[KeyExistsQ[env, n], {env[n], {}, {}}, {n, {n}, {}}]]],
+        With[{n = axisSymbol[f]},   (* valueless when shadowed — no leaked global into Solve *)
+          If[KeyExistsQ[env, n], {env[n], {}, {}}, {n, {n}, {}}]]],
     Head[f] === Slot && Length[f] === 1, factorToExpr[First[f], env],
     Head[f] === Symbol, If[KeyExistsQ[env, f], {env[f], {}, {}}, {f, {f}, {}}],
     Head[f] === CircleTimes,
@@ -209,7 +214,7 @@ matchTerms[terms_, dims_, env_] :=
         bad = Select[Cases[parts, _String], ! validAxisNameQ[#] &];
         Return[If[bad =!= {},
           (Sow["invalid axis name(s) " <> ToString[bad, InputForm] <> " in a bracket"]; {}),
-          matchTerms[Join[Replace[parts, s_String :> Symbol[s], {1}], rest], dims, env]]]]];
+          matchTerms[Join[Replace[parts, s_String :> axisSymbol[s], {1}], rest], dims, env]]]]];
     (* SlotSequence (##, the anonymous variadic bracket [...]) is an ellipsis of
        bracketed axes — treat like ___ for shape matching (lowering is deferred,
        like Slot[___]). *)
@@ -253,7 +258,7 @@ matchTerms[terms_, dims_, env_] :=
       StringQ[t],
         If[! validAxisNameQ[t],
           (Sow["invalid axis name \"" <> t <> "\" (must be a valid identifier)"]; {}),
-          With[{e2 = unify[Symbol[t], d, env]},
+          With[{e2 = unify[axisSymbol[t], d, env]},
             If[e2 === $Failed, {}, matchTerms[rest, drest, e2]]]],
       True,
         (Sow["unrecognized dimension term: " <> ToString[t]]; {})]];
