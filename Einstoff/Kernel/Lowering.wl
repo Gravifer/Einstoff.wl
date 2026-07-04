@@ -276,14 +276,17 @@ axisDisplayName[x_] :=
 axisSymbol[nm_String] :=
   If[axisShadowedQ[nm],
     (* The Einstoff`Axis` context is for value-less identity tokens ONLY; a user must not
-       populate it.  Purge the WHOLE context (Unprotect + ClearAll both take a "ctx`*"
-       pattern — no need to enumerate the symbols one by one) so a stray, even Protected,
-       OwnValue on any Einstoff`Axis` symbol cannot re-introduce the very shadowed-value
-       leak this branch guards against.  Both take name strings, so nothing is evaluated;
-       Unprotect must precede ClearAll (ClearAll alone cannot clear a Protected symbol,
-       leaving Symbol[...] to evaluate the stray value).  Our symbols are never Set by us,
-       so clearing them is always safe — they stay valid value-less env-key identities. *)
-    (Quiet[Unprotect["Einstoff`Axis`*"]; ClearAll["Einstoff`Axis`*"]];
+       populate it.  Purge the WHOLE context (all take a "ctx`*" pattern — no need to
+       enumerate symbols) so a stray OwnValue on any Einstoff`Axis` symbol — even Protected
+       or Locked — cannot re-introduce the shadowed-value leak this branch guards against.
+       All take name strings, so nothing is evaluated.  The three steps handle the three
+       obstructions: Unprotect drops Protected; Clear removes VALUES even on a Locked symbol
+       (Clear touches only values, not attributes, so Locked does not block it — this is the
+       key step); ClearAll then fully resets an ordinary symbol (values + attributes).  Our
+       symbols are never Set by us, so clearing is always safe — they stay valid value-less
+       env-key identities. *)
+    (Quiet[Unprotect["Einstoff`Axis`*"]; Clear["Einstoff`Axis`*"];
+           ClearAll["Einstoff`Axis`*"]];
      Symbol["Einstoff`Axis`" <> nm]),
     Symbol[nm]];
 (* ReplaceAll does not rewrite Association KEYS, so recurse: remap keys and values of

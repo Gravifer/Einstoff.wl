@@ -303,6 +303,17 @@ VerificationTest[
   TestID -> "hyg-private-context-protected-no-leak"
 ];
 
+(* 22b. ...and even a LOCKED stray value cannot leak: ClearAll can't clear a Locked
+        symbol, but Clear (values only, not attributes) can, so axisSymbol still yields a
+        value-less identity. *)
+VerificationTest[
+  (Einstoff`Axis`ltest = 88; SetAttributes[Einstoff`Axis`ltest, Locked];
+   Block[{ltest = 1},
+     SymbolName /@ Keys[Quiet @ Einstoff`EinstoffMatch[{{"ltest"}}, {{5}}]["env"]]]),
+  {"ltest"},
+  TestID -> "hyg-private-context-locked-no-leak"
+];
+
 (* 23. A duplicate binding-key reason names the user's axis, not the fresh identity. *)
 VerificationTest[
   StringContainsQ[
