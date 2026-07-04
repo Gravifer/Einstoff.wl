@@ -49,8 +49,8 @@ Einstoff::unsat =
 Einstoff::evalkey = "`1`";
 
 PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
-  withAxisScopeDeCanon, validAxisNameQ, axisSymbol, descFailReturn, descFailReason,
-  $axisFresh,
+  withAxisScopeDeCanon, validAxisNameQ, axisSymbol, axisDisplayName,
+  descFailReturn, descFailReason, $axisFresh,
   normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
   distinctAxesQ, reduceAtoms, materializeOutput, selfContract, reshapeTo, hasCirclePlus,
@@ -245,6 +245,21 @@ deCanon[expr_] :=
   If[AssociationQ[$axisFresh] && Length[$axisFresh] > 0,
     deCanonApply[expr, Table[$axisFresh[nm] -> axisSymbol[nm], {nm, Keys[$axisFresh]}]],
     expr];
+
+(* The user-facing display name of an axis identity, for interpolation into Reason /
+   Message text (which deCanon cannot reach — a name baked into a string has no symbol
+   subpart to rewrite).  A fresh canonical symbol maps back to its user name via the
+   $axisFresh inverse; any other symbol (a raw plain / Einstoff`Axis` axis) uses its
+   short SymbolName (drops the private context); a non-symbol prints via ToString.  Axis
+   identities are always value-less (fresh / private-context / unbound), so evaluating x
+   here is an identity — no shadowed value can leak. *)
+axisDisplayName[x_] :=
+  With[{hit = If[AssociationQ[$axisFresh],
+      SelectFirst[Keys[$axisFresh], $axisFresh[#] === x &], Missing[]]},
+    Which[
+      ! MissingQ[hit], hit,
+      Head[x] === Symbol, SymbolName[x],
+      True, ToString[x, InputForm]]];
 (* The axis symbol for a (validated) name string, without leaking a shadowed global.
    If the user's symbol is UNBOUND, use it directly (the clean Global`nm the caller
    expects).  If it is SHADOWED (Block[{c=3},…] — or even Block[{c=Null},…]), Symbol[nm]
@@ -300,15 +315,16 @@ canonBindingList[bindings_, mode_] :=
     If[! MatchQ[bindings, {(_Rule | _RuleDelayed) ...}], Return[bindings]];
     If[mode === "Raw",
       Return[Catch[
-        Replace[bindings, {
-          (* string key "a" -> n, or bracket key #a = Slot["a"] -> n: both name the axis
-             `a` and are accepted by the raw matcher's string/Slot term handling *)
+        Replace[bindings,
+          (* string key "a" -> n, or the canonical bracket key #a = Slot["a"] -> n: both
+             name the axis `a`.  Only the STRING-keyed bracket is accepted — a bare-symbol
+             Slot[a] key is not canonical (#a = Slot["a"] is), is evaluation-fragile (a
+             shadowed a makes the key Slot[3] before we see it), and is redundant with a
+             bare a -> n key; so it is left for the _Symbol/dup/size checks to reject. *)
           (h : (Rule | RuleDelayed))[(k_String) | Slot[k_String], v_] :>
             If[validAxisNameQ[k], h[axisSymbol[k], v],
               Throw["invalid axis name \"" <> k <> "\" in a binding key \
 (must be a valid identifier)", "cblReject"]],
-          (h : (Rule | RuleDelayed))[Slot[k_Symbol], v_] :>
-            h[axisSymbol[SymbolName[Unevaluated[k]]], v]},
           {1}],
         "cblReject"]]];
     (* mode === "Scoped".  A hard reject Throws its reason string past the per-entry
