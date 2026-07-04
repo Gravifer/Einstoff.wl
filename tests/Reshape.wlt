@@ -331,6 +331,15 @@ VerificationTest[
   TestID -> "match-string-axis-unbound-clean-key"
 ];
 
+(* 26m. Raw EinstoffMatch accepts a bracket binding key #a = Slot["a"] (consistent with
+   the scoped path, which canonicalizes it); previously only bare-symbol/string keys were
+   accepted, so a bracket key was wrongly rejected by the _Symbol key gate. *)
+VerificationTest[
+  Einstoff`EinstoffMatch[{{CircleTimes["a", "b"]}}, {{6}}, {Slot["a"] -> 2}],
+  <|"ok" -> True, "env" -> <|a -> 2, b -> 3|>|>,
+  TestID -> "match-bracket-key-raw-ok"
+];
+
 (* 27-30. Scalars (rank 0): squeeze/insert a singleton, no leaked ArrayReshape[s,{}]. *)
 VerificationTest[
   Einstoff[ArrayReshape][{{}} :> {{}}, {7}], 7, TestID -> "scalar-identity"];

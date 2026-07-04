@@ -289,21 +289,26 @@ axisCurrentValue[name_String] :=
    ($axisFresh / $axisKind): a key naming an *established* axis becomes its fresh symbol,
    tier / Pattern / inference-only violations hard-reject, and a shadowed/junk key is
    warned and dropped; an unestablished key is left as-is.  "Raw" (standalone
-   EinstoffMatch, no scope) has no desc to check against, so it only converts a
-   string-tier key "a" -> n to Symbol["a"] -> n (the same identity matchTerms' StringQ
-   term uses), *validating the name* so an illegal string is a clean reject rather than a
-   Symbol::symname crash; other keys pass to the _Symbol / dup / size checks in
-   EinstoffMatch.  Returns the normalized list, or a reason string on a hard reject. *)
+   EinstoffMatch, no scope) has no desc to check against, so it converts a string-tier
+   key "a" -> n AND a bracket key #a = Slot["a"] -> n to axisSymbol["a"] -> n (the same
+   identity matchTerms' StringQ term and Slot splice use), *validating the name* so an
+   illegal string is a clean reject rather than a Symbol::symname crash; other keys pass
+   to the _Symbol / dup / size checks in EinstoffMatch.  Returns the normalized list, or a
+   reason string on a hard reject. *)
 canonBindingList[bindings_, mode_] :=
   Module[{out = {}},
     If[! MatchQ[bindings, {(_Rule | _RuleDelayed) ...}], Return[bindings]];
     If[mode === "Raw",
       Return[Catch[
-        Replace[bindings,
-          (h : (Rule | RuleDelayed))[k_String, v_] :>
+        Replace[bindings, {
+          (* string key "a" -> n, or bracket key #a = Slot["a"] -> n: both name the axis
+             `a` and are accepted by the raw matcher's string/Slot term handling *)
+          (h : (Rule | RuleDelayed))[(k_String) | Slot[k_String], v_] :>
             If[validAxisNameQ[k], h[axisSymbol[k], v],
               Throw["invalid axis name \"" <> k <> "\" in a binding key \
 (must be a valid identifier)", "cblReject"]],
+          (h : (Rule | RuleDelayed))[Slot[k_Symbol], v_] :>
+            h[axisSymbol[SymbolName[Unevaluated[k]]], v]},
           {1}],
         "cblReject"]]];
     (* mode === "Scoped".  A hard reject Throws its reason string past the per-entry
