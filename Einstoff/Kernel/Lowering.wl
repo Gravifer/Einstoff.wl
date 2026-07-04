@@ -279,24 +279,26 @@ deCanonApply[a_Association, rules_] :=
 deCanonApply[l_List, rules_] := deCanonApply[#, rules] & /@ l;
 deCanonApply[x_, rules_] := x /. rules;
 
-(* True iff the user's symbol for this axis name currently HAS a value (is shadowed).
-   Parse the name to its symbol under HoldComplete, then extract it explicitly with
-   Replace and ask ValueQ.  The test is "has a value", NOT "value =!= Null", so a symbol
-   shadowed to Null counts as shadowed; ValueQ holds its argument, so the value itself is
-   never evaluated. *)
+(* The user's symbol for an axis name, parsed to a held (HoldComplete) symbol so its
+   value is never triggered.  The one delicate hold-discipline step, factored out so the
+   two probes below (shadowed? / current value) cannot drift.  HoldComplete[s_Symbol]
+   when the name parses to a symbol, else HoldComplete[_] (e.g. a number string). *)
+heldAxisSymbol[name_String] := Quiet @ ToExpression[name, InputForm, HoldComplete];
+
+(* True iff the user's symbol currently HAS a value (is shadowed).  The test is "has a
+   value" (ValueQ), NOT "value =!= Null", so a symbol shadowed to Null counts as shadowed;
+   ValueQ holds its argument, so the value itself is never evaluated. *)
 axisShadowedQ[name_String] :=
-  Quiet @ Module[{h = ToExpression[name, InputForm, HoldComplete]},
-    Replace[h, {HoldComplete[s_Symbol] :> ValueQ[s], _ :> False}]];
+  Replace[heldAxisSymbol[name], {HoldComplete[s_Symbol] :> ValueQ[s], _ :> False}];
 
 (* The current value of an axis name, or Missing["Unbound"] when it has none — for the
    shadowed-key diagnostic only.  `s` is returned only after ValueQ[s] confirms a value,
    so it then evaluates to that value; Missing (not Null) is the unbound sentinel so a
    Null-shadowed symbol is not mistaken for unbound. *)
 axisCurrentValue[name_String] :=
-  Quiet @ Module[{h = ToExpression[name, InputForm, HoldComplete]},
-    Replace[h, {
-      HoldComplete[s_Symbol] :> If[ValueQ[s], s, Missing["Unbound"]],
-      _ :> Missing["Unbound"]}]];
+  Replace[heldAxisSymbol[name], {
+    HoldComplete[s_Symbol] :> If[ValueQ[s], s, Missing["Unbound"]],
+    _ :> Missing["Unbound"]}];
 
 (* Normalize + validate `bindings` for the matcher, in one of two modes — the single
    place binding-key policy lives.  "Scoped" (an open desc axis scope: the operator /

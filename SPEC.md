@@ -227,6 +227,16 @@ holds it; it is a reference iff established, else a captured value. (The desc's 
 `a_` on the LHS ↔ bare `a` on the RHS is WL's native `x_ :> f[x]` idiom: declare as a
 binder, use as bare.)
 
+> **Note — env-capture of a string value.** Since a `String` is now a legal axis
+> spelling, an unestablished bare symbol that env-captures to a *string* becomes that
+> (string-tier) axis rather than being rejected. E.g. `Block[{k = "oops"}, {{a_, k}} :>
+> {{a}}]` treats `"oops"` as an axis and reduces over it, where a pre-string-tier engine
+> rejected the stray non-size binding. This is the intended, consistent consequence of
+> the bare = env-capture rule meeting the string tier — a bound symbol reads as whatever
+> it evaluates to (an integer → a literal dim; a valid-identifier string → that axis). To
+> get a *checked* stray-binding rejection, spell the axis hygienically (`a_` / `#a` /
+> `"a"`) so the name cannot be captured.
+
 **No mishmash.** A single name may not be spelled in both the symbol/slot tier
 (`a_`/`a`/`#a`) and the string tier (`"a"`) within one desc — rejected at the
 boundary. Within the symbol/slot tier the three spellings interoperate as before.
