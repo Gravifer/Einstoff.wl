@@ -336,6 +336,20 @@ VerificationTest[
   TestID -> "hyg-private-context-protected-locked-warns"
 ];
 
+(* 22e. The fresh fallback is IDENTITY-STABLE: repeated occurrences of one un-sanitizable
+        name share a memoized identity, so an inconsistent repeated axis is rejected (not
+        silently accepted with two distinct keys) and a string key binds its term. *)
+VerificationTest[
+  (Einstoff`Axis`protlk3 = 21; SetAttributes[Einstoff`Axis`protlk3, {Protected, Locked}];
+   Block[{protlk3 = 1},
+     {Quiet @ Einstoff`EinstoffMatch[{{"protlk3", "protlk3"}}, {{5, 6}}]["ok"],   (* 5=/=6 -> False *)
+      Quiet @ Einstoff`EinstoffMatch[{{"protlk3", "protlk3"}}, {{5, 5}}]["ok"],   (* consistent -> True *)
+      Length @ Keys @ Quiet @ Einstoff`EinstoffMatch[{{"protlk3", "protlk3"}}, {{5, 5}}]["env"],
+      Quiet @ Einstoff`EinstoffMatch[{{"protlk3"}}, {{5}}, {"protlk3" -> 5}]["ok"]}]),   (* key binds term *)
+  {False, True, 1, True},
+  TestID -> "hyg-private-context-fallback-identity-stable"
+];
+
 (* 23. A duplicate binding-key reason names the user's axis, not the fresh identity. *)
 VerificationTest[
   StringContainsQ[

@@ -102,6 +102,9 @@ $axisKind  = None;   (* Association name->{kinds}: binder/bare/slot/string      
 $descRejectReason = None;  (* set by collectEstablished when it rejects a desc with an
                               accurate Einstoff::unsupp reason, so the generic
                               "desc must be of the form lhs :> rhs" is not ALSO emitted *)
+$axisFallbackMemo = <||>;  (* name -> stable fresh identity, used ONLY when the private
+                              Einstoff`Axis` token for a shadowed name is un-sanitizable
+                              (Protected+Locked); memoized so repeated occurrences unify *)
 
 (* Open a per-parse identity scope around an operator body.  Re-entrant: a nested call
    (an operator's own EinstoffShapes/EinstoffMatch) reuses the already-open scope, so
@@ -267,8 +270,13 @@ deCanon[expr_] :=
    identities are always value-less (fresh / private-context / unbound), so evaluating x
    here is an identity — no shadowed value can leak. *)
 axisDisplayName[x_] :=
-  With[{hit = If[AssociationQ[$axisFresh],
-      SelectFirst[Keys[$axisFresh], $axisFresh[#] === x &], Missing[]]},
+  Module[{hit},
+    (* map a canonical identity back to its user name: the scoped $axisFresh inverse, then
+       the Protected+Locked fallback memo; else a plain symbol's short SymbolName. *)
+    hit = If[AssociationQ[$axisFresh],
+      SelectFirst[Keys[$axisFresh], $axisFresh[#] === x &], Missing[]];
+    If[MissingQ[hit],
+      hit = SelectFirst[Keys[$axisFallbackMemo], $axisFallbackMemo[#] === x &]];
     Which[
       ! MissingQ[hit], hit,
       Head[x] === Symbol, SymbolName[x],
@@ -300,8 +308,16 @@ axisSymbol[nm_String] :=
     (Quiet[Unprotect["Einstoff`Axis`*"]; Clear["Einstoff`Axis`*"];
            ClearAll["Einstoff`Axis`*"]];
      If[axisShadowedQ["Einstoff`Axis`" <> nm],
-       (Message[Einstoff::privctx, "Einstoff`Axis`" <> nm];
-        Unique[nm <> "$", {Temporary}]),
+       (* MEMOIZED per name: axisSymbol is called once per occurrence, so a fresh Unique
+          each time would give repeated occurrences of one name DIFFERENT identities — they
+          would not unify (an inconsistent repeated axis would wrongly pass; a string/Slot
+          key would not bind its term).  Look the fallback up in a persistent memo so every
+          occurrence of `nm` shares one identity; mint (and warn) once on the first miss.
+          The memo is bounded by the set of adversarially-polluted names (empty in normal
+          use); it holds the symbol, so no Temporary is used (it is intentionally stable). *)
+       Lookup[$axisFallbackMemo, nm,
+         (Message[Einstoff::privctx, "Einstoff`Axis`" <> nm];
+          With[{u = Unique[nm <> "$"]}, AssociateTo[$axisFallbackMemo, nm -> u]; u])],
        Symbol["Einstoff`Axis`" <> nm]]),
     Symbol[nm]];
 (* ReplaceAll does not rewrite Association KEYS, so recurse: remap keys and values of
