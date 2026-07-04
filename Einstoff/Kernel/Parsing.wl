@@ -72,7 +72,10 @@ parseDesc[h : Hold[_Rule]] :=
       <|"LHS" -> normShapes @ Extract[hr, {1, 1}],
         "RHS" -> normHeldShapes @ Extract[hr, {1, 2}, Hold],
         "Warning" -> "prefer :> (RuleDelayed) over -> for desc"|>]];
-parseDesc[_] := <|"LHS" -> $Failed, "RHS" -> $Failed|>;
+(* a structurally-malformed desc (not lhs :> rhs): no canonHeld ran, so clear any stale
+   reject reason from a prior re-entrant parse (P3a) — EinstoffShapes' Reason must fall
+   back to the generic desc-shape reason, not a stale invalid-name reason. *)
+parseDesc[_] := ($descRejectReason = None; <|"LHS" -> $Failed, "RHS" -> $Failed|>);
 
 (* Names that appear inside a Slot[...] (bracket) anywhere in lhs.  By the time this
    runs the desc has been through canonHeld, so a #name bracket is Slot[freshSym] (a bare

@@ -269,4 +269,28 @@ VerificationTest[
   TestID -> "hyg-reason-user-name-shadowed-no-leak"
 ];
 
+(* 20. The private Einstoff`Axis` identity context holds value-less tokens only; even if a
+       user has (wrongly) Set a symbol there, axisSymbol clears it before use, so the raw
+       string tier cannot leak that stray value.  With Einstoff`Axis`ptest = 99 AND a
+       shadowing Block[{ptest = 1}], the axis "ptest" must still key hygienically. *)
+VerificationTest[
+  (Einstoff`Axis`ptest = 99;
+   Block[{ptest = 1},
+     SymbolName /@ Keys[Einstoff`EinstoffMatch[{{"ptest"}}, {{5}}]["env"]]]),
+  {"ptest"},
+  TestID -> "hyg-private-context-no-stray-value-leak"
+];
+
+(* 21. A desc-reject reason does not leak across re-entrant parses: after an invalid-name
+       (rule) reject, a subsequent malformed (non-rule) desc must report the GENERIC
+       desc-shape reason, not the stale invalid-name reason ($descRejectReason is reset
+       per parse, not just per scope). *)
+VerificationTest[
+  (Quiet @ Einstoff`EinstoffShapes[{{"a b"}} :> {{"a b"}}, {{3}}];
+   StringContainsQ[
+     Einstoff`EinstoffShapes[{{a_}}, {{3}}]["Reason"], "must be of the form"]),
+  True,
+  TestID -> "hyg-reject-reason-no-stale-leak"
+];
+
 EndTestSection[];

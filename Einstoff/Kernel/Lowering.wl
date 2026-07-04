@@ -50,7 +50,7 @@ Einstoff::evalkey = "`1`";
 
 PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
   withAxisScopeDeCanon, validAxisNameQ, axisSymbol, axisDisplayName,
-  descFailReturn, descFailReason, $axisFresh,
+  descFailReturn, descFailReason, $axisFresh, $descRejectReason,
   normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
   distinctAxesQ, reduceAtoms, materializeOutput, selfContract, reshapeTo, hasCirclePlus,
@@ -219,6 +219,9 @@ the string \"" <> First[mish] <> "\"; use one spelling consistently"},
    Assumes an open axis scope (via withAxisScope). *)
 canonHeld[h_Hold] :=
   Module[{estab, rules},
+    (* Fresh per parse: clear any reject reason left by a PRIOR (re-entrant) parse in the
+       same scope, so a reason is never stale.  collectEstablished sets it only on reject. *)
+    $descRejectReason = None;
     estab = collectEstablished[h];
     If[estab === $Failed, Return[$Failed]];
     Scan[mkFresh, estab];
@@ -271,7 +274,14 @@ axisDisplayName[x_] :=
    Shared by deCanon (display) and the raw EinstoffMatch string-tier path (Parsing.wl),
    which would otherwise leak a shadowed global into env keys. *)
 axisSymbol[nm_String] :=
-  If[axisShadowedQ[nm], Symbol["Einstoff`Axis`" <> nm], Symbol[nm]];
+  If[axisShadowedQ[nm],
+    (* The Einstoff`Axis` context is for value-less identity tokens ONLY; a user must not
+       populate it.  Forcibly clear the symbol before use so a stray OwnValue on
+       Einstoff`Axis`nm (e.g. someone Set it) cannot re-introduce the very shadowed-value
+       leak this branch guards against — ClearAll takes the name string, so the symbol is
+       never evaluated. *)
+    With[{qn = "Einstoff`Axis`" <> nm}, ClearAll[qn]; Symbol[qn]],
+    Symbol[nm]];
 (* ReplaceAll does not rewrite Association KEYS, so recurse: remap keys and values of
    every Association; a held desc (RHS) and plain shapes just take the value rules. *)
 deCanonApply[a_Association, rules_] :=
@@ -444,7 +454,9 @@ descParts[h : Hold[_Rule | _RuleDelayed]] :=
     If[hr === $Failed, $Failed,
       {normShapes @ Extract[hr, {1, 1}],
        normShapes @ ReleaseHold @ Extract[hr, {1, 2}, Hold]}]];
-descParts[_] := $Failed;
+(* a structurally-malformed desc (not lhs :> rhs): no canonHeld ran, so clear any stale
+   reject reason from a prior parse (P3a) — the generic desc-shape message must fire *)
+descParts[_] := ($descRejectReason = None; $Failed);
 
 (* ------------------------------------------------------------------ *)
 (* Atomic-axis decomposition of one dimension term.  An "atom" is an axis *)
