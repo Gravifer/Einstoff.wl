@@ -1,14 +1,15 @@
 (* ::Package:: *)
 
-(* Cross-validation tests for the direct-sum concat lowering: Einstoff["Massage"]
-   / Einstoff[Join] checked against the actual einx.id `+` (SPEC §10.1). Companion
-   to the other tests/python/*.wlt; see Reshape.wlt for the full rationale.
+(* Cross-validation tests for the direct-sum lowering: Einstoff["Massage"],
+   Einstoff[Join] and Einstoff[Split] checked against the actual einx.id `+`
+   (SPEC §10.1). Companion to the other tests/python/*.wlt; see Reshape.wlt for
+   the full rationale.
 
    Opt-in only: `wolframscript -script scripts/run-tests.wls python`.
    Integer inputs -> exact equality, no tolerance.
 
-   einx concatenates along a direct-sum axis positionally (summand i <- operand i);
-   the einx pattern <-> Wolfram desc equivalence is reasoned out of band. *)
+   einx matches direct-sum summands positionally; the einx pattern <-> Wolfram desc
+   equivalence is reasoned out of band. *)
 
 ClearAll[a, b, c, m];
 

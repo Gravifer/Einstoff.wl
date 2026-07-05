@@ -146,17 +146,10 @@ permissive than a caller can handle:
 2. **Then relax** — once all callers self-guard, drop the LHS-repeat rejection
    from `EinstoffShapes` (RHS uniqueness + positive dims remain).
 
-A possible future dry-run helper (an operator-aware, non-executing check) is a
-*convenience only* — einx ships none, so it is out of the critical path; do not
-make it a prerequisite of the purification.
-
-Roadmap-note form: *Make `EinstoffShapes` an operator-agnostic transformation
-shape resolver. Keep universal shape invariants (RHS axis uniqueness, positive
-integer dims); stop rejecting repeated LHS axes merely because they repeat
-(`EinstoffMatch` already resolves those by unification/equality). Move LHS-repeat
-admissibility into operator-specific guards — hardening the callers first, then
-relaxing `EinstoffShapes`. This preserves the current safe conservative behavior
-until all callers have explicit policy checks.*
+This two-phase purification has landed: `EinstoffShapes` is now an operator-agnostic
+shape resolver for repeated LHS axes, while callers enforce their own LHS-repeat
+policy guards. A possible future dry-run helper (an operator-aware, non-executing
+check) remains a convenience only — einx ships none, so it is out of the critical path.
 
 ## Deferred (feature roadmap, not this change)
 

@@ -137,32 +137,36 @@ names alone.
 
 ### 5.3 Named ellipsis: where the name lives matters
 
+**Deferred.** The grammar reserves `Repeated[...]` / named ellipsis forms, but the
+current matcher/lowerers do not implement them; raw descs containing `Repeated` are
+rejected today. The text below records the intended semantics for that future path.
+
 Two roles a name can play inside an ellipsis:
 
 - **Outer mvar** (`name : Repeated[pattern]`) — binds the *entire captured
   `Sequence`*; `{name}` listifies it.
 - **Inner mvar** (a named sub-pattern inside `Repeated[...]`,
   e.g. `grp:(a:(_Integer|_Symbol))...`) — a destructuring template. After
-  `grp` captures the sequence via WL matching, the engine **re-walks**
+  `grp` captures the sequence via WL matching, the future engine should **re-walk**
   `{grp}` element-by-element applying the inner pattern, producing a
   per-repetition binding list `{a} = {a<sub>1</sub>, a<sub>2</sub>, ...}`.
 
 Cross-group consistency (e.g. `Length[{a}] == Length[{b}]` before a
-`MapThread`) is enforced by the engine during the manual binding phase, not
+`MapThread`) should be enforced by the engine during the manual binding phase, not
 pushed into individual `RuleDelayed` RHS bodies.
 
 **Provisional:** WL's stock `Repeated[x_]` semantics enforce that all
-repetitions unify to the same value. The engine ignores that constraint and
-re-drives matching manually. Safe while no compilation target delegates
+repetitions unify to the same value. The planned engine should ignore that constraint
+and re-drive matching manually. Safe while no compilation target delegates
 `Repeated[x_]` back to native WL pattern matching; revisit if one does.
 
 ### 5.4 Size resolution
 
-Outer mvars map to scalar integers in `sizeRules` as usual (cf. einx's
-scalar axis sizes). Inner mvars (§5.3) are automatically list-valued —
-`a -> {s1, s2, ...}`, one entry per repetition — as a natural product of
-the engine's re-walk. No pre-classification of "is this name under a
-`Repeated`?" is needed before reading `sizeRules`.
+For the deferred named-ellipsis path, outer mvars would map to scalar integers in
+`sizeRules` as usual (cf. einx's scalar axis sizes). Inner mvars (§5.3) would be
+list-valued — `a -> {s1, s2, ...}`, one entry per repetition — as a natural product
+of the engine's re-walk. No pre-classification of "is this name under a `Repeated`?"
+should be needed before reading `sizeRules`.
 
 ### 5.5 Repetition as uniform vectorization
 
@@ -528,20 +532,10 @@ the tagged-throw isolation, and the dead `directSumSplit` locals.
 - Top-level grammar is unconditionally list-of-shapes both sides, connected
   by `RuleDelayed` (§4.2); single-tensor and one-sided forms are front-end
   sugar only.
-- `Slot[...]` nests without issue inside `CircleTimes`, `CirclePlus`, and
-  `Repeated` at any depth (confirmed across examples 6, 8, 10, 11).
-- Output shapes that depend on combining or projecting captured named
-  ellipses (§7.1) are expressible as ordinary `RuleDelayed` RHS code — no
-  separate output-derivation interface needs to be designed.
-- Inner-mvar re-walk (§5.3): named sub-patterns inside `Repeated[...]` serve
-  as destructuring templates; the engine re-walks the captured sequence
-  element-by-element to produce per-repetition bindings. Cross-group
-  consistency is enforced during the same manual binding phase.
-  **Provisional:** WL's `Repeated[x_]` all-same semantics is intentionally
-  ignored; revisit if a backend delegates to native WL matching (formerly §7.3).
-- `sizeRules` for inner mvars is automatically list-valued as a product of
-  the re-walk — no LHS pre-scan needed to detect `Repeated`-nested names
-  (formerly §7.5).
+- `Slot[...]` nests without issue inside `CircleTimes` and `CirclePlus`.
+- The named-ellipsis design does not need a separate output-derivation interface:
+  once the deferred matcher/lowering exists, `RuleDelayed` RHS code can project the
+  captured sequences.
 
 ## 9. Status & next steps
 

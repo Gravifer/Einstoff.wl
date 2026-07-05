@@ -99,9 +99,9 @@ operand *i*):
 summand a bare name or integer (carrier axes may permute); scalar operand + integer
 summand supported. Covers `b c, -> b (c + 1)` (ex4) and `m a, m b -> m (a + b)`.
 
-**Deferred:** split direction (phase 2); nested summands (`(a⊗b + c)`); CirclePlus
-combined with brackets (`Slot[CirclePlus[…]]`) or with output `CircleTimes` on the
-same axis; >1 CirclePlus per shape.
+**Historical deferred list:** split direction (phase 2), nested summands, and
+composite summands have since landed. The still-current deferrals are CirclePlus
+combined with brackets (`Slot[CirclePlus[…]]`) and >1 CirclePlus per shape.
 
 ## Files
 

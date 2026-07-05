@@ -135,23 +135,20 @@ vs-`Slot[b]`-references Pattern asymmetry. So `Slot["b"]` maps to "axis `b`, bra
 - `DirectSum.wl` `directSumSummandQ` reject updated for the new form;
 - **all `Slot[` test sites** (7 files) rewritten to `#name` / `##`.
 
-**Open decisions to settle before building C:**
-- **String↔symbol identity:** does `Slot["b"]` resolve to the *symbol* `b` (so a bare
-  RHS `b` references it) — recommended — or stay a string key in `env`? Recommended:
-  map to symbol `b` so brackets and bare references share identity.
+**Resolved decisions from Part C:**
+- **Resolved:** `Slot["b"]` maps to the axis identity named `b`; brackets and bare
+  references share identity.
 - **Bracketed integer immediates** (gather's `Slot[2]`): `#2` is `Slot[2]` (integer
   slot), not a string — so `#`-sugar can't express a bracketed literal cleanly. Gather
   is deferred anyway; bracketed immediates keep the explicit `Slot[2]`/`Slot["2"]`
   form, to be resolved when gather is built.
-- **`##` arity:** `SlotSequence[1]` vs `SlotSequence[]` — confirm the intended head for
-  the anonymous variadic bracket, and that the matcher's variadic-run handling
-  (currently for `Slot[___]`) maps onto it.
+- **Resolved:** `##` is `SlotSequence[1]`. The matcher treats it like `___`; lowering
+  axis-count-varying brackets remains deferred.
 
-**Sequencing:** B (Map) is notation-agnostic at the operator level (it consumes
-`reduceAtoms` flags, not surface syntax), so it can ship before C and be migrated with
-the rest. Recommend **B before C** (adds capability sooner; smaller, self-contained).
+**Historical sequencing:** B (Map) shipped before C; C then migrated the bracket
+surface syntax across the tree.
 
-## Verification (when Parts B & C are built)
+## Verification (Parts B & C, historical)
 - B: `tests/Map.wlt` vs native WL (`Reverse`/`Sort`/softmax) + `tests/python/Map.wlt`
   vs `einx.softmax`/`flip`/`sort`; full suite green.
 - C: pure refactor — every existing test rewritten to `#a`/`##` must produce the
