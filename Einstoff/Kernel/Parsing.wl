@@ -142,7 +142,10 @@ factorToExpr[f_, env_] :=
     f === {}, {1, {}, {}},   (* in-shape unit-axis term {} == literal 1 *)
     MatchQ[f, Verbatim[Pattern][_Symbol, Verbatim[Blank][]]],
       With[{n = f[[1]]}, If[KeyExistsQ[env, n], {env[n], {}, {}}, {n, {n}, {}}]],
-    MatchQ[f, Verbatim[Blank[]]], With[{u = Unique["anon$"]}, {u, {}, {u}}],
+    MatchQ[f, Verbatim[Blank[]]],   (* Temporary: a transient solve placeholder, GC'd after
+       resolution — never escapes to the result, so it should not persist in the caller's
+       context (consistent with the axis-identity symbols). *)
+      With[{u = Unique["anon$", {Temporary}]}, {u, {}, {u}}],
     StringQ[f],            (* a string / #name axis inside a composite, e.g. (g #c) or ("a" "b") *)
       If[! validAxisNameQ[f], $opaque,   (* illegal name -> unsupported factor (rejected) *)
         With[{n = axisSymbol[f]},   (* valueless when shadowed — no leaked global into Solve *)

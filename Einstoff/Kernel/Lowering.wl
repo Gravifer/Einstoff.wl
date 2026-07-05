@@ -631,7 +631,10 @@ materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
     Module[{litCounts = Counts[Cases[rhsTerms, _Integer, {0, Infinity}]]},
       rhsTerms2 = Replace[rhsTerms,
         n_Integer /; litCounts[n] > 1 :>
-          With[{u = Unique["lit$"]}, env2 = Append[env2, u -> n]; u],
+          (* Temporary: an internal layout identity for a duplicated output literal; used
+             within this function then discarded (never in the result), so it GCs rather
+             than persisting in the caller's context — consistent with the axis symbols. *)
+          With[{u = Unique["lit$", {Temporary}]}, env2 = Append[env2, u -> n]; u],
         {0, Infinity}]];
     rhsAtoms = If[rhsTerms2 === {}, {},
       Join @@ Table[rearrangeAtoms[t], {t, rhsTerms2}]];
