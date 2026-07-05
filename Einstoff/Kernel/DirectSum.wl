@@ -45,8 +45,8 @@ Einstoff["Join"] := EinstoffJoin;
 Einstoff[Split] := EinstoffSplit;
 Einstoff["Split"] := EinstoffSplit;
 
-(* A valid direct-sum summand: an axis name (bare or a binding pattern), an
-   integer, or a CircleTimes product of those. A Slot (bracketed direct sum) or
+(* A valid direct-sum summand: an axis name (bare or blank), an
+   integer, or a CircleTimes product of those. A targeted direct sum or
    any other head is not supported. Shared by the concat and split handlers. *)
 directSumSummandQ[s_] :=
   MatchQ[s, _Symbol | _Integer | Verbatim[Pattern][_Symbol, Verbatim[Blank[]]]] ||
@@ -87,11 +87,11 @@ such as a CircleTimes, is not supported yet)"];
     k = Length[summands];
 
     (* Each summand must be a name, integer, or product of those (a CircleTimes
-       block); a Slot (bracketed direct sum) is not supported. *)
+       block); a targeted direct sum is not supported. *)
     If[! AllTrue[summands, directSumSummandQ],
       Message[Einstoff::unsupp,
         "each direct-sum summand must be an axis name, an integer, or a product \
-of those (bracketed direct sums are not supported yet)"];
+of those (targeted direct sums are not supported yet)"];
       Return[$Failed]];
 
     (* k operands, one per summand (positional: summand i <- operand i). *)
@@ -169,7 +169,7 @@ such as a CircleTimes, is not supported yet)"];
       Return[$Failed]];
     n = cpos[[1, 1]];                       (* concat axis = that term's position *)
     cp = inShape[[n]];
-    (* On the LHS the summands are binding patterns (q_, or patterns inside a
+    (* On the LHS the summands are blanks (q_, or blanks inside a
        product block); reduce to bare names at every level so sizing/ReplacePart
        see bare symbols, as on the concat (RHS) side. *)
     summands = (List @@ cp) //. Verbatim[Pattern][x_, _] :> x;
@@ -178,7 +178,7 @@ such as a CircleTimes, is not supported yet)"];
     If[! AllTrue[summands, directSumSummandQ],
       Message[Einstoff::unsupp,
         "each direct-sum summand must be an axis name, an integer, or a product \
-of those (bracketed direct sums are not supported yet)"];
+of those (targeted direct sums are not supported yet)"];
       Return[$Failed]];
 
     (* k outputs, one per summand (positional: summand i -> output i). *)

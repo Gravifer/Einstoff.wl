@@ -35,11 +35,11 @@ For more details on the design, see `SPEC.md`
   product (``CircleTimes``, `⊗`) and `(a + b)` is a direct sum (``CirclePlus``, `⊕`);
   *brackets* `[...]` are the elementary-op axis marker (``Slot``, used by reduce /
   dot / gather). So ``CircleTimes``/``CirclePlus`` (parens) and ``Slot`` (brackets)
-  are orthogonal — e.g. ``Slot[CirclePlus[...]]`` is a *bracketed direct sum*
+  are orthogonal — e.g. ``Slot[CirclePlus[...]]`` is a *targeted direct sum*
   (reducing/contracting over a concatenated axis).
 
 - **Axis-name hygiene matrix** (SPEC §5.6–5.7, `feat/desc-hygiene`). A named axis has
-  a spelling kind and an orthogonal targeted/bracketed bit: `a_` (blank binder — "solve
+  a spelling kind and an orthogonal targeted bit: `a_` (blank — infer-only, "solve
   for this"), bare `a` (reference to an *established* axis, else env-capture — a bound
   `a` reads as its literal size), and `"a"` (a `String` — the fully-hygienic kind,
   immune to any ``Block``). Targeted string axes may be written `#a` = ``Slot["a"]``,
@@ -50,7 +50,7 @@ For more details on the design, see `SPEC.md`
   cannot leak `3` into axis `c`. A name may not mix symbol spelling with string spelling
   (mishmash → reject). Binding keys mirror the spelling kind: string axes accept
   `"a" -> n` and, when targeted, the same target head used in the desc; bare axes accept
-  `a -> n`; blank binders are inference-only. A different target head in bindings than
+  `a -> n`; blanks are inference-only. A different target head in bindings than
   in the desc is rejected, and ``Slot`` must not target non-string axes. ``Squiggled`` is
   intentionally unused because it is visually confusing.
 

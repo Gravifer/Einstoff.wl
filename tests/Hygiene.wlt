@@ -2,7 +2,7 @@
 
 (* Tests for desc evaluation-hygiene and the string axis tier (feat/desc-hygiene).
 
-   The desc eDSL must distinguish three uses of the same surface syntax: a binder
+   The desc eDSL must distinguish three uses of the same surface syntax: a blank
    `a_` (an axis to be solved), a targeted string `#a` = Slot["a"], and a
    bare `a` (env capture — evaluates to its value UNLESS its name is an established
    axis identity, then a hygienic reference).  A globally shadowed axis symbol (a
@@ -19,13 +19,13 @@ ClearAll[a, b, c, k, r, n];
 (* Fixtures. *)
 (* x23 = {{1,2,3},{4,5,6}} ; x24 = {{1,..,4},{5,..,8}} *)
 
-(* 1. HEADLINE: a shadowed binder must not capture its value.  Today this is $Failed
+(* 1. HEADLINE: a shadowed blank must not capture its value.  Today this is $Failed
       (the `{s}` extraction re-evaluates c -> 3); it must equal the unshadowed swap. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}]},
     Block[{c = 3}, Einstoff[ArrayReshape][{{a_, c_}} :> {{c, a}}, {x}]]],
   Transpose[ArrayReshape[Range[6], {2, 3}]],
-  TestID -> "hyg-shadowed-binder-reshape"
+  TestID -> "hyg-shadowed-blank-reshape"
 ];
 
 (* 2. A shadowed targeted string axis (#c = Slot["c"]) must not resolve to 3. *)
@@ -109,14 +109,13 @@ VerificationTest[
   TestID -> "hyg-bare-lhs-literal-dim"
 ];
 
-(* 12. A whole-axis binder `a_` is inference-only: binding it is rejected even when the
-       size agrees with the tensor (a composite split-factor binder, by contrast, IS
-       bindable — see ex2 in Parsing.wlt).  Block[{a}] keeps the bare `a` key unshadowed
+(* 12. A whole-axis blank `a_` is inference-only: binding it is rejected even when the
+       size agrees with the tensor. Block[{a}] keeps the bare `a` key unshadowed
        so it reaches the axis rather than evaluating to a junk key. *)
 VerificationTest[
   Block[{a}, Quiet @ Einstoff["Massage"][{{a_}} :> {{a}}, {{1, 2, 3}}, {a -> 3}]],
   $Failed,
-  TestID -> "hyg-binder-not-bindable"
+  TestID -> "hyg-blank-not-bindable"
 ];
 
 (* 13. An evaluated/junk binding key ({3 -> 2} from c = 3) WARNS but carries on: the
@@ -131,7 +130,7 @@ VerificationTest[
 ];
 
 (* 14. A Pattern-form binding key `r_ -> n` is a category error (a matcher, not an axis
-       name) — rejected, not silently ignored (which would let a whole-axis binder be
+       name) — rejected, not silently ignored (which would let a whole-axis blank be
        "bound" and still succeed by tensor inference). *)
 VerificationTest[
   Block[{r}, Quiet @ Einstoff["Massage"][{{r_}} :> {{r}}, {{1, 2}}, {r_ -> 2}]],
@@ -149,7 +148,7 @@ VerificationTest[
   TestID -> "hyg-decanon-bindings-no-value-leak"
 ];
 
-(* 15b. …and EinstoffParse's normalized LHS keeps the binder `c_`, not `Pattern[3, _]`. *)
+(* 15b. ...and EinstoffParse's normalized LHS keeps the blank `c_`, not `Pattern[3, _]`. *)
 VerificationTest[
   Block[{c = 3},
     FreeQ[Einstoff`EinstoffParse[{{a_, c_}} :> {{c, a}}]["LHS"], 3]],
@@ -198,7 +197,7 @@ VerificationTest[
   With[{x = ArrayReshape[Range[18], {3, 6}]},
     Einstoff[ArrayReduce][Total][
       {{a_, Highlighted[CircleTimes[c_, "d"]]}} :> {{a}}, {x}, {"d" -> 2}]],
-  TestID -> "hyg-bracketed-composite-canon"
+  TestID -> "hyg-targeted-composite-canon"
 ];
 
 (* 17. Tier separation inside a desc scope: a bare/env-capture axis `c` (RHS-only,
@@ -248,8 +247,8 @@ VerificationTest[
   TestID -> "hyg-reject-reason-structural"
 ];
 
-(* A repeated/shared inferred LHS axis must repeat the binder spelling (`a_ ... a_`).
-   The old binder-then-bare spelling (`a_ ... a`) is native-WL literal syntax, not a
+(* A repeated/shared inferred LHS axis must repeat the blank spelling (`a_ ... a_`).
+   The old blank-then-bare spelling (`a_ ... a`) is native-WL literal syntax, not a
    pattern reference, and is rejected before lowering. *)
 VerificationTest[
   StringContainsQ[
@@ -393,14 +392,14 @@ VerificationTest[
   TestID -> "hyg-returned-result-not-mutated-by-later-op"
 ];
 
-(* 25. A scoped operator on a shadowed bracket axis still lowers correctly through the
+(* 25. A scoped operator on a shadowed targeted axis still lowers correctly through the
        purge + memo-reset + einAxisCatch wrapping (regression that the scope wrapping did
        not break the normal shadowed path). *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}]},
     Block[{c = 3}, Einstoff[Map]["flip"][{{a_, Slot["c"]}} :> {{a, Slot["c"]}}, {x}]]],
   Reverse /@ ArrayReshape[Range[6], {2, 3}],
-  TestID -> "hyg-scoped-shadowed-bracket-through-wrapping"
+  TestID -> "hyg-scoped-shadowed-target-through-wrapping"
 ];
 
 EndTestSection[];

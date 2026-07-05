@@ -95,7 +95,7 @@ VerificationTest[
 
 (* ===================== rejection paths ============================= *)
 
-(* 10. A bracketed axis kept on output is the feed-to-elementary path, not reduce. *)
+(* 10. A targeted axis kept on output is the feed-to-elementary path, not reduce. *)
 VerificationTest[
   Quiet @ Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a, b}}, {ArrayReshape[Range[12], {3, 4}]}],
   $Failed,
@@ -194,7 +194,7 @@ VerificationTest[
    Every named reducer at
    https://einx.readthedocs.io/en/stable/api/operations/reduction.html resolves to
    a list reducer; checked here against an independent WL reference over the
-   bracketed axis. var/std are *population* (ddof = 0), matching numpy/einx. *)
+   targeted axis. var/std are *population* (ddof = 0), matching numpy/einx. *)
 
 (* 20. Population variance (NOT WL's sample Variance). *)
 VerificationTest[

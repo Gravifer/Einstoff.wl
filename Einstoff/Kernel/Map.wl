@@ -2,19 +2,19 @@
 
 (* Map path: Einstoff[Map] / EinstoffMap (einx miscellaneous / shape-preserving
    elementary ops — https://einx.readthedocs.io/en/stable/api/operations/misc.html:
-   flip, roll, sort, softmax, log_softmax, id).  The kept-bracket sibling of
-   Einstoff[ArrayReduce]: a *reduction* drops the bracketed axes (f: block ->
+   flip, roll, sort, softmax, log_softmax, id).  The kept-target sibling of
+   Einstoff[ArrayReduce]: a *reduction* drops the targeted axes (f: block ->
    scalar); a *map* keeps them (f: block -> same-length block), vmapping the op
-   over every unbracketed axis.  einx has no generic vmap entry point — each named
-   op carries its own bracketed signature — so this is the single generic operator
+   over every untargeted axis.  einx has no generic vmap entry point — each named
+   op carries its own targeted signature — so this is the single generic operator
    that realizes all of them, with f supplied (curried) by the caller.
 
-   Einstoff[Map][f][desc, tensors, bindings].  f receives the bracketed axes
+   Einstoff[Map][f][desc, tensors, bindings].  f receives the targeted axes
    *flattened to one vector* (matching einx's grouped-bracket flattening, where
    [a b] == [a][b]) and must return a same-length vector.  Examples:
-     Einstoff[Map]["flip"]     reverse along the bracket   (einx.flip)
-     Einstoff[Map]["sort"]     sort along the bracket       (einx.sort)
-     Einstoff[Map]["softmax"]  softmax along the bracket    (einx.softmax)
+     Einstoff[Map]["flip"]     reverse along the target   (einx.flip)
+     Einstoff[Map]["sort"]     sort along the target       (einx.sort)
+     Einstoff[Map]["softmax"]  softmax along the target    (einx.softmax)
      Einstoff[Map][RotateLeft[#, 2] &]   roll               (einx.roll; the shift
        is a parameter, so roll is expressed as a function rather than a name).
 
@@ -31,10 +31,10 @@ PackageExported[{EinstoffMap}]
 EinstoffMap::usage =
   "EinstoffMap[f][desc, tensors, bindings] realizes a shape-preserving \
 elementary op (einx flip/roll/sort/softmax/log_softmax, einx.misc): the \
-bracketed (Slot) axes are fed to f flattened to one vector and f returns a \
-same-length vector, while every unbracketed axis is vmapped.  f may be a \
+targeted axes are fed to f flattened to one vector and f returns a \
+same-length vector, while every untargeted axis is vmapped.  f may be a \
 function (Reverse, Sort, a custom vector->vector map) or a name \
-(\"flip\"/\"sort\"/\"softmax\"/\"log_softmax\"/\"id\").  The bracketed axes are \
+(\"flip\"/\"sort\"/\"softmax\"/\"log_softmax\"/\"id\").  The targeted axes are \
 kept on the output; dropping an axis is a reduction (use Einstoff[ArrayReduce]).";
 
 Einstoff[Map] := EinstoffMap;
@@ -104,15 +104,15 @@ Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
     brAtoms = Pick[lhsAtoms, lhsBr];
     vmapAtoms = Pick[lhsAtoms, lhsBr, False];
 
-    (* Map acts *along* a bracketed axis (the op signature); with no bracket the
+    (* Map acts *along* a targeted axis (the op signature); with no target the
        desc is a pure rearrange. *)
     If[brAtoms === {},
       Message[Einstoff::unsupp,
-        "Einstoff[Map] needs a bracketed axis (the op acts along it); a desc with \
-no bracket is a pure rearrange; use Einstoff[ArrayReshape]"];
+        "Einstoff[Map] needs a targeted axis (the op acts along it); a desc with \
+no target is a pure rearrange; use Einstoff[ArrayReshape]"];
       Return[$Failed]];
 
-    (* Map preserves every axis (keeps the bracket, vmaps the rest); RHS-only axes are
+    (* Map preserves every axis (keeps the target, vmaps the rest); RHS-only axes are
        repetition.  A dropped input axis of size > 1 is a reduction (not map); a dropped
        size-1 (unit) axis carries no data and is squeezed by materializeOutput (einx
        allows e.g. 'a () [b] -> a [b]'), so the guard is size-aware, like Massage/Dot. *)
@@ -129,7 +129,7 @@ is a reduction, use Einstoff[ArrayReduce] (a size-1 unit axis is squeezed)"];
       Return[$Failed]];
     xr = ArrayReshape[x, decompDims];
 
-    (* Permute so the vmapped (unbracketed) atoms lead and the bracketed atoms
+    (* Permute so the vmapped (untargeted) atoms lead and the targeted atoms
        trail, then collapse to a matrix {vmapProd, brProd}; f maps each row.
        (Same FirstPosition/InversePermutation idiom as materializeOutput.) *)
     order = Join[vmapAtoms, brAtoms];

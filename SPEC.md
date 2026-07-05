@@ -20,7 +20,7 @@ internally. Wolfram Language already ships a pattern-matching vocabulary
 that maps almost one-to-one onto the *concepts* einx needs (named binding,
 anonymous wildcard, repetition, sequence). Einstoff's premise: use that
 vocabulary directly as the surface syntax, and let `MatchQ`/`Cases`-style
-matching do double duty as both parser and shape-binder.
+matching do double duty as both parser and shape matcher.
 
 ## 2. Design principles
 
@@ -42,7 +42,7 @@ matching do double duty as both parser and shape-binder.
 
 | Concept | einops/einx string | Einstoff form | WL construct |
 |---|---|---|---|
-| Named dimension (blank — "solve for this") | `a` | `a_` | `Pattern[a, Blank[]]` |
+| Named dimension (blank — infer-only) | `a` | `a_` | `Pattern[a, Blank[]]` |
 | Named dimension (reference / env-capture) | `a` (repeated) | `a` | bare symbol |
 | Named dimension (string tier — fully hygienic) | `a` | `"a"` | a `String` (a valid identifier) — see §5.6 |
 | Integer immediate | `2` | `2` | literal integer |
@@ -54,11 +54,11 @@ matching do double duty as both parser and shape-binder.
 | Product / axis composition | `(a b)` | `a ⊗ b` | `CircleTimes` |
 | Direct sum / concatenation | `(a + b)` | `a ⊕ b` | `CirclePlus` |
 | Bracket / targeted string axis | `[a]` | `#a`, highlighted/framed `"a"` | `Slot["a"]`, `Highlighted["a"]`, or `Framed["a"]` — targeted string spelling; kept with the same target head on the RHS when the targeted axis is kept |
-| Bracket / targeted blank axis | `[a]` | highlighted/framed `a_` | `Highlighted[a_]` or `Framed[a_]` — visually targeted binder; RHS references it as bare `a` |
-| Bracket / targeted bare axis | `[a]` | highlighted/framed `a` | `Highlighted[a]` or `Framed[a]` — visually targeted bare reference; bind with `a -> n` when needed |
+| Bracket / targeted blank axis | `[a]` | highlighted/framed `a_` | `Highlighted[a_]` or `Framed[a_]` — visually targeted blank; RHS references it as bare `a` |
+| Bracket / targeted bare axis | `[a]` | highlighted/framed `a` | `Highlighted[a]` or `Framed[a]` — visually targeted bare reference; bind with `a -> n` or the matching target-head key when needed |
 | Bracket, multiple axes | `[a b]` ≡ `[a][b]` | `#a #b` | `Slot["a"], Slot["b"]` — adjacent single `Slot`s, `[a b]≡[a][b]`, see §7.3 |
 | Bracket, anonymous ellipsis | `[...]` | `##` | `SlotSequence[1]` |
-| Bracket, integer immediate | `[2]` | `Slot[2]` | `Slot[2]` — explicit (no `#`-sugar for a bracketed literal), see §7.2 |
+| Targeted literal | `[2]` | `Slot[2]`, `Highlighted[2]`, `Framed[2]` | targeted literal; `#2` is `Slot[2]`, see §7.2 |
 
 ## 4. Grammar
 
@@ -66,7 +66,7 @@ matching do double duty as both parser and shape-binder.
 
 A *shape* is a `List` of dimension terms. A dimension term is one of:
 
-- a bare symbol (reference / env-capture) or `name_` (blank binder)
+- a bare symbol (reference / env-capture) or `name_` (blank, infer-only)
 - a `String` `"a"` (a hygienic named axis — must be a valid identifier; §5.6)
 - an integer
 - `_`, `__`, `___`
@@ -111,11 +111,11 @@ grammar:
 
 ## 5. Semantics
 
-### 5.1 Binding vs. reference
+### 5.1 Blank vs. Reference
 
-`a_` introduces a binding; a bare `a` later in the *same* match (e.g. the
-second operand's shape, or the RHS) is a reference and must match the same
-value already bound to `a`. This is not bespoke Einstoff logic — it is
+`a_` is a blank and infers a size; a bare `a` later in the *same* match (e.g. the
+second operand's shape, or the RHS) is a reference and must match that inferred
+size. This is not bespoke Einstoff logic — it is
 exactly how repeated pattern variables already behave in `MatchQ`/`Cases`
 (`MatchQ[{3, 3}, {x_, x}]` only succeeds because both `3`s agree). It is what
 makes shared/contracted axes across tensors (§6.10) fall out for free.
@@ -124,8 +124,8 @@ New axes that appear only on the RHS (repeat-style) are *not* covered by
 this mechanism, since there is nothing on the LHS to bind them to — those
 are resolved from an out-of-band `sizeRules`-style argument instead.
 
-A named axis has two orthogonal coordinates: spelling kind (`b_` blank binder,
-bare `b`, or string `"b"`) and targetedness (plain or bracketed). The targeted
+A named axis has two orthogonal coordinates: spelling kind (`b_` blank,
+bare `b`, or string `"b"`) and targetedness (plain or targeted). The targeted
 string spelling is `#name` (= `Slot["name"]`) and binds by *unification* on its
 string name: repeated occurrences are symmetric and must agree (first sets the
 size, the rest must match). Because this spelling is string-kind and targeted, a
@@ -225,11 +225,11 @@ A desc is an *ordinary WL expression*, so a global binding of an axis symbol
 environment. Einstoff removes this hazard by **canonicalizing every axis identity at
 the desc boundary** to a fresh, value-less `Temporary` symbol *before* any downstream
 code inspects it. A *named* axis has a spelling kind (blank, bare, string) and an
-orthogonal targeted/bracketed bit:
+orthogonal targeted bit:
 
 | Kind | Plain WL | Targeted WL | Role | Hygiene |
 |---|---|---|---|---|
-| blank | `a_` | `Highlighted[a_]` / `Framed[a_]` | infer-only binder | safe (canonicalized) |
+| blank | `a_` | `Highlighted[a_]` / `Framed[a_]` | infer-only | safe (canonicalized) |
 | bare | `a` | `Highlighted[a]` / `Framed[a]` | reference to an *established* axis, else env-capture; bindable when explicit size is needed | opt-in: a bound `a` reads as its literal size |
 | string | `"a"` | `#a` = `Slot["a"]`, `Highlighted["a"]`, `Framed["a"]` | fully-hygienic named axis; targeted form marks the elementary-op axis (§5.2) | immune to any `Block` |
 
@@ -242,14 +242,14 @@ size-4 axis) and an unbound one is an ordinary (unsafe) axis. This holds symmetr
 on LHS and RHS — a bare RHS name is **not** automatically hygienic just because `:>`
 holds it; it is a reference iff established, else a captured value. (The desc's own
 `a_` on the LHS ↔ bare `a` on the RHS is WL's native `x_ :> f[x]` idiom: declare as a
-binder, use as bare.)
+blank, use as bare.)
 
 > **Note — env-capture of a string value.** Since a `String` is now a legal axis
 > spelling, an unestablished bare symbol that env-captures to a *string* becomes that
-> (string-tier) axis rather than being rejected. E.g. `Block[{k = "oops"}, {{a_, k}} :>
+> (string-kind) axis rather than being rejected. E.g. `Block[{k = "oops"}, {{a_, k}} :>
 > {{a}}]` treats `"oops"` as an axis and reduces over it, where a pre-string-tier engine
-> rejected the stray non-size binding. This is the intended, consistent consequence of
-> the bare = env-capture rule meeting the string tier — a bound symbol reads as whatever
+> rejected the stray non-size key. This is the intended, consistent consequence of
+> the bare = env-capture rule meeting the string kind — a bound symbol reads as whatever
 > it evaluates to (an integer → a literal dim; a valid-identifier string → that axis). To
 > get a *checked* stray-binding rejection, spell the axis hygienically (`a_` / `#a` /
 > `"a"`) so the name cannot be captured.
@@ -270,8 +270,8 @@ collisions, the desc should be refactored or use clearer local names instead of
 expecting contexts to carry semantic identity.
 
 **Canonicalization.** Each established name is rewritten to one fresh
-`Unique[name <> "$", {Temporary}]` symbol shared across all its occurrences (binder,
-reference, bracket, binding key); the symbols are per-parse hermetic and GC'd when the
+`Unique[name <> "$", {Temporary}]` symbol shared across all its occurrences (blank,
+bare reference, targeted form, binding key); the symbols are per-parse hermetic and GC'd when the
 parse scope closes. Names *inside a targeted composite* (`Highlighted[(c d)]` =
 `Highlighted[CircleTimes[c_, d_]]`) are grammar positions and are canonicalized too. A string
 name must be a valid identifier (a locally-rolled `validAxisNameQ` — not the cloud
@@ -290,10 +290,12 @@ matcher is untouched (it simply sees fresh symbols). Tests: `tests/Hygiene.wlt`.
 composite split-factors). A key names an axis; accepted spellings mirror the desc
 spelling kind and are canonicalized to the axis's fresh identity:
 
-- **Target-head keys** (`#a -> n`, `Highlighted["a"] -> n`, `Framed["a"] -> n`) —
-  accepted only when the desc used the same target head for string-kind axis `a`.
-- **`a -> n`** (bare symbol key) — convenient but unsafe: a shadowed `a` evaluates
-  before we see it (`{a -> 2}` under `a = 3` arrives as `{3 -> 2}`).
+- **Target-head keys** (`#a -> n`, `Highlighted["a"] -> n`, `Framed["a"] -> n`,
+  `Highlighted[a] -> n`, `Framed[a] -> n`) — accepted only when the desc used the same
+  target head for axis `a`.
+- **`a -> n`** (bare symbol key) — binds a bare or targeted bare axis; convenient but
+  unsafe because a shadowed `a` evaluates before we see it (`{a -> 2}` under `a = 3`
+  arrives as `{3 -> 2}`).
 - **`"a" -> n`** (string key) — works for any string-kind axis, plain or targeted.
 - **`->` and `:>`** are accepted indistinguishably for any non-`Pattern` key (the size
   is a concrete value; the arrow is moot).
@@ -302,13 +304,13 @@ Rejections and tolerances:
 
 - A **`Pattern` key** `a_ -> n` / `a_ :> n` is a category error (a matcher, not a name)
   — **hard reject** with a redirect (do not silently ignore, which would let a
-  whole-axis binder be "bound" and still succeed by tensor inference).
-- A **blank binder** `a_` is **inference-only**, plain or targeted and whether it is a
+  whole-axis blank be "bound" and still succeed by tensor inference).
+- A **blank** `a_` is **inference-only**, plain or targeted and whether it is a
   whole axis or a composite factor: binding it is rejected. Spell an externally supplied
   split factor as a bare axis (`a`) or string axis (`"a"`) instead.
 - A cross-**kind** key (a string axis bound by a symbol key, or vice versa) is rejected.
-  A target-head key with a different head than the desc's targeted string spelling is
-  also rejected.
+  A target-head key with a different head than the desc's targeted spelling is also
+  rejected.
 - An **evaluated / junk key** (a non-name, e.g. the integer `3` from a shadowed
   `c = 3`) **warns and is dropped**, and resolution continues — failing only if the
   shapes are then unsatisfiable. The warning is targeted when the key equals the
@@ -388,7 +390,7 @@ after that for brevity.
     `b_` binds in the first operand, bare `b` references it in the second
     — ordinary WL repeated-variable matching, no custom rule needed.
 
-11. **Gather with bracketed immediate** —
+11. **Gather with targeted literal** —
     `einx.get_at("b [h w] c, b i [2] -> b i c", x, y)`
     ```
     {{b_, Slot["h"], Slot["w"], c_}, {b, i_, Slot[2]}} :> {{b, i, c}}
@@ -455,7 +457,7 @@ the compilation targets (`Transpose`, `ArrayReshape`, `ArrayReduce`, `Join`, `In
 ### 7.3 `Slot` arity — resolved: brackets are single-axis
 
 A multi-axis bracket `[a b c]` is **identical** to adjacent single brackets
-`[a][b][c]` — einx feeds the bracketed axes to the elementary op as one
+`[a][b][c]` — einx feeds the targeted axes to the elementary op as one
 flattened unit, and the order/grouping of the brackets does not matter (probed
 against the venv). So the canonical Einstoff form is one `Slot` per axis:
 `[a b]` is written `#a #b` (= `Slot["a"], Slot["b"]`), never `Slot[a_, b_]`. The matcher
@@ -499,7 +501,7 @@ invariants / maintainability smells. Retained here as a record of the hardening:
   `bracket-context-robust`. env stays symbol-keyed, so the CAS/`Solve` layer is
   untouched.
   **Superseded (2026-07, desc-hygiene branch, §5.6):** `resolveSlotStrings` was replaced
-  by `canonHeld`, which canonicalizes *every* axis identity — binder, bracket, string —
+  by `canonHeld`, which canonicalizes *every* axis identity — blank, targeted, string —
   to a fresh `Temporary` symbol, so the `Block[{c=3},…]` value-leak (not just the
   `$Context` variant) is closed, and a string axis tier `"a"` is added. `#a` now belongs
   to that string kind, while targeted blank/bare symbol axes use `Highlighted[...]` or
@@ -573,11 +575,11 @@ fold with the batched inner product using an arbitrary multiply `mul` and combin
 `Inner`. For a semiring `(mul, add)` the N-ary fold is associative; the
 left-to-right order is the defined semantics otherwise.
 
-`Einstoff[Map][f]` is the **kept-bracket sibling of `Einstoff[ArrayReduce]`**: a
-reduction *drops* the bracketed axes (`f`: block → scalar); a map *keeps* them
-(`f`: block → same-length block) and vmaps the op over every unbracketed axis. It
+`Einstoff[Map][f]` is the **kept-target sibling of `Einstoff[ArrayReduce]`**: a
+reduction *drops* the targeted axes (`f`: block -> scalar); a map *keeps* them
+(`f`: block -> same-length block) and vmaps the op over every untargeted axis. It
 covers einx's shape-preserving miscellaneous ops (flip/roll/sort/softmax/
-log_softmax/id) — the bracketed atoms are flattened to one vector (so `[a b]≡[a][b]`)
+log_softmax/id) — the targeted atoms are flattened to one vector (so `[a b]≡[a][b]`)
 and handed to `f`, which returns a same-length vector; the axes are kept on the RHS
 (dropping one is a reduction → routed to `ArrayReduce`). einx has no generic vmap
 entry point, so this single generic operator realizes all of them with `f` supplied.
@@ -623,11 +625,11 @@ is a mismatch. This both subsumes the old single-unknown analytic logic and lets
 *uniquely resolve systems einx rejects* (e.g. `m (a + b)` with an axis of size 2
 forces `a = b = 1`). On concat the block is just another term aligned by
 `materializeOutput` and `Join`'d; on split the block size is the product over its
-atoms (`Take` slice, then reshape). **Still deferred:** bracketed direct sum
+atoms (`Take` slice, then reshape). **Still deferred:** targeted direct sum
 (`Slot[CirclePlus[…]]`) and >1 CirclePlus per shape. Plan:
 `docs/plans/circleplus-direct-sum.md`.
 
-**Bracket notation — string-named axes (implemented).** A bracketed axis is now
+**Target notation — string-named axes (implemented).** A targeted string axis is now
 `#name` = `Slot["name"]` (§5.1, §3 glossary), bound by unification on its string
 name; the anonymous variadic bracket `[...]` is `##` = `SlotSequence[1]`. This is the
 canonical out-facing form used throughout the tests; the legacy `Slot[name_]`/`Slot[name]`

@@ -8,11 +8,11 @@
 Two einx findings (probed against the repo venv) reshape the bracket roadmap:
 
 - **`[a b c]` ≡ `[a] [b] [c]`** — grouped vs separate brackets are identical; the
-  bracketed axes are fed to the elementary op as one flattened unit, order/grouping
+  targeted axes are fed to the elementary op as one flattened unit, order/grouping
   irrelevant. ⇒ a multi-axis bracket is just adjacent single brackets; no multi-arity
   `Slot[a, b]` is ever needed. (Retired SPEC §7.3's "non-standard arity" concern.)
-- **Vmap family** = a bracketed axis *kept* on the output (softmax / log_softmax /
-  flip / roll / sort / argsort): the op runs along the bracketed (flattened) axes,
+- **Vmap family** = a targeted axis *kept* on the output (softmax / log_softmax /
+  flip / roll / sort / argsort): the op runs along the targeted (flattened) axes,
   vmapped over the rest. einx has **no generic vmap entry point** — brackets define
   each named op's signature. This is exactly the path `Einstoff[ArrayReduce]` rejects
   today ("feed-to-elementary-op is a separate path"). Resolves the §5.2 ambiguity:
@@ -56,9 +56,9 @@ tensor. Also extended `Reduce.wl`'s `reduceFunction` to the full einx reduction 
 + `tests/python/Map.wlt` (4, vs einx.flip/sort/roll/softmax) + 6 new in
 `tests/Reduce.wlt`. Suite 177 green (132 WL + 45 xval). The design that was built:
 
-The kept-bracket sibling of `Einstoff[ArrayReduce][reducer]`: reduce *drops* the
-bracketed axes (`f`: block → scalar); **Map keeps them** (`f`: block → same-shape
-block), vmapping over the unbracketed axes. Generic and **curried in `f`**, mirroring
+The kept-target sibling of `Einstoff[ArrayReduce][reducer]`: reduce *drops* the
+targeted axes (`f`: block -> scalar); **Map keeps them** (`f`: block -> same-shape
+block), vmapping over the untargeted axes. Generic and **curried in `f`**, mirroring
 the reducer-currying convention. New file `Einstoff/Kernel/Map.wl`.
 
 - **Surface:** `Einstoff[Map] := EinstoffMap`; subvalue
@@ -67,23 +67,23 @@ the reducer-currying convention. New file `Einstoff/Kernel/Map.wl`.
   `Einstoff[Map][softmaxVec][{{a, b, Slot[c_]}} :> {{a, b, c}}, {x}]`,
   `Einstoff[Map][Reverse]` (flip), `Einstoff[Map][Sort]`, `Einstoff[Map][RotateRight]`
   (roll).
-- **Semantics:** the bracketed atoms (`reduceAtoms` `True`-flagged) are the op axes;
+- **Semantics:** the targeted atoms (`reduceAtoms` `True`-flagged) are the op axes;
   `f` receives them **flattened to one vector** (matching einx's grouped-bracket
-  flattening) and returns a same-length vector. Unbracketed axes are vmapped. The
-  bracketed axes are **kept** — they must appear on the RHS; a bracketed axis *dropped*
+  flattening) and returns a same-length vector. Untargeted axes are vmapped. The
+  targeted axes are **kept** — they must appear on the RHS; a targeted axis *dropped*
   on the RHS is a reduce (reject → point to `Einstoff[ArrayReduce]`). Output-only axes
   are repetition (free via `materializeOutput`).
 - **Lowering** (reuses the Reduce/rearrange machinery):
   1. `EinstoffShapes` → env; `reduceAtoms` → atoms + bracket flags.
   2. `ArrayReshape` input to atomic dims.
-  3. `Transpose` so vmap (unbracketed) atoms lead and bracketed atoms trail; flatten
-     the trailing bracketed atoms into one axis ⇒ `[vmap…, bracketProd]`.
+  3. `Transpose` so vmap (untargeted) atoms lead and targeted atoms trail; flatten
+     the trailing targeted atoms into one axis => `[vmap..., targetProd]`.
   4. Apply `f` along the last axis: `Map[f, arr, {-2}]` (each last-axis vector →
      same-length vector).
-  5. Reshape the bracket axis back to its atomic dims; `materializeOutput` permutes the
+  5. Reshape the target axis back to its atomic dims; `materializeOutput` permutes the
      kept atoms to RHS order, recomposes composites, broadcasts any repeats.
-- **`f` contract:** length-`bracketProd` vector → same-length vector (softmax,
-  `Reverse` = flip, `Sort`, `RotateRight` = roll, …). Shape-preserving along the bracket.
+- **`f` contract:** length-`targetProd` vector -> same-length vector (softmax,
+  `Reverse` = flip, `Sort`, `RotateRight` = roll, ...). Shape-preserving along the target.
 - **Cross-validation:** `Einstoff[Map][f]` vs `einx.softmax`/`flip`/`sort`/`roll` for
   matching `f`, plus native WL (`Reverse`/`Sort`/…). New `tests/Map.wlt` +
   `tests/python/Map.wlt`.
@@ -145,8 +145,8 @@ keeps the targeted string axis.
   `Highlighted[b_]`/`Framed[b_]` are targeted blank; `Highlighted[b]`/`Framed[b]` are
   targeted bare.
 - **Bracketed integer immediates** (gather's `Slot[2]`): `#2` is `Slot[2]` (integer
-  slot), not a string — so `#`-sugar can't express a bracketed literal cleanly. Gather
-  is deferred anyway; bracketed immediates keep the explicit `Slot[2]`/`Slot["2"]`
+  slot), not a string — so `#`-sugar can't express a targeted literal cleanly. Gather
+  is deferred anyway; targeted literals keep the explicit `Slot[2]`/`Slot["2"]`
   form, to be resolved when gather is built.
 - **Resolved:** `##` is `SlotSequence[1]`. The matcher treats it like `___`; lowering
   axis-count-varying brackets remains deferred.

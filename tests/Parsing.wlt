@@ -126,6 +126,27 @@ VerificationTest[
   False,
   TestID -> "highlighted-string-binding-wrong-head-reject"
 ];
+VerificationTest[
+  Block[{q},
+    sat @ Einstoff`EinstoffShapes[
+      {{a_, Highlighted[q]}} :> {{a}}, {{2, 3}}, {Highlighted[q] -> 3}]],
+  True,
+  TestID -> "highlighted-bare-binding-head-key-ok"
+];
+VerificationTest[
+  Block[{q},
+    sat @ Einstoff`EinstoffShapes[
+      {{a_, Highlighted[q]}} :> {{a}}, {{2, 3}}, {q -> 3}]],
+  True,
+  TestID -> "highlighted-bare-binding-bare-key-ok"
+];
+VerificationTest[
+  Block[{q},
+    sat @ Einstoff`EinstoffShapes[
+      {{a_, Highlighted[q]}} :> {{a}}, {{2, 3}}, {Framed[q] -> 3}]],
+  False,
+  TestID -> "highlighted-bare-binding-wrong-head-reject"
+];
 
 (* 6e. A repeated axis name within the OUTPUT shape is rejected (einx: "must not contain
    multiple vectorized axes with the same name") — a universal invariant (no layout);
@@ -177,7 +198,7 @@ VerificationTest[
   TestID -> "ex10-matmul"
 ];
 
-(* 11. Gather with bracketed immediate:  b [h w] c, b i [2] -> b i c *)
+(* 11. Gather with targeted literal:  b [h w] c, b i [2] -> b i c *)
 VerificationTest[
   out @ Einstoff`EinstoffShapes[
     {{b_, Slot["h"], Slot["w"], c_}, {b_, i_, Slot[2]}} :> {{b, i, c}},
@@ -202,12 +223,12 @@ VerificationTest[
   TestID -> "ex2-bindings"
 ];
 
-(* bracketed-axis reporting *)
+(* targeted-axis reporting (historical public key: "Bracketed") *)
 VerificationTest[
   Einstoff`EinstoffShapes[
     {{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {{2, 3}, {3, 4}}]["Bracketed"],
   {b},
-  TestID -> "ex10-bracketed"
+  TestID -> "ex10-targeted"
 ];
 
 (* ===================== Unsatisfiable cases ======================== *)
@@ -243,7 +264,7 @@ VerificationTest[
   TestID -> "unsat-underdetermined-product"
 ];
 
-(* bracketed-immediate mismatch: [2] but tensor dim is 5 *)
+(* targeted-literal mismatch: [2] but tensor dim is 5 *)
 VerificationTest[
   sat @ Einstoff`EinstoffShapes[
     {{b_, Slot["h"], Slot["w"], c_}, {b_, i_, Slot[2]}} :> {{b, i, c}},

@@ -4,8 +4,8 @@
    shape-preserving elementary ops (flip/roll/sort/softmax/log_softmax/id).
    The op is curried: Einstoff[Map][f][desc, tensors, bindings]; f is a
    vector->vector function, or a string shortcut for the einx op of that name.
-   The bracketed (Slot) axes are the op axes (kept on the output); every
-   unbracketed axis is vmapped.  One file per lowering path under tests/.
+   The targeted axes are the op axes (kept on the output); every
+   untargeted axis is vmapped.  One file per lowering path under tests/.
    Run via: wolframscript -script scripts/run-tests.wls
    BeginTestSection/EndTestSection are MUnit markers; the runner loads MUnit`. *)
 
@@ -13,7 +13,7 @@ BeginTestSection["Einstoff`Lowering`Map"];
 
 ClearAll[a, b, c, r];
 
-(* 1. Flip (einx.flip) by name: reverse along the bracketed axis. *)
+(* 1. Flip (einx.flip) by name: reverse along the targeted axis. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
     Einstoff[Map]["flip"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}}, {x}]],
@@ -26,13 +26,13 @@ VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
     Einstoff[Map]["flip"][{{a_, Highlighted[b_]}} :> {{a, b}}, {x}]],
   Reverse /@ ArrayReshape[Range[8], {2, 4}],
-  TestID -> "map-flip-highlighted-binder"
+  TestID -> "map-flip-highlighted-blank"
 ];
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
     Einstoff[Map]["flip"][{{a_, Framed[b_]}} :> {{a, b}}, {x}]],
   Reverse /@ ArrayReshape[Range[8], {2, 4}],
-  TestID -> "map-flip-framed-binder"
+  TestID -> "map-flip-framed-blank"
 ];
 
 (* 1d. Highlighted also supports a targeted bare axis, bound by a bare key. *)
@@ -44,16 +44,34 @@ VerificationTest[
   TestID -> "map-flip-highlighted-bare-binding"
 ];
 
-(* 1e. A targeted blank axis is still a binder: external bindings are rejected. *)
+(* 1e. A targeted bare axis also accepts the matching target-head key. *)
+VerificationTest[
+  Block[{b},
+    With[{x = ArrayReshape[Range[8], {2, 4}]},
+      Einstoff[Map]["flip"][{{a_, Highlighted[b]}} :> {{a, b}}, {x}, {Highlighted[b] -> 4}]]],
+  Reverse /@ ArrayReshape[Range[8], {2, 4}],
+  TestID -> "map-flip-highlighted-bare-head-binding"
+];
+
+(* 1f. A targeted bare axis rejects a different target-head key. *)
+VerificationTest[
+  Block[{b},
+    With[{x = ArrayReshape[Range[8], {2, 4}]},
+      Quiet @ Einstoff[Map]["flip"][{{a_, Highlighted[b]}} :> {{a, b}}, {x}, {Framed[b] -> 4}]]],
+  $Failed,
+  TestID -> "map-reject-highlighted-bare-wrong-head-binding"
+];
+
+(* 1g. A targeted blank axis is still infer-only: external bindings are rejected. *)
 VerificationTest[
   Block[{b},
     With[{x = ArrayReshape[Range[8], {2, 4}]},
       Quiet @ Einstoff[Map]["flip"][{{a_, Highlighted[b_]}} :> {{a, b}}, {x}, {b -> 4}]]],
   $Failed,
-  TestID -> "map-reject-highlighted-binder-binding"
+  TestID -> "map-reject-highlighted-blank-binding"
 ];
 
-(* 1f. The old Slot["b"] -> bare b spelling mixes string and symbol tiers. *)
+(* 1h. The old Slot["b"] -> bare b spelling mixes string and symbol kinds. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
     Quiet @ Einstoff[Map]["flip"][{{a_, Slot["b"]}} :> {{a, b}}, {x}]],
@@ -61,7 +79,7 @@ VerificationTest[
   TestID -> "map-reject-slot-string-to-bare"
 ];
 
-(* 1g. Highlighted/Framed can also target string-kind axes. *)
+(* 1i. Highlighted/Framed can also target string-kind axes. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
     Einstoff[Map]["flip"][{{a_, Highlighted["b"]}} :> {{a, Highlighted["b"]}}, {x}]],
@@ -69,12 +87,12 @@ VerificationTest[
   TestID -> "map-flip-highlighted-string"
 ];
 
-(* 1h. Slot is reserved for string-kind targeting; it is not targeted blank notation. *)
+(* 1j. Slot is reserved for string-kind targeting; it is not targeted blank notation. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
     Quiet @ Einstoff[Map]["flip"][{{a_, Slot[b_]}} :> {{a, b}}, {x}]],
   $Failed,
-  TestID -> "map-reject-slot-binder-target"
+  TestID -> "map-reject-slot-blank-target"
 ];
 
 (* 2. A raw function works identically (the string is just a shortcut). *)
@@ -86,7 +104,7 @@ VerificationTest[
   TestID -> "map-raw-function-equals-name"
 ];
 
-(* 3. Sort (einx.sort) along the bracket. *)
+(* 3. Sort (einx.sort) along the target. *)
 VerificationTest[
   With[{y = {{3, 1, 2}, {9, 4, 7}}},
     Einstoff[Map]["sort"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}}, {y}]],
@@ -94,7 +112,7 @@ VerificationTest[
   TestID -> "map-sort"
 ];
 
-(* 4. id (einx.id) is the identity along the bracket. *)
+(* 4. id (einx.id) is the identity along the target. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
     Einstoff[Map]["id"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}}, {x}]],
@@ -118,7 +136,7 @@ VerificationTest[
   TestID -> "map-flip-permute"
 ];
 
-(* 7. Two adjacent brackets flatten into one op axis ([b][c] == [b c]); flip
+(* 7. Two adjacent einx brackets flatten into one op axis ([b][c] == [b c]); flip
       reverses the whole flattened block (cf. SPEC 7.3). *)
 VerificationTest[
   With[{z = ArrayReshape[Range[12], {2, 2, 3}]},
@@ -127,7 +145,7 @@ VerificationTest[
   TestID -> "map-two-bracket-flatten"
 ];
 
-(* 8. Softmax (einx.softmax) along the bracket, vs the stable max-shift form. *)
+(* 8. Softmax (einx.softmax) along the target, vs the stable max-shift form. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}],
         sm = Exp[# - Max[#]]/Total[Exp[# - Max[#]]] &},
@@ -136,7 +154,7 @@ VerificationTest[
   TestID -> "map-softmax"
 ];
 
-(* 9. log_softmax along the bracket, vs x - logsumexp(x). *)
+(* 9. log_softmax along the target, vs x - logsumexp(x). *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}],
         lsm = (# - Max[#]) - Log[Total[Exp[# - Max[#]]]] &},
@@ -145,7 +163,7 @@ VerificationTest[
   TestID -> "map-log-softmax"
 ];
 
-(* 10. Output-only axis is repetition (SPEC 5.5): keep the bracket, broadcast r. *)
+(* 10. Output-only axis is repetition (SPEC 5.5): keep the target, broadcast r. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
     Dimensions @
@@ -174,7 +192,7 @@ VerificationTest[
   TestID -> "map-reject-repeated-input-axis"
 ];
 
-(* 12. No bracketed axis is a pure rearrange — rejected (points at ArrayReshape). *)
+(* 12. No targeted axis is a pure rearrange — rejected (points at ArrayReshape). *)
 VerificationTest[
   Quiet @ Einstoff[Map][Reverse][{{a_, b_}} :> {{a, b}},
     {ArrayReshape[Range[8], {2, 4}]}],

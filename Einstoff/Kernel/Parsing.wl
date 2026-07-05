@@ -11,8 +11,8 @@
    touched and nothing is lowered to Transpose/ArrayReshape/etc.
 
    Scope (regular grammar subset): bare symbols (reference), `name_`
-   (binding), integer immediates, `_`/`__`/`___`, `CircleTimes` (product),
-   `CirclePlus` (direct sum), `Slot[...]` brackets, and multi-tensor shared
+   (blank), integer immediates, `_`/`__`/`___`, `CircleTimes` (product),
+   `CirclePlus` (direct sum), targeted wrappers, and multi-tensor shared
    axes. Named-ellipsis re-walk (`Repeated` inner/outer mvars) is out of
    scope for now.
 
@@ -57,10 +57,10 @@ EinstoffParse[desc_] := withAxisScopeDeCanon @ parseDesc[Hold[desc]];
    whose (fresh-canonicalized) axis symbols are not released before their sizes are
    substituted (evalOutShape releases it later under env).  Same {} -> 1 + CirclePlus-
    flatten policy as descParts; the LHS is flattened so the matcher (solveComposite) sees
-   a flat summand list.  canonHeld rewrites every established axis name — binder `a_`,
-   bracket `#a`, string "a" — to a fresh Temporary identity shared across its
-   occurrences, so a shadowed global symbol cannot leak its value into an axis (and
-   brackets are context-safe). *)
+   a flat summand list.  canonHeld rewrites every established axis name — blank `a_`,
+   targeted #a/Highlighted/Framed, string "a" — to a fresh Temporary identity shared
+   across its occurrences, so a shadowed global symbol cannot leak its value into an
+   axis (and targeted strings are context-safe). *)
 parseDesc[h : Hold[_RuleDelayed]] :=
   Module[{hr = canonHeld[h]},
     If[hr === $Failed, <|"LHS" -> $Failed, "RHS" -> $Failed|>,
@@ -77,11 +77,11 @@ parseDesc[h : Hold[_Rule]] :=
    back to the generic desc-shape reason, not a stale invalid-name reason. *)
 parseDesc[_] := ($descRejectReason = None; <|"LHS" -> $Failed, "RHS" -> $Failed|>);
 
-(* Names that appear inside a targeted/bracket wrapper anywhere in lhs. By the time this
+(* Names that appear inside a target wrapper anywhere in lhs. By the time this
    runs the desc has been through canonHeld, so #name is Slot[freshSym] and a targeted
    blank is Highlighted[fresh_]/Framed[fresh_]. Used only for the informational
-   "Bracketed" field (§5.2); the fresh symbols are mapped back to the user's names by
-   deCanon on the public output. *)
+   "Bracketed" field (§5.2; historical public key); the fresh symbols are mapped back
+   to the user's names by deCanon on the public output. *)
 bracketedNames[lhs_] :=
   DeleteDuplicates @ Flatten @
     Cases[lhs,
@@ -103,9 +103,9 @@ rawSlotAxisNames[expr_] := DeleteDuplicates @ Flatten @ Cases[expr,
   {0, Infinity}];
 
 (* Axis-name identities used by one shape term, for the within-shape uniqueness
-   check.  A binding (name_), a bare reference, and a #name bracket (Slot["name"])
+   check.  A blank (name_), a bare reference, and a targeted string (Slot["name"])
    are all the axis `name`; integer immediates and the anonymous ellipses
-   (_/__/___/##) are not names.  Composites/brackets recurse into their parts. *)
+   (_/__/___/##) are not names.  Composites/targets recurse into their parts. *)
 termAxisNames[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]]] := {s};
 termAxisNames[s_Symbol] := {s};
 (* A string axis "a" is the axis `a`.  Route through axisSymbol (valueless when the name
@@ -226,7 +226,7 @@ matchTerms[terms_, dims_, env_] :=
        case — and the mirroring {} cases in rearrangeAtoms/reduceAtoms/factorToExpr —
        exist for the *public* EinstoffMatch entry, which takes raw shape lists. *)
     If[t === {}, Return[matchTerms[Join[{1}, rest], dims, env]]];
-    (* Bracket wrappers are transparent to shape matching: splice their contents into the
+    (* Target wrappers are transparent to shape matching: splice their contents into the
        stream and remember targetedness only in lowering. Slot["name"] is targeted string;
        Highlighted/Framed preserve the blank/bare spelling of their contents.
        Each string is validated before axisSymbol, so an illegal name yields a clean unsat
@@ -235,10 +235,10 @@ matchTerms[terms_, dims_, env_] :=
       Module[{parts = List @@ t, bad},
         bad = Select[Cases[parts, _String], ! validAxisNameQ[#] &];
         Return[If[bad =!= {},
-          (Sow["invalid axis name(s) " <> ToString[bad, InputForm] <> " in a bracket"]; {}),
+          (Sow["invalid axis name(s) " <> ToString[bad, InputForm] <> " in a target"]; {}),
           matchTerms[Join[Replace[parts, s_String :> axisSymbol[s], {1}], rest], dims, env]]]]];
-    (* SlotSequence (##, the anonymous variadic bracket [...]) is an ellipsis of
-       bracketed axes — treat like ___ for shape matching (lowering is deferred,
+    (* SlotSequence (##, the anonymous variadic target [...]) is an ellipsis of
+       targeted axes — treat like ___ for shape matching (lowering is deferred,
        like Slot[___]). *)
     If[Head[t] === SlotSequence,
       Return[matchTerms[Join[{BlankNullSequence[]}, rest], dims, env]]];
@@ -272,7 +272,7 @@ matchTerms[terms_, dims_, env_] :=
         With[{e2 = unify[t, d, env]},
           If[e2 === $Failed, {}, matchTerms[rest, drest, e2]]],
       (* A string term "a" is the string-tier axis named `a` (SPEC §5.6): unify it as
-         the symbol `a`, exactly as a bracket string #a = Slot["a"] is spliced to
+         the symbol `a`, exactly as a targeted string #a = Slot["a"] is spliced to
          Symbol["a"] above.  This makes the raw public EinstoffMatch accept string axes
          consistently with EinstoffShapes (whose desc parse canonicalizes them first).
          The name is validated first, so an illegal string is a clean unsat reason rather
@@ -289,7 +289,7 @@ matchTerms[terms_, dims_, env_] :=
    unify across operands for free.
 
    Crucially this uses a *downvalue* step + Do loop, never an anonymous
-   Function: a shape can contain Slot[...] (brackets), and any Slot routed
+   Function: a shape can contain Slot[...] (targets), and any Slot routed
    through a `&`/Function body is captured as that function's argument slot
    (SPEC 7.2) — which silently corrupts the match. *)
 matchAll[lhss_, inps_, env_] :=
@@ -341,11 +341,11 @@ einstoffMatchCore[lhsShapes_, inputShapes_, bindingsIn_] :=
     If[! MissingQ[badSlotKey],
       Return[<|"ok" -> False,
         "reason" -> "axis " <> badSlotKey <>
-          " is not a bracket axis; bind a non-slot axis with " <> badSlotKey <>
+          " is not a targeted Slot axis; bind a non-slot axis with " <> badSlotKey <>
           " -> ... or \"" <> badSlotKey <> "\" -> ..."|>]];
     (* Canonicalize + validate binding keys against the parsed desc's axis identities
        (only inside an open axis scope; standalone raw use passes through).  A hard
-       reject (a Pattern key, binding an inference-only a_, a wrong-tier key) returns a
+       reject (a Pattern key, binding an infer-only a_, a wrong-kind key) returns a
        reason string; a shadowed/junk key is warned and dropped inside canonBindingList. *)
     bindings = canonBindingList[bindingsIn,
       If[AssociationQ[$axisFresh], "Scoped", "Raw"]];

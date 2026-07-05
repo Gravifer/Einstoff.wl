@@ -10,15 +10,15 @@
 
    NB the curried form means desc is NOT held (a hold attribute cannot survive a
    compound head, EinstoffReduce[reducer][…]) — and that is fine, even useful:
-   Pattern holds each binding `name_` and RuleDelayed (`:>`) holds the RHS, so only
+   Pattern holds each blank `name_` and RuleDelayed (`:>`) holds the RHS, so only
    a *bare* reference whose symbol is globally bound gets substituted; a symbol
    bound to an integer then reads as a literal dimension, and anything not a valid
    size is rejected by the existing satisfiability checks (cf. the uniform "desc is
    an ordinary expression" convention — no operator holds desc).
 
-   Bracketed (`Slot[...]`) axes are the einx way to mark the reduced axes (SPEC
+   Targeted axes are the einx way to mark the reduced axes (SPEC
    5.2, ex 5); a bare dropped axis is the einops way (`a b -> a`) — both reduce
-   here, since the operator is unambiguously a reduction.  A bracketed axis
+   here, since the operator is unambiguously a reduction.  A targeted axis
    *kept* on the RHS is the feed-to-elementary-op path (not reduction), rejected.
    An output-only axis is repetition (SPEC 5.5) — reduce, then broadcast it on,
    via the shared materializeOutput (e.g. einx.sum("a [b] -> a c", x, c=3)).
@@ -114,12 +114,12 @@ Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
        atoms are not reduced — they are repetition axes, materialized below. *)
     reducedPos = Select[Range@Length[lhsAtoms], ! MemberQ[rhsAtoms, lhsAtoms[[#]]] &];
 
-    (* A bracketed axis kept on the RHS is the feed-to-elementary-op path, not a
+    (* A targeted axis kept on the RHS is the feed-to-elementary-op path, not a
        reduction (SPEC 5.2) — reject rather than silently reduce/keep wrong. *)
     If[AnyTrue[Range@Length[lhsAtoms],
         lhsBr[[#]] && MemberQ[rhsAtoms, lhsAtoms[[#]]] &],
       Message[Einstoff::unsupp,
-        "a bracketed axis is kept on the output; feeding an axis whole to an \
+        "a targeted axis is kept on the output; feeding an axis whole to an \
 elementary op (softmax/flip/sort/…) is the Einstoff[Map][f] path, not reduction"];
       Return[$Failed]];
 

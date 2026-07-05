@@ -121,19 +121,19 @@ VerificationTest[
   TestID -> "split-two-way"
 ];
 
-(* 13b-c. Pattern binders inside composites remain inference-only: external bare
+(* 13b-c. Pattern blanks inside composites remain inference-only: external bare
    and slot keys do not bind q_ in q_ (+) k_. *)
 VerificationTest[
   Quiet @ With[{x = ArrayReshape[Range[20], {2, 10}]},
     Einstoff["Massage"][{{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}}, {x}, {q -> 3}]],
   $Failed,
-  TestID -> "split-reject-composite-binder-bare-binding"
+  TestID -> "split-reject-composite-blank-bare-binding"
 ];
 VerificationTest[
   Quiet @ With[{x = ArrayReshape[Range[20], {2, 10}]},
     Einstoff["Massage"][{{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}}, {x}, {Slot["q"] -> 3}]],
   $Failed,
-  TestID -> "split-reject-composite-binder-slot-binding"
+  TestID -> "split-reject-composite-blank-slot-binding"
 ];
 
 (* 13d. Slot keys do not bind string-tier composite factors. *)
@@ -302,7 +302,7 @@ VerificationTest[
   TestID -> "concat-composite-second"
 ];
 
-(* 27. A bracketed (Slot) summand is not a product block -> rejected. *)
+(* 27. A targeted (Slot) summand is not a product block -> rejected. *)
 VerificationTest[
   Quiet @ Einstoff["Massage"][{{m_, Slot["a"]}, {m_, c_}} :> {{m, CirclePlus[Slot["a"], c]}},
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[8], {2, 4}]}],
