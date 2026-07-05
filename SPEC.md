@@ -579,13 +579,14 @@ left-to-right order is the defined semantics otherwise.
 reduction *drops* the targeted axes (`f`: block -> scalar); a map *keeps* them
 (`f`: block -> same-length block) and vmaps the op over every untargeted axis. It
 covers einx's shape-preserving miscellaneous ops (flip/roll/sort/softmax/
-log_softmax/id) — the targeted atoms are flattened to one vector (so `[a b]≡[a][b]`)
-and handed to `f`, which returns a same-length vector; the axes are kept on the RHS
-(dropping one is a reduction → routed to `ArrayReduce`). einx has no generic vmap
-entry point, so this single generic operator realizes all of them with `f` supplied.
-`f` is any vector→vector function (`Reverse`, `Sort`, a custom map) or a string name
-(`"flip"/"sort"/"softmax"/"log_softmax"/"id"`); `roll`'s shift is a parameter, so it
-is written `RotateRight[#, k] &`.
+log_softmax/id), but the generic Wolfram contract is broader: the selected target
+axes are presented to `f` as a rectangular Wolfram subarray/block, preserving nested
+list structure, and `f` must return a block with the same dimensions. Adjacent
+targets (`[a][b]` / `#a #b`) select one target block, not separate passes; raw
+functions therefore follow Wolfram expression semantics (`Reverse`, `Sort`, custom
+maps, etc.) rather than einx's per-op arity restrictions. The axes are kept on the
+RHS (dropping one is a reduction → routed to `ArrayReduce`). `roll`'s shift is a
+parameter, so it is written with an explicit function such as `RotateRight[#, k] &`.
 
 The reducer, the map `f` and `(mul, add)` are **curried** into the operator
 (`Einstoff[ArrayReduce][Total][…]`, `Einstoff[Map][f][…]`,
@@ -625,9 +626,12 @@ is a mismatch. This both subsumes the old single-unknown analytic logic and lets
 *uniquely resolve systems einx rejects* (e.g. `m (a + b)` with an axis of size 2
 forces `a = b = 1`). On concat the block is just another term aligned by
 `materializeOutput` and `Join`'d; on split the block size is the product over its
-atoms (`Take` slice, then reshape). **Still deferred:** targeted direct sum
-(`Slot[CirclePlus[…]]`) and >1 CirclePlus per shape. Plan:
-`docs/plans/circleplus-direct-sum.md`.
+atoms (`Take` slice, then reshape). A targeted direct sum is supported as a
+single physical target axis for `Einstoff[ArrayReduce]`
+(`Highlighted[CirclePlus[…]]` / `Framed[CirclePlus[…]]`); `Einstoff[Map]` rejects it
+because mapping over a structural concatenation is not a single target-block
+operation. **Still deferred:** using targeted direct sum as structural `Join`/`Split`
+syntax and >1 CirclePlus per shape. Plan: `docs/plans/circleplus-direct-sum.md`.
 
 **Target notation — string-named axes (implemented).** A targeted string axis is now
 `#name` = `Slot["name"]` (§5.1, §3 glossary), bound by unification on its string
@@ -638,10 +642,8 @@ integer-slot aliasing hazard for axes (named axes never use an integer `Slot`).
 `Einstoff[Map][f]`, the kept-bracket vmap, is also implemented (see above).
 
 **Other deferred lowering items** (rejected loudly today, not mis-compiled):
-variable-arity bracket ellipsis `##`/`Slot[___]` (ex6) — the matcher resolves its
-shape, but lowering an axis-count-varying bracket is deferred; named-ellipsis /
-`Repeated[...]` re-walk (§5.3); within-operand reduction before contraction in
-`Einstoff[Dot]`.
+named-ellipsis / `Repeated[...]` re-walk (§5.3); within-operand reduction before
+contraction in `Einstoff[Dot]`.
 
 **Within-tensor contraction — pairwise core implemented.** A name repeated in one
 operand and dropped on the output is summed over its coincident slots (GR-style traces,
@@ -727,8 +729,9 @@ pattern *string* with its Wolfram `desc` *expression* by hand; the equivalence i
 reasoned by a human and written into the test. The implemented subset is required
 to match: rearrange/reshape, reduce, dot, and repetition (§5.5) all cross-validate
 against einx (and einops where it has a single-call equivalent). Behavior outside
-the implemented lowering — variable-arity bracket ellipses, direct sums, nested
-name-binding — is explicitly **not** required to agree until that lowering exists.
+the implemented lowering — structural targeted direct sums, nested name-binding, and
+surface forms without a Python equivalent — is explicitly **not** required to agree
+until that lowering exists.
 
 ### 10.2 Future goal — `Interpreter` (einx string → Wolfram desc)
 

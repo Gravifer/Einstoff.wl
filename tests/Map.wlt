@@ -3,7 +3,7 @@
 (* Tests for the map lowering path (Einstoff[Map]) — einx miscellaneous /
    shape-preserving elementary ops (flip/roll/sort/softmax/log_softmax/id).
    The op is curried: Einstoff[Map][f][desc, tensors, bindings]; f is a
-   vector->vector function, or a string shortcut for the einx op of that name.
+   target-block -> same-shape target-block function, or a string shortcut.
    The targeted axes are the op axes (kept on the output); every
    untargeted axis is vmapped.  One file per lowering path under tests/.
    Run via: wolframscript -script scripts/run-tests.wls
@@ -136,13 +136,46 @@ VerificationTest[
   TestID -> "map-flip-permute"
 ];
 
-(* 7. Two adjacent einx brackets flatten into one op axis ([b][c] == [b c]); flip
-      reverses the whole flattened block (cf. SPEC 7.3). *)
+(* 7. Two adjacent targets are one target block; raw f receives that rectangular block
+      with WL expression structure, so Reverse reverses the block's first level. *)
 VerificationTest[
   With[{z = ArrayReshape[Range[12], {2, 2, 3}]},
     Einstoff[Map]["flip"][{{a_, Slot["b"], Slot["c"]}} :> {{a, Slot["b"], Slot["c"]}}, {z}]],
-  Map[ArrayReshape[Reverse[Flatten[#]], {2, 3}] &, ArrayReshape[Range[12], {2, 2, 3}]],
-  TestID -> "map-two-bracket-flatten"
+  Reverse /@ ArrayReshape[Range[12], {2, 2, 3}],
+  TestID -> "map-two-target-block-reverse"
+];
+
+(* 7b. A variadic visual target captures the concrete middle dimensions and maps over
+   the full rectangular block. *)
+VerificationTest[
+  With[{z = ArrayReshape[Range[120], {2, 3, 4, 5}]},
+    Einstoff[Map][Reverse][{{a_, Highlighted[___], c_}} :> {{a, Highlighted[___], c}}, {z}]],
+  Reverse /@ ArrayReshape[Range[120], {2, 3, 4, 5}],
+  TestID -> "map-highlighted-blanknullsequence-block"
+];
+
+VerificationTest[
+  With[{z = ArrayReshape[Range[120], {2, 3, 4, 5}]},
+    Einstoff[Map][Reverse][{{a_, SlotSequence[1], c_}} :> {{a, SlotSequence[1], c}}, {z}]],
+  Reverse /@ ArrayReshape[Range[120], {2, 3, 4, 5}],
+  TestID -> "map-slotsequence-block"
+];
+
+(* 7c. A targeted literal is an anonymous target axis with a concrete size, and can be
+   kept by the same target wrapper. *)
+VerificationTest[
+  With[{z = ArrayReshape[Range[6], {2, 3}]},
+    Einstoff[Map][Reverse][{{a_, Highlighted[3]}} :> {{a, Highlighted[3]}}, {z}]],
+  Reverse /@ ArrayReshape[Range[6], {2, 3}],
+  TestID -> "map-highlighted-literal"
+];
+
+VerificationTest[
+  Quiet @ Einstoff[Map][Reverse][
+    {{a_, Highlighted[CirclePlus["b", c_]]}} :> {{a, Highlighted[CirclePlus["b", c]]}},
+    {ArrayReshape[Range[14], {2, 7}]}, {"b" -> 3}],
+  $Failed,
+  TestID -> "map-reject-highlighted-direct-sum"
 ];
 
 (* 8. Softmax (einx.softmax) along the target, vs the stable max-shift form. *)

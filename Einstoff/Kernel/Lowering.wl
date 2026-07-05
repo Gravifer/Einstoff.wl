@@ -64,9 +64,11 @@ PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
   $axisFallbackMemo,
   normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
-  distinctAxesQ, bracketWrapperQ, reduceAtoms, materializeOutput, selfContract,
+  distinctAxesQ, bracketWrapperQ, reduceAtoms, targetDecomposeTerms,
+  expandAnonymousTargetRhs, materializeOutput, selfContract,
   materializeOutputTrace, materializeOutputExprHeld, heldReshape, heldArrayReduce,
-  heldTranspose, heldValue, heldTake, heldTakeValue, heldMap, heldMapThreadDot,
+  heldTranspose, heldValue, heldTake, heldTakeValue, heldMap, heldMapAt, heldApply,
+  heldMapThreadDot,
   heldMapThreadInner, heldJoin, heldList,
   reshapeTo, hasCirclePlus, directSumConcat, directSumSplit, einThrowTag, einCatch,
   einAxisCatch, $einAxisFail, traceActionEnabledQ, traceReturn, traceReturnHeld}]
@@ -682,6 +684,10 @@ heldTakeValue[e_, specs_List] :=
   With[{v = e, s = specs}, HoldComplete[Take[v, Sequence @@ s]]];
 heldMap[HoldComplete[e_], f_] :=
   With[{fn = f}, HoldComplete[Map[fn, e]]];
+heldMapAt[HoldComplete[e_], f_, level_] :=
+  With[{fn = f, lev = level}, HoldComplete[Map[fn, e, {lev}]]];
+heldApply[HoldComplete[e_], f_] :=
+  With[{fn = f}, HoldComplete[fn[e]]];
 heldMapThreadDot[HoldComplete[e1_], HoldComplete[e2_]] :=
   HoldComplete[MapThread[Dot, {e1, e2}]];
 heldMapThreadInner[mul_, add_, HoldComplete[e1_], HoldComplete[e2_]] :=
@@ -737,6 +743,97 @@ reduceAtoms[t_, br_ : False] :=
           " (direct sums and variable-arity bracket ellipses are not in the \
 supported subset yet)"];
        Throw[$Failed, einThrowTag])];
+
+targetSequenceQ[t_] :=
+  MatchQ[t, Verbatim[BlankSequence[]] | Verbatim[BlankNullSequence[]]] ||
+    Head[t] === SlotSequence;
+
+targetSequenceMin[t_] := If[MatchQ[t, Verbatim[BlankSequence[]]], 1, 0];
+
+termDimCount[t_] :=
+  Which[
+    targetSequenceQ[t], targetSequenceMin[t],
+    bracketWrapperQ[t] && Length[t] === 1 && targetSequenceQ[First[t]],
+      targetSequenceMin[First[t]],
+    True, 1];
+
+anonymousTargetAtom[size_, env_] :=
+  Module[{u = Unique["target$", {Temporary}]},
+    {u, Append[env, u -> size]}];
+
+targetDecomposeTerm[t_, d_, env_, br_] :=
+  Module[{atoms, env2 = env, atom},
+    If[br && IntegerQ[t],
+      If[t =!= d, Throw[$Failed, einThrowTag]];
+      {atom, env2} = anonymousTargetAtom[t, env2];
+      Return[{{{atom, True}}, env2, {atom}}]];
+    If[br && Head[t] === CirclePlus,
+      {atom, env2} = anonymousTargetAtom[d, env2];
+      Return[{{{atom, True}}, env2, {atom}}]];
+    atoms = Join @@ Table[rearrangeAtoms[f], {f, {t}}];
+    If[(Times @@ (atomSize[#, env2] & /@ atoms)) =!= d,
+      Throw[$Failed, einThrowTag]];
+    {{#, br} & /@ atoms, env2, {}}];
+
+targetDecomposeTerms[terms_List, dims_List, env_] :=
+  Module[{tagged = {}, anonymous = {}, env2 = env, pos = 1, i, t,
+          restTerms, minRest, k, atom, parts, td, anon},
+    For[i = 1, i <= Length[terms], i++,
+      t = terms[[i]];
+      Which[
+        bracketWrapperQ[t] && Length[t] === 1 && targetSequenceQ[First[t]],
+          restTerms = Drop[terms, i];
+          minRest = Total[termDimCount /@ restTerms];
+          k = Length[dims] - pos + 1 - minRest;
+          If[k < targetSequenceMin[First[t]], Throw[$Failed, einThrowTag]];
+          Do[
+            {atom, env2} = anonymousTargetAtom[dims[[pos]], env2];
+            AppendTo[tagged, {atom, True}];
+            AppendTo[anonymous, atom];
+            pos++,
+            {k}],
+        Head[t] === SlotSequence,
+          restTerms = Drop[terms, i];
+          minRest = Total[termDimCount /@ restTerms];
+          k = Length[dims] - pos + 1 - minRest;
+          If[k < targetSequenceMin[t], Throw[$Failed, einThrowTag]];
+          Do[
+            {atom, env2} = anonymousTargetAtom[dims[[pos]], env2];
+            AppendTo[tagged, {atom, True}];
+            AppendTo[anonymous, atom];
+            pos++,
+            {k}],
+        bracketWrapperQ[t],
+          parts = List @@ t;
+          If[Length[parts] === 1,
+            {td, env2, anon} = targetDecomposeTerm[First[parts], dims[[pos]], env2, True],
+            td = Join @@ Table[reduceAtoms[p, True], {p, parts}];
+            If[(Times @@ (atomSize[#, env2] & /@ td[[All, 1]])) =!= dims[[pos]],
+              Throw[$Failed, einThrowTag]];
+            anon = {}];
+          tagged = Join[tagged, td];
+          anonymous = Join[anonymous, anon];
+          pos++,
+        True,
+          {td, env2, anon} = targetDecomposeTerm[t, dims[[pos]], env2, False];
+          tagged = Join[tagged, td];
+          anonymous = Join[anonymous, anon];
+          pos++]];
+    If[pos =!= Length[dims] + 1, Throw[$Failed, einThrowTag]];
+    <|"Tagged" -> tagged, "Env" -> env2, "AnonymousTargetAtoms" -> anonymous|>];
+
+expandAnonymousTargetRhs[terms_List, anonAtoms_List] :=
+  Module[{q = anonAtoms},
+    Flatten @ Table[
+      Which[
+        bracketWrapperQ[t] && Length[t] === 1 && targetSequenceQ[First[t]],
+          With[{a = q}, q = {}; a],
+        Head[t] === SlotSequence,
+          With[{a = q}, q = {}; a],
+        bracketWrapperQ[t] && Length[t] === 1 && IntegerQ[First[t]] && q =!= {},
+          With[{a = First[q]}, q = Rest[q]; a],
+        True, t],
+      {t, terms}]];
 
 (* ------------------------------------------------------------------ *)
 (* Shared output materialization, including repetition.                *)

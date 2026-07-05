@@ -6,6 +6,7 @@
         "lowering",
         "tests",
         "entrance",
-        "msg"
+        "msg",
+        "map"
     ]
 }

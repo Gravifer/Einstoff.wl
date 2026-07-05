@@ -7,12 +7,11 @@
 
 Two einx findings (probed against the repo venv) reshape the bracket roadmap:
 
-- **`[a b c]` ≡ `[a] [b] [c]`** — grouped vs separate brackets are identical; the
-  targeted axes are fed to the elementary op as one flattened unit, order/grouping
-  irrelevant. ⇒ a multi-axis bracket is just adjacent single brackets; no multi-arity
+- **`[a b c]` ≡ `[a] [b] [c]`** — grouped vs separate brackets select the same target
+  block. ⇒ a multi-axis bracket is just adjacent single brackets; no multi-arity
   `Slot[a, b]` is ever needed. (Retired SPEC §7.3's "non-standard arity" concern.)
 - **Vmap family** = a targeted axis *kept* on the output (softmax / log_softmax /
-  flip / roll / sort / argsort): the op runs along the targeted (flattened) axes,
+  flip / roll / sort / argsort): the op runs on the targeted block,
   vmapped over the rest. einx has **no generic vmap entry point** — brackets define
   each named op's signature. This is exactly the path `Einstoff[ArrayReduce]` rejects
   today ("feed-to-elementary-op is a separate path"). Resolves the §5.2 ambiguity:
@@ -67,22 +66,20 @@ the reducer-currying convention. New file `Einstoff/Kernel/Map.wl`.
   `Einstoff[Map][softmaxVec][{{a, b, Slot[c_]}} :> {{a, b, c}}, {x}]`,
   `Einstoff[Map][Reverse]` (flip), `Einstoff[Map][Sort]`, `Einstoff[Map][RotateRight]`
   (roll).
-- **Semantics:** the targeted atoms (`reduceAtoms` `True`-flagged) are the op axes;
-  `f` receives them **flattened to one vector** (matching einx's grouped-bracket
-  flattening) and returns a same-length vector. Untargeted axes are vmapped. The
-  targeted axes are **kept** — they must appear on the RHS; a targeted axis *dropped*
-  on the RHS is a reduce (reject → point to `Einstoff[ArrayReduce]`). Output-only axes
-  are repetition (free via `materializeOutput`).
+- **Current semantics:** the targeted atoms are the op axes; `f` receives the selected
+  target as a rectangular Wolfram block, preserving nested list structure, and returns a
+  same-shape block. Untargeted axes are vmapped. The targeted axes are **kept** — they
+  must appear on the RHS; a targeted axis *dropped* on the RHS is a reduce (reject →
+  point to `Einstoff[ArrayReduce]`). Output-only axes are repetition (free via
+  `materializeOutput`).
 - **Lowering** (reuses the Reduce/rearrange machinery):
   1. `EinstoffShapes` → env; `reduceAtoms` → atoms + bracket flags.
   2. `ArrayReshape` input to atomic dims.
-  3. `Transpose` so vmap (untargeted) atoms lead and targeted atoms trail; flatten
-     the trailing targeted atoms into one axis => `[vmap..., targetProd]`.
-  4. Apply `f` along the last axis: `Map[f, arr, {-2}]` (each last-axis vector →
-     same-length vector).
-  5. Reshape the target axis back to its atomic dims; `materializeOutput` permutes the
-     kept atoms to RHS order, recomposes composites, broadcasts any repeats.
-- **`f` contract:** length-`targetProd` vector -> same-length vector (softmax,
+  3. `Transpose` so vmap (untargeted) atoms lead and targeted atoms trail.
+  4. Apply `f` at the vmap depth: each target block -> same-shape target block.
+  5. `materializeOutput` permutes the kept atoms to RHS order, recomposes composites,
+     broadcasts any repeats.
+- **`f` contract:** target block -> same-shape target block (softmax,
   `Reverse` = flip, `Sort`, `RotateRight` = roll, ...). Shape-preserving along the target.
 - **Cross-validation:** `Einstoff[Map][f]` vs `einx.softmax`/`flip`/`sort`/`roll` for
   matching `f`, plus native WL (`Reverse`/`Sort`/…). New `tests/Map.wlt` +
@@ -132,8 +129,8 @@ keeps the targeted string axis.
 - `Parsing.wl` `matchTerms`: handle `Slot["b"]` (string → axis `b`, bracketed, unify)
   and `SlotSequence[1]` (a bracketed run, like the variadic `Slot[___]` case);
 - `Parsing.wl` `targetedNames`, `factorToExpr`: read the string-named target;
-- `Lowering.wl` `reduceAtoms`: `Slot["b"]` → `{b, True}`; `SlotSequence` → variadic
-  bracketed (ties into the still-deferred `Slot[___]` lowering);
+- `Lowering.wl` target decomposition: `Slot["b"]` → `{b, True}`; `SlotSequence` and
+  `Highlighted[__]`/`Highlighted[___]` capture concrete variadic target axes;
 - `evalOutShape` `Slot→Sequence` stays (brackets rarely on the RHS);
 - `DirectSum.wl` `directSumSummandQ` reject updated for the new form;
 - **all `Slot[` test sites** (7 files) rewritten to `#name` / `##`.
@@ -148,8 +145,8 @@ keeps the targeted string axis.
   slot), not a string — so `#`-sugar can't express a targeted literal cleanly. Gather
   is deferred anyway; targeted literals keep the explicit `Slot[2]`/`Slot["2"]`
   form, to be resolved when gather is built.
-- **Resolved:** `##` is `SlotSequence[1]`. The matcher treats it like `___`; lowering
-  axis-count-varying brackets remains deferred.
+- **Resolved:** `##` is `SlotSequence[1]`. The matcher treats it like `___`; Map/Reduce
+  lower it by expanding the matched concrete target dimensions.
 
 **Historical sequencing:** B (Map) shipped before C; C then migrated the bracket
 surface syntax across the tree.

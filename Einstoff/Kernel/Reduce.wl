@@ -69,7 +69,7 @@ reduceFunction[f_] := f;
    [desc, tensors, bindings]. A subvalue of EinstoffReduce. *)
 EinstoffReduce[reducerSpec_][desc_, tensors_, bindings_List : {},
     opts : OptionsPattern[EinstoffReduce]] := withAxisScope @
-  Module[{parts, lhs, rhs, inShapes, shp, env, x, reducer,
+  Module[{parts, lhs, rhs, inShapes, shp, env, x, reducer, decomp,
           lhsTagged, lhsAtoms, lhsBr, rhsAtoms, reducedPos, keptOrder,
           decompDims, xr, xred, result, traceAction},
     traceAction = OptionValue[EinstoffReduce, {opts}, TraceAction];
@@ -108,7 +108,11 @@ Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
     env = shp["Bindings"];
 
     (* Decompose: LHS bracket-aware (tagged), RHS plain (reuse rearrangeAtoms). *)
-    lhsTagged = einCatch[Join @@ Table[reduceAtoms[t, False], {t, First[lhs]}]];
+    decomp = einCatch[targetDecomposeTerms[First[lhs], First[inShapes], env]];
+    If[decomp === $Failed,
+      Message[Einstoff::unsat, "an input axis size is unbound or inconsistent"];
+      Return[$Failed]];
+    lhsTagged = decomp["Tagged"]; env = decomp["Env"];
     If[lhsTagged === $Failed, Return[$Failed]];
     rhsAtoms = einCatch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
     If[rhsAtoms === $Failed, Return[$Failed]];

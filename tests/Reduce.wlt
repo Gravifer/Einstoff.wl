@@ -126,11 +126,40 @@ VerificationTest[
   TestID -> "reduce-reject-unsat"
 ];
 
-(* 13. Variable-arity bracket ellipsis is out of scope for now. *)
+(* 13. Variable-arity targets reduce all concrete axes they capture. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReduce][Total][{{a_, SlotSequence[1], c_}} :> {{a, c}}, {ArrayReshape[Range[24], {2, 3, 4}]}],
+  Einstoff[ArrayReduce][Total][{{a_, SlotSequence[1], c_}} :> {{a, c}},
+    {ArrayReshape[Range[24], {2, 3, 4}]}],
+  Total[ArrayReshape[Range[24], {2, 3, 4}], {2}],
+  TestID -> "reduce-slotsequence-target"
+];
+
+VerificationTest[
+  Quiet @ Einstoff[ArrayReduce][Total][{{a_, ___, c_}} :> {{a, c}},
+    {ArrayReshape[Range[24], {2, 3, 4}]}],
   $Failed,
-  TestID -> "reduce-reject-ellipsis"
+  TestID -> "reduce-reject-raw-blanknullsequence"
+];
+
+VerificationTest[
+  Einstoff[ArrayReduce][Total][{{a_, Highlighted[___], c_}} :> {{a, c}},
+    {ArrayReshape[Range[120], {2, 3, 4, 5}]}],
+  Total[ArrayReshape[Range[120], {2, 3, 4, 5}], {2, 3}],
+  TestID -> "reduce-highlighted-blanknullsequence-target"
+];
+
+VerificationTest[
+  Einstoff[ArrayReduce][Total][{{a_, Highlighted[3]}} :> {{a}},
+    {ArrayReshape[Range[6], {2, 3}]}],
+  Total[ArrayReshape[Range[6], {2, 3}], {2}],
+  TestID -> "reduce-highlighted-literal"
+];
+
+VerificationTest[
+  Einstoff[ArrayReduce][Total][{{a_, Highlighted[CirclePlus["b", c_]]}} :> {{a}},
+    {ArrayReshape[Range[14], {2, 7}]}, {"b" -> 3}],
+  Total[ArrayReshape[Range[14], {2, 7}], {2}],
+  TestID -> "reduce-highlighted-direct-sum"
 ];
 
 (* 14. Multi-tensor input is rejected. *)

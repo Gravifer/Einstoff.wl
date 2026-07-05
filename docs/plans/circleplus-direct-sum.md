@@ -6,8 +6,10 @@
 > including nested and composite (CircleTimes-block) summands, integer/unit summands,
 > and the `EinstoffJoin`/`EinstoffSplit` directional guards. See SPEC.md §9 for the
 > authoritative current state; this file is kept for the original design rationale.
-> Still deferred (unchanged): bracketed direct sum `Slot[CirclePlus[…]]` and >1
-> CirclePlus per shape. The text below is the original phased plan (concat = phase 1,
+> Still deferred (unchanged): targeted direct sum as structural `Join`/`Split` syntax
+> and >1 CirclePlus per shape. Targeted direct sum is supported only as a single
+> physical target axis for `ArrayReduce`; `Map` rejects it. The text below is the
+> original phased plan (concat = phase 1,
 > split = phase 2); both phases have since landed.
 
 ---
