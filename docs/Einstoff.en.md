@@ -23,6 +23,9 @@ related_guides:
   -
     title: "Matrix Operations"
     link: "https://reference.wolfram.com/language/guide/MatrixOperations.en.md"
+  -
+    title: "Handling Arrays of Data"
+    link: "https://reference.wolfram.com/language/guide/HandlingArraysOfData.en.md"
 related_functions:
   -
     title: "ArrayReshape"
@@ -36,6 +39,18 @@ related_functions:
   -
     title: "Tr"
     link: "https://reference.wolfram.com/language/ref/Tr.en.md"
+  -
+    title: "Inner"
+    link: "https://reference.wolfram.com/language/ref/Inner.en.md"
+  -
+    title: "Dot"
+    link: "https://reference.wolfram.com/language/ref/Dot.en.md"
+  -
+    title: "TensorContract"
+    link: "https://reference.wolfram.com/language/ref/TensorContract.en.md"
+  -
+    title: "TensorTranspose"
+    link: "https://reference.wolfram.com/language/ref/TensorTranspose.en.md"
 ---
 
 # Einstoff
@@ -326,17 +341,31 @@ Out[32]= {1, 2, 1, 2, 3}
 
 ## See Also
 
-`ArrayReshape` | `Transpose` | `ArrayReduce` | `Tr` | `Inner` | `Dot` | `TensorContract` | `TensorTranspose` | `ResourceFunction["ArrayContract"]` | `ResourceFunction["EinsteinSummation"]`
-
-External references: einops `rearrange`, einops `reduce`, einops `einsum`, and the einx operation family.
+* [`ArrayReshape`](https://reference.wolfram.com/language/ref/ArrayReshape.en.md)
+* [`Transpose`](https://reference.wolfram.com/language/ref/Transpose.en.md)
+* [`ArrayReduce`](https://reference.wolfram.com/language/ref/ArrayReduce.en.md)
+* [`Tr`](https://reference.wolfram.com/language/ref/Tr.en.md)
+* [`Inner`](https://reference.wolfram.com/language/ref/Inner.en.md)
+* [`Dot`](https://reference.wolfram.com/language/ref/Dot.en.md)
+* [`TensorContract`](https://reference.wolfram.com/language/ref/TensorContract.en.md)
+* [`TensorTranspose`](https://reference.wolfram.com/language/ref/TensorTranspose.en.md)
+* [`ResourceFunction["ArrayContract"]`](https://resources.wolframcloud.com/FunctionRepository/resources/ArrayContract)
+* [`ResourceFunction["EinsteinSummation"]`](https://resources.wolframcloud.com/FunctionRepository/resources/EinsteinSummation)
 
 ## Related Guides
 
-- Rearranging & Restructuring Lists
-- Tensors
-- Matrix Operations
-- Handling Arrays of Data
+* [Rearranging & Restructuring Lists](https://reference.wolfram.com/language/guide/RearrangingAndRestructuringLists.en.md)
+* [`Tensors`](https://reference.wolfram.com/language/guide/Tensors.en.md)
+* [Matrix Operations](https://reference.wolfram.com/language/guide/MatrixOperations.en.md)
+* [Handling Arrays of Data](https://reference.wolfram.com/language/guide/HandlingArraysOfData.en.md)
+
+## Related Links
+
+* [einops `rearrange`](https://einops.rocks/api/rearrange/)
+* [einops `reduce`](https://einops.rocks/api/reduce/)
+* [einops `einsum`](https://einops.rocks/api/einsum/)
+* [einx operations](https://einx.readthedocs.io/en/stable/api/operations/index.html)
 
 ## History
 
-Introduced in 2026.
+* Introduced in 2026.
