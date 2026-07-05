@@ -287,7 +287,21 @@ matchStep[envs_, pair_] :=
 (* Public: match.                                                      *)
 (* ------------------------------------------------------------------ *)
 
+(* Wrap the raw (no open scope) match so it sanitizes the reserved axis context once and
+   gives the fallback memo a per-call scope; when called inside an operator's scope, that
+   scope already did both, so pass through.  einAxisCatch turns an un-mintable fallback
+   token (a compromised Einstoff`Fallback` context) into a clean ok->False. *)
 EinstoffMatch[lhsShapes_, inputShapes_, bindingsIn_ : {}] :=
+  If[AssociationQ[$axisFresh],
+    einstoffMatchCore[lhsShapes, inputShapes, bindingsIn],
+    Block[{$axisFallbackMemo = <||>},
+      purgeAxisContext[];
+      einAxisCatch[
+        einstoffMatchCore[lhsShapes, inputShapes, bindingsIn],
+        <|"ok" -> False, "reason" -> "the internal Einstoff`Fallback` axis-identity \
+context is compromised (a Protected+Locked generated symbol); cannot resolve"|>]]];
+
+einstoffMatchCore[lhsShapes_, inputShapes_, bindingsIn_] :=
   Module[{bindings, env0, res, sown},
     If[! MatchQ[lhsShapes, {___List}],
       Return[<|"ok" -> False, "reason" -> "LHS is not a list of shapes"|>]];

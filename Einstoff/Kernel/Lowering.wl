@@ -60,11 +60,12 @@ in Einstoff's reserved internal axis-identity context.";
 
 PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
   withAxisScopeDeCanon, validAxisNameQ, axisSymbol, axisDisplayName,
-  descFailReturn, descFailReason, $axisFresh, $descRejectReason,
+  descFailReturn, descFailReason, purgeAxisContext, $axisFresh, $descRejectReason,
+  $axisFallbackMemo,
   normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
   distinctAxesQ, reduceAtoms, materializeOutput, selfContract, reshapeTo, hasCirclePlus,
-  directSumConcat, directSumSplit, einThrowTag, einCatch}]
+  directSumConcat, directSumSplit, einThrowTag, einCatch, einAxisCatch, $einAxisFail}]
 
 (* Internal control-flow tag.  The lowering helpers signal an unsupported / unsatisfiable
    desc with Throw[$Failed, einThrowTag]; the operator that called them recovers it with
@@ -102,9 +103,11 @@ $axisKind  = None;   (* Association name->{kinds}: binder/bare/slot/string      
 $descRejectReason = None;  (* set by collectEstablished when it rejects a desc with an
                               accurate Einstoff::unsupp reason, so the generic
                               "desc must be of the form lhs :> rhs" is not ALSO emitted *)
-$axisFallbackMemo = <||>;  (* name -> stable fresh identity, used ONLY when the private
+$axisFallbackMemo = <||>;  (* name -> fresh identity, used ONLY when the private
                               Einstoff`Axis` token for a shadowed name is un-sanitizable
-                              (Protected+Locked); memoized so repeated occurrences unify *)
+                              (Protected+Locked).  Block'd per operation (scope open / raw
+                              EinstoffMatch), so occurrences unify within one op and the
+                              Temporary fallback symbols are released (GC) after it. *)
 
 (* Open a per-parse identity scope around an operator body.  Re-entrant: a nested call
    (an operator's own EinstoffShapes/EinstoffMatch) reuses the already-open scope, so
@@ -112,7 +115,9 @@ $axisFallbackMemo = <||>;  (* name -> stable fresh identity, used ONLY when the 
 SetAttributes[withAxisScope, HoldFirst];
 withAxisScope[body_] :=
   If[AssociationQ[$axisFresh], body,
-    Block[{$axisFresh = <||>, $axisKind = <||>, $descRejectReason = None}, body]];
+    Block[{$axisFresh = <||>, $axisKind = <||>, $descRejectReason = None,
+           $axisFallbackMemo = <||>},
+      purgeAxisContext[]; einAxisCatch[body, $Failed]]];
 
 (* Like withAxisScope, but for the user-facing public entries (EinstoffShapes,
    EinstoffParse): if THIS call owns the scope (it was not already open), de-canonicalize
@@ -123,7 +128,9 @@ withAxisScope[body_] :=
 SetAttributes[withAxisScopeDeCanon, HoldFirst];
 withAxisScopeDeCanon[body_] :=
   If[AssociationQ[$axisFresh], body,
-    Block[{$axisFresh = <||>, $axisKind = <||>, $descRejectReason = None}, deCanon[body]]];
+    Block[{$axisFresh = <||>, $axisKind = <||>, $descRejectReason = None,
+           $axisFallbackMemo = <||>},
+      purgeAxisContext[]; einAxisCatch[deCanon[body], $Failed]]];
 
 (* Shared desc-shape failure return for the operators.  descParts returns $Failed for
    BOTH a structurally-malformed desc (not lhs :> rhs) AND a canonHeld hygiene reject
@@ -295,38 +302,49 @@ axisSymbol[nm_String] :=
   If[axisShadowedQ[nm],
     (* A shadowed name needs an identity other than the (valued) global symbol.  Prefer a
        value-less token in our private Einstoff`Axis` context (its SymbolName stays "nm").
-       That context is for value-less tokens ONLY; a user must not populate it, but as a
-       defense we purge the WHOLE context first (all take a "ctx`*" pattern — no enumerating
-       symbols; all take name strings, so nothing is evaluated).  The three steps clear the
-       three obstructions: Unprotect drops Protected; Clear removes VALUES even on a Locked
-       symbol (Clear touches only values, not attributes, so Locked cannot block it);
-       ClearAll fully resets an ordinary symbol.  A symbol that is BOTH Protected and Locked
-       survives all three (can't Unprotect through Locked, Protected blocks Clear) — so if
-       the token is STILL valued, stop sanitizing a public context and use a genuinely
-       fresh, unreachable Unique identity instead (its name is "nm$nn", acceptable in this
-       adversarial corner), which no external state can have polluted. *)
-    (Quiet[Unprotect["Einstoff`Axis`*"]; Clear["Einstoff`Axis`*"];
-           ClearAll["Einstoff`Axis`*"]];
-     If[axisShadowedQ["Einstoff`Axis`" <> nm],
-       (* MEMOIZED per name: axisSymbol is called once per occurrence, so a fresh Unique
-          each time would give repeated occurrences of one name DIFFERENT identities — they
-          would not unify (an inconsistent repeated axis would wrongly pass; a string/Slot
-          key would not bind its term).  Look the fallback up in a persistent memo so every
-          occurrence of `nm` shares one identity; mint (and warn) once on the first miss.
-          The memo is bounded by the set of adversarially-polluted names (empty in normal
-          use); it holds the symbol, so no Temporary is used (it is intentionally stable). *)
-       Lookup[$axisFallbackMemo, nm,
-         (Message[Einstoff::privctx, "Einstoff`Axis`" <> nm];
-          (* mint the fresh identity in our OWN Einstoff`Fallback` context, not the
-             caller's (which is usually Global`), so even the adversarial path leaves no
-             generated symbol in the user's namespace.  A separate context from
-             Einstoff`Axis` so the purge above ("Einstoff`Axis`*") never touches it — and
-             the fresh number makes it unreachable regardless. *)
-          With[{u = Block[{$Context = "Einstoff`Fallback`", $ContextPath = {"System`"}},
-              Unique[nm <> "$"]]},
-            AssociateTo[$axisFallbackMemo, nm -> u]; u])],
-       Symbol["Einstoff`Axis`" <> nm]]),
+       That context is sanitized ONCE per operation by purgeAxisContext (at the scope /
+       raw-match boundary), NOT here on every call — a per-call ClearAll would strip the
+       Temporary attribute off THIS operation's sibling tokens mid-match.  So here we only
+       read the (already-sanitized) token: if it is STILL valued it is Protected+Locked and
+       un-sanitizable, so fall back to a fresh unreachable identity; otherwise use it. *)
+    If[axisShadowedQ["Einstoff`Axis`" <> nm],
+      (* MEMOIZED per name (per-operation memo): axisSymbol is called once per occurrence,
+         so a fresh Unique each time would give repeated occurrences of one name DIFFERENT
+         identities and they would not unify.  Mint (and warn) once on the first miss. *)
+      Lookup[$axisFallbackMemo, nm,
+        (Message[Einstoff::privctx, "Einstoff`Axis`" <> nm];
+         (* Mint in our OWN Einstoff`Fallback` context (not the caller's, usually Global`),
+            Temporary so it is GC'd once the returned result is dropped.  A separate context
+            from Einstoff`Axis`, and the fresh number makes it unreachable.  If even this
+            fresh token is somehow valued, the Fallback context itself is compromised — give
+            up (Throw -> $Failed / ok->False). *)
+         With[{u = Block[{$Context = "Einstoff`Fallback`", $ContextPath = {"System`"}},
+             Unique[nm <> "$", {Temporary}]]},
+           If[axisShadowedQ["Einstoff`Fallback`" <> SymbolName[u]],
+             Throw[$Failed, $einAxisFail]];
+           AssociateTo[$axisFallbackMemo, nm -> u]; u])],
+      (* sanitizable: value-less private token, Temporary so it GCs after the returned
+         result is dropped — the sub-namespace "cleanup on return" (deferred to GC). *)
+      With[{s = Symbol["Einstoff`Axis`" <> nm]}, SetAttributes[s, Temporary]; s]],
     Symbol[nm]];
+
+(* Sanitize the reserved Einstoff`Axis` identity context ONCE at an operation boundary: a
+   user must not populate it, but as a defense drop any external value AND the symbol
+   itself.  Unprotect clears Protected; Clear removes VALUES (works even on a Locked symbol,
+   since Clear touches only values); Remove then deletes the symbol outright (stronger than
+   ClearAll).  Run at the boundary (not per axisSymbol call), it only ever touches VESTIGIAL
+   tokens left from a prior operation — Removing one that a prior returned result still holds
+   turns that key into Removed[…], an accepted edge for holding a stale result across calls;
+   this operation's own tokens are minted fresh (Temporary) after this and are untouched.  A
+   Protected+Locked token survives all three (can't Unprotect/Remove through Locked, Clear
+   blocked by Protected) and is handled by the axisSymbol fallback above. *)
+purgeAxisContext[] :=
+  Quiet[Unprotect["Einstoff`Axis`*"]; Clear["Einstoff`Axis`*"]; Remove["Einstoff`Axis`*"]];
+
+(* Catch the axis-context-compromised abort (an un-mintable Einstoff`Fallback` token) and
+   yield `fail`.  HoldFirst on the body; the fail value is eager. *)
+SetAttributes[einAxisCatch, HoldFirst];
+einAxisCatch[body_, fail_] := Catch[body, $einAxisFail, (fail) &];
 (* ReplaceAll does not rewrite Association KEYS, so recurse: remap keys and values of
    every Association; a held desc (RHS) and plain shapes just take the value rules. *)
 deCanonApply[a_Association, rules_] :=

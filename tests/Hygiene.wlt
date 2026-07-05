@@ -293,8 +293,8 @@ VerificationTest[
   TestID -> "hyg-reject-reason-no-stale-leak"
 ];
 
-(* 22. Even a PROTECTED stray value in the private axis context cannot leak — axisSymbol
-       Unprotects before clearing (ClearAll alone cannot clear a Protected symbol). *)
+(* 22. Even a PROTECTED stray value in the private axis context cannot leak — the boundary
+       purge Unprotects before clearing (a plain clear cannot touch a Protected symbol). *)
 VerificationTest[
   (Einstoff`Axis`ztest = 88; Protect[Einstoff`Axis`ztest];
    Block[{ztest = 1},
@@ -303,8 +303,8 @@ VerificationTest[
   TestID -> "hyg-private-context-protected-no-leak"
 ];
 
-(* 22b. ...and even a LOCKED stray value cannot leak: ClearAll can't clear a Locked
-        symbol, but Clear (values only, not attributes) can, so axisSymbol still yields a
+(* 22b. ...and even a LOCKED stray value cannot leak: the boundary purge uses Clear (values
+        only, not attributes) which works on a Locked symbol, so axisSymbol still yields a
         value-less identity. *)
 VerificationTest[
   (Einstoff`Axis`ltest = 88; SetAttributes[Einstoff`Axis`ltest, Locked];
@@ -314,9 +314,9 @@ VerificationTest[
   TestID -> "hyg-private-context-locked-no-leak"
 ];
 
-(* 22c. A Protected+Locked stray token survives every purge step, so axisSymbol stops
-        sanitizing the public context and falls back to a genuinely fresh Unique identity:
-        the env key is a value-less Symbol (name "protlk$nn"), never the leaked value. *)
+(* 22c. A Protected+Locked stray token survives the boundary purge, so axisSymbol falls
+        back to a genuinely fresh Unique identity (in Einstoff`Fallback`): the env key is a
+        value-less Symbol (name "protlk$nn"), never the leaked value. *)
 VerificationTest[
   (Einstoff`Axis`protlk = 21; SetAttributes[Einstoff`Axis`protlk, {Protected, Locked}];
    With[{env = Block[{protlk = 1},
@@ -357,6 +357,27 @@ VerificationTest[
     "key(s) {c};"],
   True,
   TestID -> "hyg-duplicate-key-reason-user-name"
+];
+
+(* 24. Sub-namespace cleanup: a synthetic Einstoff`Axis` token minted for one shadowed
+       raw match is purged at the NEXT operation's entry, so the reserved context does not
+       accumulate across calls (it holds at most the current op's tokens). *)
+VerificationTest[
+  (Block[{clnup1 = 3}, Einstoff`EinstoffMatch[{{"clnup1"}}, {{5}}]];
+   Block[{clnup2 = 3}, Einstoff`EinstoffMatch[{{"clnup2"}}, {{5}}]];
+   FreeQ[Names["Einstoff`Axis`*"], "Einstoff`Axis`clnup1"]),
+  True,
+  TestID -> "hyg-private-context-cleanup-across-ops"
+];
+
+(* 25. A scoped operator on a shadowed bracket axis still lowers correctly through the
+       purge + memo-reset + einAxisCatch wrapping (regression that the scope wrapping did
+       not break the normal shadowed path). *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
+    Block[{c = 3}, Einstoff[Map]["flip"][{{a_, Slot["c"]}} :> {{a, c}}, {x}]]],
+  Reverse /@ ArrayReshape[Range[6], {2, 3}],
+  TestID -> "hyg-scoped-shadowed-bracket-through-wrapping"
 ];
 
 EndTestSection[];
