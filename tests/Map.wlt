@@ -187,6 +187,17 @@ VerificationTest[
   TestID -> "map-softmax"
 ];
 
+VerificationTest[
+  With[{x = ArrayReshape[N @ Range[6], {1, 2, 3}]},
+    With[{got = Einstoff[Map]["softmax"][
+          {{a_, Slot["b"], Slot["c"]}} :> {{a, Slot["b"], Slot["c"]}}, {x}],
+        want = With[{v = Flatten[x[[1]]]},
+          {ArrayReshape[Exp[v - Max[v]]/Total[Exp[v - Max[v]]], {2, 3}]}]},
+      Chop[got - want] == ConstantArray[0, {1, 2, 3}]]],
+  True,
+  TestID -> "map-softmax-rectangular-target"
+];
+
 (* 9. log_softmax along the target, vs x - logsumexp(x). *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}],
@@ -194,6 +205,17 @@ VerificationTest[
     Einstoff[Map]["log_softmax"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}}, {x}] === (lsm /@ x)],
   True,
   TestID -> "map-log-softmax"
+];
+
+VerificationTest[
+  With[{x = ArrayReshape[N @ Range[6], {1, 2, 3}]},
+    With[{got = Einstoff[Map]["log_softmax"][
+          {{a_, Slot["b"], Slot["c"]}} :> {{a, Slot["b"], Slot["c"]}}, {x}],
+        want = With[{v = Flatten[x[[1]]]},
+          {ArrayReshape[(v - Max[v]) - Log[Total[Exp[v - Max[v]]]], {2, 3}]}]},
+      Chop[got - want] == ConstantArray[0, {1, 2, 3}]]],
+  True,
+  TestID -> "map-log-softmax-rectangular-target"
 ];
 
 (* 10. Output-only axis is repetition (SPEC 5.5): keep the target, broadcast r. *)

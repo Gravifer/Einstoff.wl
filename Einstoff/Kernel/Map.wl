@@ -42,6 +42,16 @@ Einstoff["Map"] := EinstoffMap;
 
 Options[EinstoffMap] = {TraceAction -> None};
 
+mapSoftmaxBlock[x_] :=
+  Module[{v = Flatten[x], y},
+    y = Exp[v - Max[v]];
+    ArrayReshape[y/Total[y], Dimensions[x]]];
+
+mapLogSoftmaxBlock[x_] :=
+  Module[{v = Flatten[x], y},
+    y = (v - Max[v]) - Log[Total[Exp[v - Max[v]]]];
+    ArrayReshape[y, Dimensions[x]]];
+
 (* Resolve a map spec to a target-block -> same-shape block function.  A raw function is used as-is;
    a convenience string is matched case-insensitively to the einx misc op of that
    name.  softmax/log_softmax use the max-shift stable form.  roll is omitted (its
@@ -50,8 +60,8 @@ mapFunction[s_String] := Replace[ToLowerCase[s], {
   "id" | "identity" -> Identity,
   "flip" | "reverse" -> Reverse,
   "sort" -> Sort,
-  "softmax" -> (Exp[# - Max[#]]/Total[Exp[# - Max[#]]] &),
-  "log_softmax" | "logsoftmax" -> ((# - Max[#]) - Log[Total[Exp[# - Max[#]]]] &),
+  "softmax" -> mapSoftmaxBlock,
+  "log_softmax" | "logsoftmax" -> mapLogSoftmaxBlock,
   (* An unknown string is a typo, not a function: flag it so the caller rejects it. *)
   _ :> Missing["UnknownMapOp", s]}];
 mapFunction[f_] := f;
