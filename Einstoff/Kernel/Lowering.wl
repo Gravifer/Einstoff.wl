@@ -418,11 +418,11 @@ axisCurrentValue[name_String] :=
    ($axisFresh / $axisKind): a key naming an *established* axis becomes its fresh symbol,
    tier / Pattern / inference-only violations hard-reject, and a shadowed/junk key is
    warned and dropped; an unestablished key is left as-is.  "Raw" (standalone
-   EinstoffMatch, no scope) has no desc to check against, so it converts a string-tier
-   key "a" -> n AND a bracket key #a = Slot["a"] -> n to axisSymbol["a"] -> n (the same
-   identity matchTerms' StringQ term and Slot splice use), *validating the name* so an
-   illegal string is a clean reject rather than a Symbol::symname crash; other keys pass
-   to the _Symbol / dup / size checks in EinstoffMatch.  Returns the normalized list, or a
+   EinstoffMatch, no scope) converts a string-tier key "a" -> n and a prevalidated
+   bracket key #a = Slot["a"] -> n to axisSymbol["a"] -> n (the same identity
+   matchTerms' StringQ term and Slot splice use), validating the name so an illegal
+   string is a clean reject rather than a Symbol::symname crash; other keys pass to the
+   _Symbol / dup / size checks in EinstoffMatch.  Returns the normalized list, or a
    reason string on a hard reject. *)
 canonBindingList[bindings_, mode_] :=
   Module[{out = {}},
@@ -493,15 +493,13 @@ axis " <> hit <> " (probably a shadowed symbol); write #" <> hit <> " -> … or 
               kinds = Lookup[$axisKind, kn, {}];
               hasSlot = MemberQ[kinds, "slot"]; hasStr = MemberQ[kinds, "string"];
               Which[
-                (* whole-axis binder (on LHS, never a composite factor / slot / string):
-                   inference-only — its size comes from the tensor, not a binding.  A
-                   composite split-factor binder, by contrast, legitimately needs its
-                   binding, so it is bindable. *)
-                MemberQ[kinds, "onlhs"] && ! MemberQ[kinds, "composite"] &&
-                    ! hasSlot && ! hasStr,
-                  Throw["axis " <> kn <> " is inferred from the tensor (a whole-axis \
-binder a_); to supply a size make it a bracket #" <> kn <> " or a string \"" <> kn <>
-                    "\", or bind a composite factor", "cblReject"],
+                (* A binder on the LHS is inference-only everywhere, including inside
+                   CircleTimes/CirclePlus.  To supply a composite factor size, spell that
+                   factor as a string axis or a bare axis instead of a Pattern binder. *)
+                MemberQ[kinds, "onlhs"] && ! hasSlot && ! hasStr,
+                  Throw["axis " <> kn <> " is inferred from the tensor (binder " <> kn <>
+                    "_); to supply a size, spell the factor as a string \"" <> kn <>
+                    "\" or as a bare symbol " <> kn, "cblReject"],
                 hasStr && kk =!= "string",
                   Throw["axis \"" <> kn <> "\" is a string axis; bind it with \"" <> kn <>
                     "\" -> …, not " <> ToString[k, InputForm], "cblReject"],

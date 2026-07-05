@@ -100,8 +100,8 @@ VerificationTest[
 (* composite summand 'm (a b), m c -> m ((a b) + c)', a=2
    <->  {{m_, a_ ⊗ b_}, {m_, c_}} :> {{m, (a ⊗ b) ⊕ c}} *)
 VerificationTest[
-  Einstoff["Massage"][{{m_, CircleTimes[a_, b_]}, {m_, c_}} :> {{m, CirclePlus[CircleTimes[a, b], c]}},
-    {ArrayReshape[Range[12], {2, 6}], ArrayReshape[Range[8], {2, 4}]}, {a -> 2}],
+  Einstoff["Massage"][{{m_, CircleTimes["a", b_]}, {m_, c_}} :> {{m, CirclePlus[CircleTimes["a", b], c]}},
+    {ArrayReshape[Range[12], {2, 6}], ArrayReshape[Range[8], {2, 4}]}, {"a" -> 2}],
   pyConcat["m (a b), m c -> m ((a b) + c)", {{2, 6}, {2, 4}}, <|"a" -> 2|>],
   TestID -> "xval-concat-composite"
 ];
@@ -110,24 +110,24 @@ VerificationTest[
 
 (* split 'm (a + b) -> m a, m b', a=3  <->  {{m_, a_ ⊕ b_}} :> {{m, a}, {m, b}} *)
 VerificationTest[
-  Einstoff["Massage"][{{m_, CirclePlus[a_, b_]}} :> {{m, a}, {m, b}},
-    {ArrayReshape[Range[20], {2, 10}]}, {a -> 3}],
+  Einstoff["Massage"][{{m_, CirclePlus["a", b_]}} :> {{m, "a"}, {m, b}},
+    {ArrayReshape[Range[20], {2, 10}]}, {"a" -> 3}],
   pySplit["m (a + b) -> m a, m b", {2, 10}, <|"a" -> 3|>],
   TestID -> "xval-split-two-way"
 ];
 
 (* split along axis 1 '(a + b) m -> a m, b m', a=2 *)
 VerificationTest[
-  Einstoff["Massage"][{{CirclePlus[a_, b_], m_}} :> {{a, m}, {b, m}},
-    {ArrayReshape[Range[20], {5, 4}]}, {a -> 2}],
+  Einstoff["Massage"][{{CirclePlus["a", b_], m_}} :> {{"a", m}, {b, m}},
+    {ArrayReshape[Range[20], {5, 4}]}, {"a" -> 2}],
   pySplit["(a + b) m -> a m, b m", {5, 4}, <|"a" -> 2|>],
   TestID -> "xval-split-axis1"
 ];
 
 (* three-way split 'm (a + b + c) -> m a, m b, m c', a=2, b=3 *)
 VerificationTest[
-  Einstoff["Massage"][{{m_, CirclePlus[a_, b_, c_]}} :> {{m, a}, {m, b}, {m, c}},
-    {ArrayReshape[Range[20], {2, 10}]}, {a -> 2, b -> 3}],
+  Einstoff["Massage"][{{m_, CirclePlus["a", "b", c_]}} :> {{m, "a"}, {m, "b"}, {m, c}},
+    {ArrayReshape[Range[20], {2, 10}]}, {"a" -> 2, "b" -> 3}],
   pySplit["m (a + b + c) -> m a, m b, m c", {2, 10}, <|"a" -> 2, "b" -> 3|>],
   TestID -> "xval-split-three-way"
 ];
@@ -135,8 +135,8 @@ VerificationTest[
 (* composite-block split 'm ((a b) + c) -> m (a b), m c', a=2, b=3 (determined)
    <->  {{m_, (a_ ⊗ b_) ⊕ c_}} :> {{m, a ⊗ b}, {m, c}} *)
 VerificationTest[
-  Einstoff["Massage"][{{m_, CirclePlus[CircleTimes[a_, b_], c_]}} :> {{m, CircleTimes[a, b]}, {m, c}},
-    {ArrayReshape[Range[20], {2, 10}]}, {a -> 2, b -> 3}],
+  Einstoff["Massage"][{{m_, CirclePlus[CircleTimes["a", "b"], c_]}} :> {{m, CircleTimes["a", "b"]}, {m, c}},
+    {ArrayReshape[Range[20], {2, 10}]}, {"a" -> 2, "b" -> 3}],
   pySplit["m ((a b) + c) -> m (a b), m c", {2, 10}, <|"a" -> 2, "b" -> 3|>],
   TestID -> "xval-split-composite"
 ];

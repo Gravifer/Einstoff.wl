@@ -26,7 +26,7 @@ VerificationTest[
 (* 2. Split + permute + merge:  a (b c) -> (b a) c, b=2 *)
 VerificationTest[
   out @ Einstoff`EinstoffShapes[
-    {{a_, CircleTimes[b_, c_]}} :> {{CircleTimes[b, a], c}}, {{4, 8}}, {b -> 2}],
+    {{a_, CircleTimes["b", c_]}} :> {{CircleTimes["b", a], c}}, {{4, 8}}, {"b" -> 2}],
   {{8, 4}},
   TestID -> "ex2-split-merge"
 ];
@@ -34,7 +34,7 @@ VerificationTest[
 (* 3. Direct-sum split, multi-output:  b (q + k) -> b q, b k, q=3 *)
 VerificationTest[
   out @ Einstoff`EinstoffShapes[
-    {{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}}, {{5, 10}}, {q -> 3}],
+    {{b_, CirclePlus["q", k_]}} :> {{b, "q"}, {b, k}}, {{5, 10}}, {"q" -> 3}],
   {{5, 3}, {5, 7}},
   TestID -> "ex3-directsum-split"
 ];
@@ -86,6 +86,18 @@ VerificationTest[
   out @ Einstoff`EinstoffShapes[{{a_, Slot["b"]}} :> {{a, b}}, {{2, 4}}],
   {{2, 4}},
   TestID -> "bracket-shares-identity-with-bare"
+];
+
+(* 6d'. A real slot axis accepts both a slot key and its bare key convenience. *)
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[{{a_, Slot["q"]}} :> {{a}}, {{2, 3}}, {Slot["q"] -> 3}],
+  True,
+  TestID -> "bracket-binding-slot-key-ok"
+];
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[{{a_, Slot["q"]}} :> {{a}}, {{2, 3}}, {q -> 3}],
+  True,
+  TestID -> "bracket-binding-bare-key-ok"
 ];
 
 (* 6e. A repeated axis name within the OUTPUT shape is rejected (einx: "must not contain
@@ -151,14 +163,14 @@ VerificationTest[
 (* sanity: satisfiable verdict + bindings on a representative case *)
 VerificationTest[
   sat @ Einstoff`EinstoffShapes[
-    {{a_, CircleTimes[b_, c_]}} :> {{CircleTimes[b, a], c}}, {{4, 8}}, {b -> 2}],
+    {{a_, CircleTimes["b", c_]}} :> {{CircleTimes["b", a], c}}, {{4, 8}}, {"b" -> 2}],
   True,
   TestID -> "ex2-satisfiable-true"
 ];
 
 VerificationTest[
   Einstoff`EinstoffShapes[
-    {{a_, CircleTimes[b_, c_]}} :> {{CircleTimes[b, a], c}}, {{4, 8}}, {b -> 2}]["Bindings"],
+    {{a_, CircleTimes["b", c_]}} :> {{CircleTimes["b", a], c}}, {{4, 8}}, {"b" -> 2}]["Bindings"],
   <|b -> 2, a -> 4, c -> 4|>,
   SameTest -> (Sort[Normal[#1]] === Sort[Normal[#2]] &),
   TestID -> "ex2-bindings"
@@ -185,7 +197,7 @@ VerificationTest[
 (* non-divisible product: 8 not divisible by b=3 *)
 VerificationTest[
   sat @ Einstoff`EinstoffShapes[
-    {{a_, CircleTimes[b_, c_]}} :> {{CircleTimes[b, a], c}}, {{5, 8}}, {b -> 3}],
+    {{a_, CircleTimes["b", c_]}} :> {{CircleTimes["b", a], c}}, {{5, 8}}, {"b" -> 3}],
   False,
   TestID -> "unsat-nondivisible-product"
 ];

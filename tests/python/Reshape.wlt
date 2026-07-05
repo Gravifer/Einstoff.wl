@@ -87,7 +87,7 @@ VerificationTest[
 (* einops 'a (b c) -> (b a) c', b=2  <->  {{a_, b_ \[CircleTimes] c_}} :> {{b_ \[CircleTimes] a_, c}} *)
 VerificationTest[
   Einstoff[ArrayReshape][
-    {{a_, CircleTimes[b_, c_]}} :> {{CircleTimes[b, a], c}}, {ArrayReshape[Range[32], {4, 8}]}, {b -> 2}],
+    {{a_, CircleTimes["b", c_]}} :> {{CircleTimes["b", a], c}}, {ArrayReshape[Range[32], {4, 8}]}, {"b" -> 2}],
   pyRef["einops", "a (b c) -> (b a) c", {4, 8}, <|"b" -> 2|>],
   TestID -> "xval-einops-split-permute-merge"
 ];
@@ -101,7 +101,7 @@ VerificationTest[
 
 (* einops '(a b) -> a b', a=2  <->  {{a_ \[CircleTimes] b_}} :> {{a,b}}  (pure split) *)
 VerificationTest[
-  Einstoff[ArrayReshape][{{CircleTimes[a_, b_]}} :> {{a, b}}, {Range[6]}, {a -> 2}],
+  Einstoff[ArrayReshape][{{CircleTimes["a", b_]}} :> {{"a", b}}, {Range[6]}, {"a" -> 2}],
   pyRef["einops", "(a b) -> a b", {6}, <|"a" -> 2|>],
   TestID -> "xval-einops-split"
 ];
@@ -124,7 +124,7 @@ VerificationTest[
 (* einx.id 'a (b c) -> (b a) c', b=2 (einx backend) *)
 VerificationTest[
   Einstoff[ArrayReshape][
-    {{a_, CircleTimes[b_, c_]}} :> {{CircleTimes[b, a], c}}, {ArrayReshape[Range[32], {4, 8}]}, {b -> 2}],
+    {{a_, CircleTimes["b", c_]}} :> {{CircleTimes["b", a], c}}, {ArrayReshape[Range[32], {4, 8}]}, {"b" -> 2}],
   pyRef["einx", "a (b c) -> (b a) c", {4, 8}, <|"b" -> 2|>],
   TestID -> "xval-einx-split-permute-merge"
 ];

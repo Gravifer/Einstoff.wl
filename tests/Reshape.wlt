@@ -24,7 +24,7 @@ VerificationTest[
 VerificationTest[
   With[{y = ArrayReshape[Range[4*8], {4, 8}]},
     Einstoff[ArrayReshape][
-      {{a_, CircleTimes[b_, c_]}} :> {{CircleTimes[b, a], c}}, {y}, {b -> 2}]],
+      {{a_, CircleTimes["b", c_]}} :> {{CircleTimes["b", a], c}}, {y}, {"b" -> 2}]],
   ArrayReshape[
     Transpose[ArrayReshape[Range[4*8], {4, 2, 4}], {2, 1, 3}], {8, 4}],
   TestID -> "lower-split-permute-merge"
@@ -34,7 +34,7 @@ VerificationTest[
 VerificationTest[
   Dimensions @ With[{y = ArrayReshape[Range[4*8], {4, 8}]},
     Einstoff[ArrayReshape][
-      {{a_, CircleTimes[b_, c_]}} :> {{CircleTimes[b, a], c}}, {y}, {b -> 2}]],
+      {{a_, CircleTimes["b", c_]}} :> {{CircleTimes["b", a], c}}, {y}, {"b" -> 2}]],
   {8, 4},
   TestID -> "lower-split-permute-merge-dims"
 ];
@@ -56,7 +56,7 @@ VerificationTest[
 
 (* 6. Pure split (a b) -> a b round-trips with merge. *)
 VerificationTest[
-  Einstoff[ArrayReshape][{{CircleTimes[a_, b_]}} :> {{a, b}}, {Range[6]}, {a -> 2}],
+  Einstoff[ArrayReshape][{{CircleTimes["a", b_]}} :> {{"a", b}}, {Range[6]}, {"a" -> 2}],
   Partition[Range[6], 3],
   TestID -> "lower-split"
 ];
@@ -207,8 +207,8 @@ VerificationTest[
 ];
 (* A direct sum is a structural join/split, not a reshape. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}},
-    {ArrayReshape[Range[20], {2, 10}]}, {q -> 3}],
+  Quiet @ Einstoff[ArrayReshape][{{b_, CirclePlus["q", k_]}} :> {{b, "q"}, {b, k}},
+    {ArrayReshape[Range[20], {2, 10}]}, {"q" -> 3}],
   $Failed,
   TestID -> "reshape-reject-direct-sum"
 ];
@@ -331,13 +331,12 @@ VerificationTest[
   TestID -> "match-string-axis-unbound-clean-key"
 ];
 
-(* 26m. Raw EinstoffMatch accepts a bracket binding key #a = Slot["a"] (consistent with
-   the scoped path, which canonicalizes it); previously only bare-symbol/string keys were
-   accepted, so a bracket key was wrongly rejected by the _Symbol key gate. *)
+(* 26m. A bracket binding key #a = Slot["a"] is reserved for actual slot axes;
+   it does not bind a non-slot string factor. *)
 VerificationTest[
-  Einstoff`EinstoffMatch[{{CircleTimes["a", "b"]}}, {{6}}, {Slot["a"] -> 2}],
-  <|"ok" -> True, "env" -> <|a -> 2, b -> 3|>|>,
-  TestID -> "match-bracket-key-raw-ok"
+  Einstoff`EinstoffMatch[{{CircleTimes["a", "b"]}}, {{6}}, {Slot["a"] -> 2}]["ok"],
+  False,
+  TestID -> "match-bracket-key-raw-reject-non-slot"
 ];
 
 (* 27-30. Scalars (rank 0): squeeze/insert a singleton, no leaked ArrayReshape[s,{}]. *)

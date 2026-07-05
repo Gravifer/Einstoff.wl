@@ -88,6 +88,19 @@ bracketedNames[lhs_] :=
       s_Slot :> Cases[s, n_Symbol /; Context[n] =!= "System`" :> n, {0, Infinity}],
       {0, Infinity}];
 
+rawSlotAxisNames[expr_] := DeleteDuplicates @ Flatten @ Cases[expr,
+  sl_Slot :> Join[
+    Cases[sl,
+      Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> SymbolName[Unevaluated[s]],
+      {0, Infinity}],
+    Cases[sl,
+      s_Symbol /; Context[s] =!= "System`" :> SymbolName[Unevaluated[s]],
+      {0, Infinity}],
+    Cases[sl,
+      str_String /; validAxisNameQ[str] :> str,
+      {0, Infinity}]],
+  {0, Infinity}];
+
 (* Axis-name identities used by one shape term, for the within-shape uniqueness
    check.  A binding (name_), a bare reference, and a #name bracket (Slot["name"])
    are all the axis `name`; integer immediates and the anonymous ellipses
@@ -305,7 +318,7 @@ EinstoffMatch[lhsShapes_, inputShapes_, bindingsIn_ : {}] :=
 context is compromised (a Protected+Locked generated symbol); cannot resolve"|>]]];
 
 einstoffMatchCore[lhsShapes_, inputShapes_, bindingsIn_] :=
-  Module[{bindings, env0, res, sown},
+  Module[{bindings, env0, res, sown, slotNames, badSlotKey},
     If[! MatchQ[lhsShapes, {___List}],
       Return[<|"ok" -> False, "reason" -> "LHS is not a list of shapes"|>]];
     If[! MatchQ[inputShapes, {___List}],
@@ -316,6 +329,19 @@ einstoffMatchCore[lhsShapes_, inputShapes_, bindingsIn_] :=
         "reason" -> "operand count: desc has " <> ToString[Length[lhsShapes]] <>
           " shape(s) but " <> ToString[Length[inputShapes]] <>
           " tensor shape(s) given"|>]];
+    (* In raw EinstoffMatch there is no desc axis scope, but slot keys are still reserved:
+       #q -> n only binds an axis that actually appears under Slot[...] on the raw LHS. *)
+    badSlotKey = Missing["NotFound"];
+    If[! AssociationQ[$axisFresh] && MatchQ[bindingsIn, {(_Rule | _RuleDelayed) ...}],
+      slotNames = rawSlotAxisNames[lhsShapes];
+      badSlotKey = SelectFirst[
+        Cases[First /@ bindingsIn, Slot[k_String] /; validAxisNameQ[k] :> k],
+        ! MemberQ[slotNames, #] &, Missing["NotFound"]]];
+    If[! MissingQ[badSlotKey],
+      Return[<|"ok" -> False,
+        "reason" -> "axis " <> badSlotKey <>
+          " is not a bracket axis; bind a non-slot axis with " <> badSlotKey <>
+          " -> ... or \"" <> badSlotKey <> "\" -> ..."|>]];
     (* Canonicalize + validate binding keys against the parsed desc's axis identities
        (only inside an open axis scope; standalone raw use passes through).  A hard
        reject (a Pattern key, binding an inference-only a_, a wrong-tier key) returns a
