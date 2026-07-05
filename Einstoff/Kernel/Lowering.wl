@@ -95,8 +95,10 @@ einCatch[expr_] := Catch[expr, einThrowTag];
    literal dimension — the opt-in "bare = value" path, SPEC).  The fresh symbols live
    in a per-parse dynamic scope ($axisFresh), so the two desc parses every operator
    runs (descParts for atoms; EinstoffShapes/EinstoffMatch for sizes) mint the SAME
-   identities; being Temporary they are GC'd when the scope closes.  Shared by both desc
-   entry points (descParts here, parseDesc in the shape layer). *)
+   identities.  These Unique-generated Temporary symbols do not escape — deCanon maps them
+   back to the user's names in the returned result — so once the scope closes they are
+   unreferenced and eligible for GC.  Shared by both desc entry points (descParts here,
+   parseDesc in the shape layer). *)
 
 $axisFresh = None;   (* Association name->fresh while an axis scope is open, else None *)
 $axisKind  = None;   (* Association name->{kinds}: binder/bare/slot/string             *)
@@ -106,8 +108,9 @@ $descRejectReason = None;  (* set by collectEstablished when it rejects a desc w
 $axisFallbackMemo = <||>;  (* name -> fresh identity, used ONLY when the private
                               Einstoff`Axis` token for a shadowed name is un-sanitizable
                               (Protected+Locked).  Block'd per operation (scope open / raw
-                              EinstoffMatch), so occurrences unify within one op and the
-                              Temporary fallback symbols are released (GC) after it. *)
+                              EinstoffMatch), so occurrences unify within one op; the
+                              Temporary fallback symbols are eligible for GC once the op's
+                              result is dropped (best effort, not guaranteed). *)
 
 (* Open a per-parse identity scope around an operator body.  Re-entrant: a nested call
    (an operator's own EinstoffShapes/EinstoffMatch) reuses the already-open scope, so
@@ -313,17 +316,20 @@ axisSymbol[nm_String] :=
       Lookup[$axisFallbackMemo, nm,
         (Message[Einstoff::privctx, "Einstoff`Axis`" <> nm];
          (* Mint in our OWN Einstoff`Fallback` context (not the caller's, usually Global`),
-            Temporary so it is GC'd once the returned result is dropped.  A separate context
-            from Einstoff`Axis`, and the fresh number makes it unreachable.  If even this
-            fresh token is somehow valued, the Fallback context itself is compromised — give
-            up (Throw -> $Failed / ok->False). *)
+            Temporary so a Unique-generated token is eligible for GC once unreferenced (best
+            effort — an outstanding result holding it as a key keeps it alive).  A separate
+            context from Einstoff`Axis`, and the fresh number makes it unreachable.  If even
+            this fresh token is somehow valued, the Fallback context itself is compromised —
+            give up (Throw -> $Failed / ok->False). *)
          With[{u = Block[{$Context = "Einstoff`Fallback`", $ContextPath = {"System`"}},
              Unique[nm <> "$", {Temporary}]]},
            If[axisShadowedQ["Einstoff`Fallback`" <> SymbolName[u]],
              Throw[$Failed, $einAxisFail]];
            AssociateTo[$axisFallbackMemo, nm -> u]; u])],
-      (* sanitizable: value-less private token, Temporary so it GCs after the returned
-         result is dropped — the sub-namespace "cleanup on return" (deferred to GC). *)
+      (* sanitizable: value-less private token.  Tagged Temporary as a hint, but a
+         Symbol[…]-created token is not owned by a scope, so the name is not reliably
+         GC'd — inert Einstoff`Axis` names may persist (see purgeAxisContext).  The value
+         is the only thing that mattered, and it is gone. *)
       With[{s = Symbol["Einstoff`Axis`" <> nm]}, SetAttributes[s, Temporary]; s]],
     Symbol[nm]];
 
@@ -337,10 +343,16 @@ axisSymbol[nm_String] :=
      Remove would rewrite that key to Removed["…"], silently corrupting a result the user
      still holds.  A previously returned association must NOT decay because a later
      operation ran.  Leaving an inert, value-less name behind is harmless by comparison.
-   - NOT ClearAll: it strips attributes, i.e. the Temporary that lets these tokens GC.
+   - NOT ClearAll: it strips attributes (harmless-but-pointless here).
    A Protected+Locked token survives (Locked blocks Unprotect, Protected blocks Clear) and
-   is handled by the axisSymbol fallback above.  Accumulation is bounded not by this purge
-   but by Temporary: an unreferenced token GCs once the result holding it is dropped. *)
+   is handled by the axisSymbol fallback above.
+   NB on accumulation: this purge clears VALUES, not names — inert, value-less
+   Einstoff`Axis` symbol NAMES do accumulate across calls, and are NOT reliably reclaimed
+   (a Symbol[…]-created token tagged Temporary is not owned by any scope, so nothing
+   triggers its collection; the names persist even after ClearSystemCache).  That is an
+   accepted tradeoff: leaking a value or corrupting a returned result (Remove -> Removed[…])
+   is far worse than leaving reserved-context names behind.  A bounded, non-mutating sweep
+   would need to skip any name still live as a key in an outstanding result — deferred. *)
 purgeAxisContext[] :=
   Quiet[Unprotect["Einstoff`Axis`*"]; Clear["Einstoff`Axis`*"]];
 
