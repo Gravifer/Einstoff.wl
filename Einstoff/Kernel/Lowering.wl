@@ -33,7 +33,7 @@ Einstoff::usage =
 within-tensor pairwise contraction), Einstoff[ArrayReshape] (its bijective guard: \
 count-preserving rearrange only), Einstoff[\"ArrayContract\"] (its no-repetition guard: \
 adds within-tensor contraction), Einstoff[ArrayReduce][reducer] (reduction), \
-Einstoff[Map][f] (shape-preserving elementary op along a bracketed axis — \
+Einstoff[Map][f] (shape-preserving elementary op along a bracketed axis: \
 flip/sort/softmax/…), Einstoff[Dot] (einsum contraction) and its generalization \
 Einstoff[Inner][mul, add], Einstoff[\"einsum\"] (the pairwise-contraction subset, \
 within- and cross-tensor), Einstoff[Join]/[Split] (direct sum). Applied as \
@@ -475,7 +475,7 @@ canonBindingList[bindings_, mode_] :=
             (* a Pattern key is a category error — the axis is bound by its name, not a
                matcher.  Reject with a redirect (never silently ignore). *)
             kk === "pattern",
-              Throw["a Pattern key " <> kn <> "_ -> … is not a binding — axis " <> kn <>
+              Throw["a Pattern key " <> kn <> "_ -> … is not a binding; axis " <> kn <>
                 " is inferred from the tensor; bind a bracket #" <> kn <> ", a string \"" <>
                 kn <> "\", or a bare/composite name", "cblReject"],
             (* junk key (an evaluated shadowed symbol, e.g. {3->2} from c=3): warn + drop *)
@@ -741,12 +741,12 @@ selfContract[x_, lhsAtoms_, rhsAtoms_, env_] :=
     If[repeated === {}, Return[{xr, lhsAtoms}]];
     If[AnyTrue[repeated, MemberQ[rhsAtoms, #] &],
       Message[Einstoff::unsupp,
-        "a repeated axis is kept on the output (a diagonal) — not supported yet; \
+        "a repeated axis is kept on the output (a diagonal); this is not supported yet. \
 drop the axis to contract it"];
       Throw[$Failed, einThrowTag]];
     If[AnyTrue[repeated, Count[lhsAtoms, #] > 2 &],
       Message[Einstoff::unsupp,
-        "an axis occurs more than twice (a super-diagonal) — only pairwise \
+        "an axis occurs more than twice (a super-diagonal); only pairwise \
 contraction is supported (it is the geometrically meaningful, tensorial case)"];
       Throw[$Failed, einThrowTag]];
     (* Disjoint position pairs, one per repeated name.  Table (not &/@) keeps the

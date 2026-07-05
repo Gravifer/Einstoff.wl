@@ -59,7 +59,7 @@ EinstoffEinsum[desc_, tensors_, bindings_List : {}] := withAxisScope @
     allLhs = Join @@ opAtoms;
     If[AnyTrue[rhsAtoms, IntegerQ[#] || ! MemberQ[allLhs, #] &],
       Message[Einstoff::unsupp,
-        "einsum cannot introduce a new output axis — a literal integer axis, or a name \
+        "einsum cannot introduce a new output axis: a literal integer axis, or a name \
 absent from every input, is repetition / broadcast (use Einstoff[\"Massage\"])"];
       Return[$Failed]];
 

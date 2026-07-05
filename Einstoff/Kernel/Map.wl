@@ -85,7 +85,7 @@ flip/sort/softmax/log_softmax/id, or pass a function"];
     If[! distinctAxesQ[lhs],
       Message[Einstoff::unsupp,
         "axis " <> axisDisplayName[firstDuplicateAxis[lhs]] <> " repeats within an input \
-shape; Map is shape-preserving and does not contract — within-tensor contraction is \
+shape; Map is shape-preserving and does not contract. Within-tensor contraction is \
 Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
       Return[$Failed]];
 
@@ -109,7 +109,7 @@ Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
     If[brAtoms === {},
       Message[Einstoff::unsupp,
         "Einstoff[Map] needs a bracketed axis (the op acts along it); a desc with \
-no bracket is a pure rearrange — use Einstoff[ArrayReshape]"];
+no bracket is a pure rearrange; use Einstoff[ArrayReshape]"];
       Return[$Failed]];
 
     (* Map preserves every axis (keeps the bracket, vmaps the rest); RHS-only axes are
@@ -118,7 +118,7 @@ no bracket is a pure rearrange — use Einstoff[ArrayReshape]"];
        allows e.g. 'a () [b] -> a [b]'), so the guard is size-aware, like Massage/Dot. *)
     If[AnyTrue[lhsAtoms, ! MemberQ[rhsAtoms, #] && atomSize[#, env] > 1 &],
       Message[Einstoff::unsupp,
-        "an input axis of size > 1 is dropped on the output — dropping a size > 1 axis \
+        "an input axis of size > 1 is dropped on the output; dropping a size > 1 axis \
 is a reduction, use Einstoff[ArrayReduce] (a size-1 unit axis is squeezed)"];
       Return[$Failed]];
 

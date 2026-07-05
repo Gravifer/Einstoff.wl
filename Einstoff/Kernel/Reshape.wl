@@ -38,7 +38,7 @@ desc is not held.";
 
 EinstoffReshape::usage =
   "EinstoffReshape[desc, tensors, bindings] is the bijective entrance \
-(Einstoff[ArrayReshape]): permute/split/merge and unit-axis insert/squeeze only — an \
+(Einstoff[ArrayReshape]): permute/split/merge and unit-axis insert/squeeze only; an \
 element-count-preserving reindexing. Repetition (an output-only axis of size > 1), \
 within-tensor contraction, reduction, and direct sum are rejected (use \
 Einstoff[\"ArrayContract\"], Einstoff[ArrayReduce], Einstoff[Join]/[Split], or the \
@@ -113,7 +113,7 @@ massageCore[desc_, tensors_, bindings_List, policy_] := withAxisScope @
     (* An axis name may not repeat on the output (no einsum spelling for it). *)
     If[! DuplicateFreeQ[DeleteCases[rhsAtoms, _Integer]],
       Message[Einstoff::unsupp,
-        "an axis name repeats on the output — output axes must be distinct"];
+        "an axis name repeats on the output; output axes must be distinct"];
       Return[$Failed]];
 
     (* Self-contract a within-tensor repeated (dropped) index; identity otherwise. *)
@@ -139,7 +139,7 @@ massageCore[desc_, tensors_, bindings_List, policy_] := withAxisScope @
           MissingQ[s] || TrueQ[s > 1]] &];
       If[policy === "Reshape" && contracted,
         Message[Einstoff::unsupp,
-          "a within-tensor repeated axis is contracted — not a bijective reshape; use \
+          "a within-tensor repeated axis is contracted; this is not a bijective reshape. Use \
 Einstoff[\"ArrayContract\"] or the permissive Einstoff[\"Massage\"]"];
         Return[$Failed]];
       If[repeated,
@@ -157,9 +157,9 @@ Einstoff[\"ArrayContract\"] or the permissive Einstoff[\"Massage\"]"];
        size-(>1) axis is reduce, not rearrange/contract. *)
     If[AnyTrue[atomsc, ! MemberQ[rhsAtoms, #] && atomSize[#, env] > 1 &],
       Message[Einstoff::unsupp,
-        "an input axis of size > 1 is dropped on the output — that is reduce, not \
+        "an input axis of size > 1 is dropped on the output; that is reduce, not \
 rearrange/contract (a size-1 unit axis is squeezed; a literal size > 1 axis has no \
-carryable identity — name it); use Einstoff[ArrayReduce]"];
+carryable identity; name it); use Einstoff[ArrayReduce]"];
       Return[$Failed]];
 
     result = einCatch[materializeOutput[xc, atomsc, First[rhs], env]];

@@ -244,7 +244,7 @@ EinstoffJoin[desc_, tensors_, bindings_List : {}] := withAxisScope @
     If[hasCirclePlus[parts[[1]]],
       Message[Einstoff::unsupp,
         "Einstoff[Join] concatenates: CirclePlus must appear on the output (RHS), \
-not the input (LHS) — use Einstoff[Split] for an input direct sum"];
+not the input (LHS); use Einstoff[Split] for an input direct sum"];
       Return[$Failed]];
     If[! hasCirclePlus[parts[[2]]],
       Message[Einstoff::unsupp,
@@ -261,7 +261,7 @@ EinstoffSplit[desc_, tensors_, bindings_List : {}] := withAxisScope @
     If[hasCirclePlus[parts[[2]]],
       Message[Einstoff::unsupp,
         "Einstoff[Split] splits an input direct sum: CirclePlus must appear on the \
-input (LHS), not the output (RHS) — use Einstoff[Join] for an output direct sum"];
+input (LHS), not the output (RHS); use Einstoff[Join] for an output direct sum"];
       Return[$Failed]];
     If[! hasCirclePlus[parts[[1]]],
       Message[Einstoff::unsupp,

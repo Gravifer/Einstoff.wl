@@ -93,7 +93,7 @@ sum/mean/var/std/prod/count_nonzero/any/all/max/min/logsumexp, or pass a functio
     If[! distinctAxesQ[lhs],
       Message[Einstoff::unsupp,
         "axis " <> axisDisplayName[firstDuplicateAxis[lhs]] <> " repeats within an input \
-shape; ArrayReduce does not contract a repeated axis — within-tensor contraction is \
+shape; ArrayReduce does not contract a repeated axis. Within-tensor contraction is \
 Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
       Return[$Failed]];
 
@@ -119,7 +119,7 @@ Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
     If[AnyTrue[Range@Length[lhsAtoms],
         lhsBr[[#]] && MemberQ[rhsAtoms, lhsAtoms[[#]]] &],
       Message[Einstoff::unsupp,
-        "a bracketed axis is kept on the output — feeding an axis whole to an \
+        "a bracketed axis is kept on the output; feeding an axis whole to an \
 elementary op (softmax/flip/sort/…) is the Einstoff[Map][f] path, not reduction"];
       Return[$Failed]];
 

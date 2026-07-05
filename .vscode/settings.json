@@ -5,6 +5,7 @@
         "agents",
         "lowering",
         "tests",
-        "entrance"
+        "entrance",
+        "msg"
     ]
 }

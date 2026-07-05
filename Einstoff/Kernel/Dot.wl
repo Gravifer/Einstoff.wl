@@ -41,7 +41,7 @@ Times/Plus case of EinstoffInner.";
 
 EinstoffInner::usage =
   "EinstoffInner[mul, add][desc, tensors, bindings] generalizes EinstoffDot: it \
-contracts with an arbitrary elementwise mul and combiner add (cf. WL Inner) — e.g. \
+contracts with an arbitrary elementwise mul and combiner add (cf. WL Inner), e.g. \
 {Times, Plus} is Dot, {Plus, Min} is min-plus (tropical) contraction. Curried in \
 (mul, add).";
 
@@ -65,7 +65,7 @@ contractPair[mul_, add_, t1_, l1_, t2_, l2_, keep_, env_] :=
     If[AnyTrue[l1, ! MemberQ[l2, #] && ! MemberQ[keep, #] &] ||
        AnyTrue[l2, ! MemberQ[l1, #] && ! MemberQ[keep, #] &],
       Message[Einstoff::unsupp,
-        "an input axis appears in only one operand and is dropped — a \
+        "an input axis appears in only one operand and is dropped; a \
 within-operand reduction before contraction is not supported (use ArrayReduce)"];
       Throw[$Failed, einThrowTag]];
     x1 = If[l1 === {}, t1, ArrayReshape[t1, sz[l1]]];
@@ -131,7 +131,7 @@ for one)"];
       Message[Einstoff::unsupp,
         "axis " <> axisDisplayName[firstDuplicateAxis[lhs]] <> " repeats within a single \
 operand; Dot/Inner contracts across operands, not within one (the mixed within+cross \
-case is unsupported) — contract that operand first with Einstoff[\"ArrayContract\"] \
+case is unsupported); contract that operand first with Einstoff[\"ArrayContract\"] \
 (or single-tensor Einstoff[\"einsum\"]), then Dot"];
       Return[$Failed]];
 
@@ -162,7 +162,7 @@ case is unsupported) — contract that operand first with Einstoff[\"ArrayContra
     If[AnyTrue[DeleteDuplicates[Flatten[slabs]],
         Function[ax, ! MemberQ[outA, ax] && Count[slabs, l_ /; MemberQ[l, ax]] > 2]],
       Message[Einstoff::unsupp,
-        "a contracted axis appears in more than two operands — an N-way (>2) same-index \
+        "a contracted axis appears in more than two operands; an N-way (>2) same-index \
 contraction is a super-diagonal, not a pairwise tensor contraction (keep it on the \
 output for an elementwise/batch product, or contract pairwise)"];
       Return[$Failed]];
