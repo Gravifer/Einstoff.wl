@@ -71,6 +71,7 @@ For more details on the design, see `SPEC.md`
   there are aliases matching common `bash` utilities, but the syntax for stuff like parameters can be different.
   You don't need to generate terminal commands with full powershell verbosity,
   just keep in mind this is a possible cause of issue.
+  Profile startup can be noisy and slow, so switch to no-login invocations when desirable. (`-nol` + `-noni` + `-nop`)
 
 - The Python cross-validation tests (`wolframscript -script scripts/run-tests.wls python -q`)
   use Wolfram `ExternalEvaluate`/pyzmq and may fail to start the Python portion under
