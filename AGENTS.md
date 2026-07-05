@@ -49,6 +49,10 @@ For more details on the design, see `SPEC.md`
   tier (mishmash → reject). Binding keys mirror the tiers (`#a ->`/`a ->`/`"a" ->`); a
   ``Pattern`` key `a_ -> n` is rejected, a whole-axis binder is inference-only (not
   bindable), and an evaluated/junk key warns-and-continues.
+  For bracketed axes specifically, ``Slot["a"]``/`#a` denotes a string-tier bracketed
+  axis and should remain bracketed on a kept RHS (`{{a, #b}}`). ``Highlighted[a_]`` and
+  ``Framed[a_]`` denote bind-only bracketed axes that are referenced bare on the RHS;
+  ``Squiggled`` is intentionally unused because it is visually confusing.
 
 - We will *NOT* implement the sugar layer of the syntax in the forseeable future.
 

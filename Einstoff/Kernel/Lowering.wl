@@ -64,8 +64,9 @@ PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
   $axisFallbackMemo,
   normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
-  distinctAxesQ, reduceAtoms, materializeOutput, selfContract, reshapeTo, hasCirclePlus,
-  directSumConcat, directSumSplit, einThrowTag, einCatch, einAxisCatch, $einAxisFail}]
+  distinctAxesQ, bracketWrapperQ, reduceAtoms, materializeOutput, selfContract,
+  reshapeTo, hasCirclePlus, directSumConcat, directSumSplit, einThrowTag, einCatch,
+  einAxisCatch, $einAxisFail}]
 
 (* Internal control-flow tag.  The lowering helpers signal an unsupported / unsatisfiable
    desc with Throw[$Failed, einThrowTag]; the operator that called them recovers it with
@@ -172,6 +173,8 @@ mkFresh[name_String] :=
 recordKind[name_String, kind_String] :=
   $axisKind[name] = Union[Lookup[$axisKind, name, {}], {kind}];
 
+bracketWrapperQ[expr_] := MemberQ[{Slot, Highlighted, Framed}, Head[Unevaluated[expr]]];
+
 (* All axis-name strings appearing anywhere in a held-or-plain expression (binders,
    bare symbols, slot symbols/strings, string terms), hygienically.  Over-collects
    across kinds — used only for the composite-factor / on-LHS membership questions. *)
@@ -187,26 +190,26 @@ axisNamesOf[e_] := DeleteDuplicates @ Join[
    established names (binder/slot/string — a bare-only name is NOT established) or
    $Failed on a rejected desc.  Populates $axisKind as a side effect. *)
 collectEstablished[h_Hold] :=
-  Module[{slotNames, hNoSlot, binderNames, hNoBinder, bareNames, stringNames,
+  Module[{slotNames, hNoBracket, binderNames, hNoBinder, bareNames, stringNames,
           allStr, bad, symslot, mish, lhs, lhsNoSlot, lhsNoBinder, lhsBare,
           lhsBareEstablished},
-    (* Every axis name inside ANY Slot bracket — a simple #a = Slot["a"]/Slot[a] OR a
-       bracketed composite like Slot[(c d)] = Slot[CircleTimes[c_, d_]] — is a bracket
-       axis.  Collect ALL of them (do NOT drop the whole Slot, which would miss the
-       composite's factors and leave them un-canonicalized). *)
+    (* Every axis name inside ANY bracket wrapper is a bracket axis. Slot["a"] is the
+       string-axis spelling; Highlighted[a_]/Framed[a_] are bind-only bracket spellings.
+       Collect ALL names inside the wrapper (do NOT drop the whole wrapper, which would
+       miss composite factors and leave them un-canonicalized). *)
     slotNames = DeleteDuplicates @ Flatten @
-      Cases[h, sl_Slot :> axisNamesOf[Hold[sl]], {0, Infinity}];
+      Cases[h, (Slot | Highlighted | Framed)[xs___] :> axisNamesOf[Hold[xs]], {0, Infinity}];
     (* Binders anywhere — including inside a bracketed composite. *)
     binderNames = Cases[h,
       Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> SymbolName[Unevaluated[s]],
       {0, Infinity}];
-    (* Bare strings / bare symbols OUTSIDE any bracket (the string tier and bare refs);
-       names inside a Slot were already taken as bracket axes above. *)
-    hNoSlot = h /. _Slot :> Null;
-    hNoBinder = hNoSlot /. Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> Null;
+    (* Bare strings / bare symbols OUTSIDE any bracket wrapper (the string tier and bare
+       refs); names inside wrappers were already taken as bracket axes above. *)
+    hNoBracket = h /. (Slot | Highlighted | Framed)[___] :> Null;
+    hNoBinder = hNoBracket /. Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> Null;
     bareNames = Cases[hNoBinder,
       s_Symbol /; Context[s] =!= "System`" :> SymbolName[Unevaluated[s]], {0, Infinity}];
-    stringNames = Cases[hNoSlot, str_String :> str, {0, Infinity}];
+    stringNames = Cases[hNoBracket, str_String :> str, {0, Infinity}];
     (* validate every string-sourced name (bracketed or bare) *)
     allStr = DeleteDuplicates @ Cases[h, str_String :> str, {0, Infinity}];
     bad = Select[allStr, ! validAxisNameQ[#] &];
@@ -228,9 +231,9 @@ collectEstablished[h_Hold] :=
         (CircleTimes | CirclePlus)[xs___] :> axisNamesOf[Hold[xs]], {0, Infinity}]];
     (* A name appearing anywhere in the LHS shapes is inferable from a tensor. *)
     Scan[recordKind[#, "onlhs"] &, axisNamesOf @ Extract[h, {1, 1}, Hold]];
-    (* mishmash: the string tier (a *bare* string term) mixed with the symbol/slot tier
-       for one name.  stringNames is already slot-free (collected from hNoSlot), so a
-       #a = Slot["a"] bracket does not count as the string tier. *)
+    (* mishmash: the string tier (a *bare* string term) mixed with the symbol/bracket
+       tier for one name. stringNames is already wrapper-free, so #a = Slot["a"] does
+       not count as the string tier. *)
     symslot = DeleteDuplicates @ Join[binderNames, bareNames, slotNames];
     mish = Intersection[symslot, DeleteDuplicates[stringNames]];
     If[mish =!= {},
@@ -244,7 +247,7 @@ the string \"" <> First[mish] <> "\"; use one spelling consistently"},
        been established by a binder/bracket/string in this desc, accepting it as an axis
        reference would silently teach the wrong RuleDelayed spelling. *)
     lhs = Extract[h, {1, 1}, Hold];
-    lhsNoSlot = lhs /. _Slot :> Null;
+    lhsNoSlot = lhs /. (Slot | Highlighted | Framed)[___] :> Null;
     lhsNoBinder = lhsNoSlot /. Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> Null;
     lhsBare = DeleteDuplicates @ Cases[lhsNoBinder,
       s_Symbol /; Context[s] =!= "System`" :> SymbolName[Unevaluated[s]], {0, Infinity}];
@@ -572,6 +575,8 @@ rearrangeAtoms[s_Symbol] := {s};
 rearrangeAtoms[n_Integer] := {n};
 rearrangeAtoms[{}] := {1};   (* in-shape unit-axis term {} == literal 1 (einx "()") *)
 rearrangeAtoms[CircleTimes[fs__]] := Join @@ (rearrangeAtoms /@ {fs});
+rearrangeAtoms[t_ /; bracketWrapperQ[t]] :=
+  Join @@ Table[rearrangeAtoms[f], {f, List @@ t}];
 rearrangeAtoms[other_] := (
   Message[Einstoff::unsupp,
     "unsupported term: " <> ToString[other, InputForm] <>
@@ -603,10 +608,10 @@ hasCirclePlus[shapes_] := ! FreeQ[shapes, CirclePlus];
    reject path. *)
 distinctAxesQ[shapes_List] := MissingQ[firstDuplicateAxis[shapes]];
 
-(* Bracket-aware decomposition: like rearrangeAtoms but unwraps Slot[...]
-   brackets, returning {atom, bracketedQ} pairs.  NB Table/List@@ rather than
-   `&/@`: a factor can be Slot[...], and routing it through an anonymous Function
-   would reinterpret an integer Slot as that function's argument slot (SPEC 7.2).
+(* Bracket-aware decomposition: like rearrangeAtoms but unwraps bracket wrappers
+   (Slot, Highlighted, Framed), returning {atom, bracketedQ} pairs.  NB Table/List@@
+   rather than `&/@`: a factor can be Slot[...], and routing it through an anonymous
+   Function would reinterpret an integer Slot as that function's argument slot (SPEC 7.2).
    Variable-arity ellipses are out of scope and Throw. *)
 reduceAtoms[t_, br_ : False] :=
   Which[
@@ -617,7 +622,7 @@ reduceAtoms[t_, br_ : False] :=
     IntegerQ[t], {{t, br}},
     Head[t] === CircleTimes,
       Join @@ Table[reduceAtoms[f, br], {f, List @@ t}],
-    Head[t] === Slot,
+    bracketWrapperQ[t],
       Join @@ Table[reduceAtoms[f, True], {f, List @@ t}],
     True,
       (Message[Einstoff::unsupp,

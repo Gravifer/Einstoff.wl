@@ -18,10 +18,13 @@ Two einx findings (probed against the repo venv) reshape the bracket roadmap:
   today ("feed-to-elementary-op is a separate path"). Resolves the §5.2 ambiguity:
   **bracket dropped = reduce; bracket kept = map/vmap.**
 
-Bracket handling lives in `Parsing.wl` (`matchTerms` Slot-splice, `bracketedNames`,
-`factorToExpr`, `evalOutShape` `Slot→Sequence`), `Lowering.wl` (`reduceAtoms` Slot
-branch), consumed in `Reduce.wl` (the `lhsBr` kept-bracket reject) and `Dot.wl`
-(unwrap); `DirectSum.wl` rejects brackets.
+Bracket handling lives in `Parsing.wl` (`matchTerms` bracket-splice,
+`bracketedNames`, `factorToExpr`, `evalOutShape` wrapper→`Sequence`), `Lowering.wl`
+(`reduceAtoms` bracket branch), consumed in `Reduce.wl` (the `lhsBr` kept-bracket
+reject) and `Dot.wl` (unwrap); `DirectSum.wl` rejects brackets. The canonical string
+axis bracket is `Slot["a"]`/`#a`; the visual bind-only bracket spellings are
+`Highlighted[a_]` and `Framed[a_]`. `Squiggled[...]` is not used because its frontend
+rendering is too easy to confuse with other notation.
 
 ---
 
@@ -138,6 +141,10 @@ vs-`Slot[b]`-references Pattern asymmetry. So `Slot["b"]` maps to "axis `b`, bra
 **Resolved decisions from Part C:**
 - **Resolved:** `Slot["b"]` maps to the axis identity named `b`; brackets and bare
   references share identity.
+- **Resolved later:** `Slot["b"]` is the string-tier bracket spelling and should stay
+  bracketed on a kept RHS (`{{a, #b}}`). `Highlighted[b_]` and `Framed[b_]` revive the
+  old bind-only bracket behavior under visual wrapper heads, with the RHS written
+  `{{a, b}}`.
 - **Bracketed integer immediates** (gather's `Slot[2]`): `#2` is `Slot[2]` (integer
   slot), not a string — so `#`-sugar can't express a bracketed literal cleanly. Gather
   is deferred anyway; bracketed immediates keep the explicit `Slot[2]`/`Slot["2"]`

@@ -53,7 +53,8 @@ matching do double duty as both parser and shape-binder.
 | Named ellipsis (inner mvar — destructuring template, see §5.3) | inner names in `(pattern)...` | names inside `Repeated[...]` | — (provisional) |
 | Product / axis composition | `(a b)` | `a ⊗ b` | `CircleTimes` |
 | Direct sum / concatenation | `(a + b)` | `a ⊕ b` | `CirclePlus` |
-| Bracket (elementary-op signature axis) | `[a]` | `#a` | `Slot["a"]` |
+| Bracket (string axis) | `[a]` | `#a` | `Slot["a"]` — a hygienic string-tier axis, kept as `#a` on the RHS when the bracketed axis is kept |
+| Bracket (bind-only axis) | `[a]` | highlighted/framed `a_` | `Highlighted[a_]` or `Framed[a_]` — visually bracketed binder; RHS references it as bare `a` |
 | Bracket, multiple axes | `[a b]` ≡ `[a][b]` | `#a #b` | `Slot["a"], Slot["b"]` — adjacent single `Slot`s, `[a b]≡[a][b]`, see §7.3 |
 | Bracket, anonymous ellipsis | `[...]` | `##` | `SlotSequence[1]` |
 | Bracket, integer immediate | `[2]` | `Slot[2]` | `Slot[2]` — explicit (no `#`-sugar for a bracketed literal), see §7.2 |
@@ -72,8 +73,11 @@ A *shape* is a `List` of dimension terms. A dimension term is one of:
   `RepeatedNull[term]` (anonymous-name ellipsis — structural only)
 - `CircleTimes[term, term, ...]` (product)
 - `CirclePlus[term, term, ...]` (direct sum)
-- `Slot[term, ...]` wrapping any of the above (bracket), nestable at any
-  depth inside `CircleTimes`/`CirclePlus`/`Repeated`
+- `Slot[term, ...]`, `Highlighted[term, ...]`, or `Framed[term, ...]` wrapping any
+  of the above (bracket), nestable at any depth inside `CircleTimes`/`CirclePlus`/
+  `Repeated`. `Slot["a"]` is the string-tier bracket spelling; `Highlighted[a_]` and
+  `Framed[a_]` are bind-only bracket spellings. `Squiggled[...]` is intentionally not
+  used because it is visually confusing in the frontend.
 
 ### 4.2 Operation
 

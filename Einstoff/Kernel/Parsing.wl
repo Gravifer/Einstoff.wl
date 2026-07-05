@@ -77,15 +77,16 @@ parseDesc[h : Hold[_Rule]] :=
    back to the generic desc-shape reason, not a stale invalid-name reason. *)
 parseDesc[_] := ($descRejectReason = None; <|"LHS" -> $Failed, "RHS" -> $Failed|>);
 
-(* Names that appear inside a Slot[...] (bracket) anywhere in lhs.  By the time this
-   runs the desc has been through canonHeld, so a #name bracket is Slot[freshSym] (a bare
-   symbol); composites keep their pattern symbols.  Collect every non-System` symbol
-   inside any Slot.  Used only for the informational "Bracketed" field (§5.2); the fresh
-   symbols are mapped back to the user's names by deCanon on the public output. *)
+(* Names that appear inside a bracket wrapper anywhere in lhs. By the time this runs the
+   desc has been through canonHeld, so a #name bracket is Slot[freshSym] and a
+   Highlighted[b_] binder is Highlighted[fresh_]. Used only for the informational
+   "Bracketed" field (§5.2); the fresh symbols are mapped back to the user's names by
+   deCanon on the public output. *)
 bracketedNames[lhs_] :=
   DeleteDuplicates @ Flatten @
     Cases[lhs,
-      s_Slot :> Cases[s, n_Symbol /; Context[n] =!= "System`" :> n, {0, Infinity}],
+      s_ /; bracketWrapperQ[s] :>
+        Cases[s, n_Symbol /; Context[n] =!= "System`" :> n, {0, Infinity}],
       {0, Infinity}];
 
 rawSlotAxisNames[expr_] := DeleteDuplicates @ Flatten @ Cases[expr,
@@ -112,7 +113,8 @@ termAxisNames[s_Symbol] := {s};
    neither crashes on Symbol::symname nor mis-tallies a shadowed global's value.  An
    invalid string is not an axis name, so it contributes nothing. *)
 termAxisNames[s_String] := If[validAxisNameQ[s], {axisSymbol[s]}, {}];
-termAxisNames[(CircleTimes | CirclePlus | Slot)[xs___]] := Join @@ (termAxisNames /@ {xs});
+termAxisNames[(CircleTimes | CirclePlus | Slot | Highlighted | Framed)[xs___]] :=
+  Join @@ (termAxisNames /@ {xs});
 termAxisNames[_] := {};
 
 (* First axis name occurring more than once *within a single shape*, else Missing[].
@@ -163,7 +165,7 @@ factorToExpr[f_, env_] :=
       If[! validAxisNameQ[f], $opaque,   (* illegal name -> unsupported factor (rejected) *)
         With[{n = axisSymbol[f]},   (* valueless when shadowed — no leaked global into Solve *)
           If[KeyExistsQ[env, n], {env[n], {}, {}}, {n, {n}, {}}]]],
-    Head[f] === Slot && Length[f] === 1, factorToExpr[First[f], env],
+    bracketWrapperQ[f] && Length[f] === 1, factorToExpr[First[f], env],
     Head[f] === Symbol, If[KeyExistsQ[env, f], {env[f], {}, {}}, {f, {f}, {}}],
     Head[f] === CircleTimes,
       Module[{subs = Table[factorToExpr[g, env], {g, List @@ f}]},
@@ -224,13 +226,12 @@ matchTerms[terms_, dims_, env_] :=
        case — and the mirroring {} cases in rearrangeAtoms/reduceAtoms/factorToExpr —
        exist for the *public* EinstoffMatch entry, which takes raw shape lists. *)
     If[t === {}, Return[matchTerms[Join[{1}, rest], dims, env]]];
-    (* Slot is a transparent bracket: splice its contents into the stream.  A string slot
-       #name == Slot["name"] denotes axis `name`, so its content string is mapped to that
-       symbol on the way in (then handled by the Symbol case), exactly as Slot[name_]/
-       Slot[name] splice to a pattern/symbol — bracketing is irrelevant to shape matching.
-       Each string is validated as an axis identifier before Symbol[…] (SPEC §5.6), so an
-       illegal name yields a clean unsat reason, not a Symbol::symname crash. *)
-    If[Head[t] === Slot,
+    (* Bracket wrappers are transparent to shape matching: splice their contents into the
+       stream and remember bracketedness only in lowering. Slot["name"] is the string-axis
+       bracket spelling; Highlighted[name_]/Framed[name_] are bind-only bracket spellings.
+       Each string is validated before axisSymbol, so an illegal name yields a clean unsat
+       reason, not a Symbol::symname crash. *)
+    If[bracketWrapperQ[t],
       Module[{parts = List @@ t, bad},
         bad = Select[Cases[parts, _String], ! validAxisNameQ[#] &];
         Return[If[bad =!= {},
@@ -395,7 +396,8 @@ einstoffMatchCore[lhsShapes_, inputShapes_, bindingsIn_] :=
    inside a composite (e.g. (a () )) evaluates correctly; a whole-shape {} stays scalar. *)
 evalOutShape[Hold[rhs_], env_] :=
   normUnitTerms[rhs] /. Join[Normal[env],
-    {CircleTimes -> Times, CirclePlus -> Plus, Slot -> Sequence}];
+    {CircleTimes -> Times, CirclePlus -> Plus,
+     Slot -> Sequence, Highlighted -> Sequence, Framed -> Sequence}];
 
 (* ------------------------------------------------------------------ *)
 (* Public: full pipeline.                                             *)
