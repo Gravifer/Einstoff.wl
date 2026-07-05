@@ -38,21 +38,21 @@ For more details on the design, see `SPEC.md`
   are orthogonal — e.g. ``Slot[CirclePlus[...]]`` is a *bracketed direct sum*
   (reducing/contracting over a concatenated axis).
 
-- **Axis-name hygiene tiers** (SPEC §5.6–5.7, `feat/desc-hygiene`). A named axis has
-  three spellings, and they are hygiene tiers, not just syntax: `a_` (binder — "solve
+- **Axis-name hygiene matrix** (SPEC §5.6–5.7, `feat/desc-hygiene`). A named axis has
+  a spelling kind and an orthogonal targeted/bracketed bit: `a_` (blank binder — "solve
   for this"), bare `a` (reference to an *established* axis, else env-capture — a bound
-  `a` reads as its literal size), `#a` = ``Slot["a"]`` (bracket), and `"a"` (a `String` —
-  the fully-hygienic tier, immune to any ``Block``). At the desc boundary every
-  *established* name (binder / bracket / string) is canonicalized to a fresh
+  `a` reads as its literal size), and `"a"` (a `String` — the fully-hygienic kind,
+  immune to any ``Block``). Targeted string axes may be written `#a` = ``Slot["a"]``,
+  ``Highlighted["a"]``, or ``Framed["a"]``; targeted blank/bare symbol axes use
+  ``Highlighted[a_]``/``Framed[a_]`` or ``Highlighted[a]``/``Framed[a]``. At the desc
+  boundary every *established* name (blank / targeted / string) is canonicalized to a fresh
   ``Unique[…,{Temporary}]`` symbol (``canonHeld`` in Lowering.wl), so ``Block[{c=3},…]``
-  cannot leak `3` into axis `c`. A name may not mix the symbol/slot tier with the string
-  tier (mishmash → reject). Binding keys mirror the tiers (`#a ->`/`a ->`/`"a" ->`); a
-  ``Pattern`` key `a_ -> n` is rejected, a whole-axis binder is inference-only (not
-  bindable), and an evaluated/junk key warns-and-continues.
-  For bracketed axes specifically, ``Slot["a"]``/`#a` denotes a string-tier bracketed
-  axis and should remain bracketed on a kept RHS (`{{a, #b}}`). ``Highlighted[a_]`` and
-  ``Framed[a_]`` denote bind-only bracketed axes that are referenced bare on the RHS;
-  ``Squiggled`` is intentionally unused because it is visually confusing.
+  cannot leak `3` into axis `c`. A name may not mix symbol spelling with string spelling
+  (mishmash → reject). Binding keys mirror the spelling kind: string axes accept
+  `"a" -> n` and, when targeted, the same target head used in the desc; bare axes accept
+  `a -> n`; blank binders are inference-only. A different target head in bindings than
+  in the desc is rejected, and ``Slot`` must not target non-string axes. ``Squiggled`` is
+  intentionally unused because it is visually confusing.
 
 - We will *NOT* implement the sugar layer of the syntax in the forseeable future.
 

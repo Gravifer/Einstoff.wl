@@ -77,10 +77,10 @@ VerificationTest[
   TestID -> "reduce-full-scalar"
 ];
 
-(* 8. Reduce a bracketed composite '(c d)' as a whole, d=2. *)
+(* 8. Reduce a targeted composite '(c d)' as a whole, with explicit string factor d=2. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[18], {3, 6}]},
-    Einstoff[ArrayReduce][Total][{{a_, Slot[CircleTimes[c_, d_]]}} :> {{a}}, {x}, {d -> 2}]],
+    Einstoff[ArrayReduce][Total][{{a_, Highlighted[CircleTimes[c_, "d"]]}} :> {{a}}, {x}, {"d" -> 2}]],
   Total[ArrayReshape[Range[18], {3, 6}], {2}],
   TestID -> "reduce-composite-axis"
 ];

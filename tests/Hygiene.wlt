@@ -3,7 +3,7 @@
 (* Tests for desc evaluation-hygiene and the string axis tier (feat/desc-hygiene).
 
    The desc eDSL must distinguish three uses of the same surface syntax: a binder
-   `a_` (an axis to be solved), a bracket `#a` = Slot["a"] (a named op-axis), and a
+   `a_` (an axis to be solved), a targeted string `#a` = Slot["a"], and a
    bare `a` (env capture — evaluates to its value UNLESS its name is an established
    axis identity, then a hygienic reference).  A globally shadowed axis symbol (a
    `Block[{c=3},...]`) must not leak its value into an axis identity.  A string `"a"`
@@ -28,10 +28,10 @@ VerificationTest[
   TestID -> "hyg-shadowed-binder-reshape"
 ];
 
-(* 2. A shadowed bracket axis (#c = Slot["c"]) must resolve to axis c, not to 3. *)
+(* 2. A shadowed targeted string axis (#c = Slot["c"]) must not resolve to 3. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}]},
-    Block[{c = 3}, Einstoff[Map]["flip"][{{a_, Slot["c"]}} :> {{a, c}}, {x}]]],
+    Block[{c = 3}, Einstoff[Map]["flip"][{{a_, Slot["c"]}} :> {{a, Slot["c"]}}, {x}]]],
   Reverse /@ ArrayReshape[Range[6], {2, 3}],
   TestID -> "hyg-shadowed-bracket-map-flip"
 ];
@@ -75,7 +75,7 @@ VerificationTest[
   TestID -> "hyg-string-invalid-identifier-reject"
 ];
 
-(* 8. Mixing the string tier with a symbol/slot spelling of the SAME name (mishmash)
+(* 8. Mixing string spelling with a symbol spelling of the SAME name (mishmash)
       is rejected. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}]},
@@ -120,12 +120,12 @@ VerificationTest[
 ];
 
 (* 13. An evaluated/junk binding key ({3 -> 2} from c = 3) WARNS but carries on: the
-       bracket axis c is sized from the tensor, the junk binding is dropped, and the
-       op succeeds. *)
+       targeted blank axis c is sized from the tensor, the junk binding is dropped,
+       and the op succeeds. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}]},
     Block[{c = 3},
-      Quiet @ Einstoff[Map]["flip"][{{a_, Slot["c"]}} :> {{a, c}}, {x}, {c -> 2}]]],
+      Quiet @ Einstoff[Map]["flip"][{{a_, Highlighted[c_]}} :> {{a, c}}, {x}, {c -> 2}]]],
   Reverse /@ ArrayReshape[Range[6], {2, 3}],
   TestID -> "hyg-evaluated-binding-key-warns-continues"
 ];
@@ -176,27 +176,28 @@ VerificationTest[
 
 (* 15e. A bare binding key that evaluated to a System` symbol (e.g. {c->2} under c=Null
        arrives as {Null->2}) is an evaluated shadow-capture, not a bare axis "Null": it
-       is dropped as junk (bracket #c is sized from the tensor), so no Null survives as a
-       resolved-bindings KEY.  (Check via Keys — FreeQ does not inspect Association keys.) *)
+       is dropped as junk (targeted blank c is sized from the tensor), so no Null
+       survives as a resolved-bindings KEY.  (Check via Keys — FreeQ does not inspect
+       Association keys.) *)
 VerificationTest[
   Block[{c = Null},
     Sort[SymbolName /@ Keys[Quiet @ Einstoff`EinstoffShapes[
-      {{a_, Slot["c"]}} :> {{a, c}}, {{2, 3}}, {c -> 2}]["Bindings"]]]],
+      {{a_, Highlighted[c_]}} :> {{a, c}}, {{2, 3}}, {c -> 2}]["Bindings"]]]],
   {"a", "c"},
   TestID -> "hyg-system-symbol-key-dropped"
 ];
 
-(* 16. An axis name inside a bracketed composite (Slot[(c d)]) is canonicalized like any
+(* 16. An axis name inside a targeted composite (Slot[(c d)]) is canonicalized like any
        grammar position: under a shadowing Block it still resolves, matching the
-       unshadowed result. *)
+       unshadowed result.  The supplied factor is string-spelled; c_ remains inferred. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[18], {3, 6}]},
     Block[{c = 3},
       Einstoff[ArrayReduce][Total][
-        {{a_, Slot[CircleTimes[c_, d_]]}} :> {{a}}, {x}, {d -> 2}]]],
+        {{a_, Highlighted[CircleTimes[c_, "d"]]}} :> {{a}}, {x}, {"d" -> 2}]]],
   With[{x = ArrayReshape[Range[18], {3, 6}]},
     Einstoff[ArrayReduce][Total][
-      {{a_, Slot[CircleTimes[c_, d_]]}} :> {{a}}, {x}, {d -> 2}]],
+      {{a_, Highlighted[CircleTimes[c_, "d"]]}} :> {{a}}, {x}, {"d" -> 2}]],
   TestID -> "hyg-bracketed-composite-canon"
 ];
 
@@ -397,7 +398,7 @@ VerificationTest[
        not break the normal shadowed path). *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}]},
-    Block[{c = 3}, Einstoff[Map]["flip"][{{a_, Slot["c"]}} :> {{a, c}}, {x}]]],
+    Block[{c = 3}, Einstoff[Map]["flip"][{{a_, Slot["c"]}} :> {{a, Slot["c"]}}, {x}]]],
   Reverse /@ ArrayReshape[Range[6], {2, 3}],
   TestID -> "hyg-scoped-shadowed-bracket-through-wrapping"
 ];

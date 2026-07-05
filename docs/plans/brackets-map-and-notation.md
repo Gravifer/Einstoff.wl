@@ -21,16 +21,18 @@ Two einx findings (probed against the repo venv) reshape the bracket roadmap:
 Bracket handling lives in `Parsing.wl` (`matchTerms` bracket-splice,
 `bracketedNames`, `factorToExpr`, `evalOutShape` wrapper→`Sequence`), `Lowering.wl`
 (`reduceAtoms` bracket branch), consumed in `Reduce.wl` (the `lhsBr` kept-bracket
-reject) and `Dot.wl` (unwrap); `DirectSum.wl` rejects brackets. The canonical string
-axis bracket is `Slot["a"]`/`#a`; the visual bind-only bracket spellings are
-`Highlighted[a_]` and `Framed[a_]`. `Squiggled[...]` is not used because its frontend
-rendering is too easy to confuse with other notation.
+reject) and `Dot.wl` (unwrap); `DirectSum.wl` rejects brackets. The canonical targeted
+string axis is `Slot["a"]`/`#a`, `Highlighted["a"]`, or `Framed["a"]`; visual targeted
+symbol spellings are `Highlighted[a_]`/`Framed[a_]` for blank and
+`Highlighted[a]`/`Framed[a]` for bare. `Slot[...]` is reserved for string-kind targets.
+`Squiggled[...]` is not used because its frontend rendering is too easy to confuse with
+other notation.
 
 ---
 
 ## Part A — DONE: retire multi-arity `Slot[a, b]`
 
-Single-axis brackets are canonical; `[a b]` is written `Slot[a_], Slot[b_]`. Changed:
+Single-axis brackets are canonical; `[a b]` is written `Slot["a"], Slot["b"]`. Changed:
 SPEC §7.3 (rewritten as resolved), §3 notation table (row "multiple axes" + fixed the
 integer-immediate cross-ref to §7.2), §6 ex11 gather example, and both `Slot[h_, w_]`
 sites in `tests/Parsing.wlt` (`:83`, `:149`). The matcher still tolerates a multi-arg
@@ -92,26 +94,24 @@ the reducer-currying convention. New file `Einstoff/Kernel/Map.wl`.
 
 ## Part C — DONE: notation migration `#a` / `##`
 
-**Built** (2026-06-30). A bracketed axis is now `#name` = `Slot["name"]`, bound by
-unification on its string name; `[...]` is `##` = `SlotSequence[1]`. Engine changes
-(all small, since `matchTerms` already routed every bracket through `unify`, so the
-old `Slot[b_]`/`Slot[b]` and new `Slot["b"]` are semantically identical): `Parsing.wl`
-`matchTerms` promotes a Slot's string content to its symbol on splice (`Replace[List@@t,
-s_String :> Symbol[s], {1}]`) and handles `SlotSequence` like `___`; `factorToExpr` and
-`bracketedNames` gained a String case; `Lowering.wl` `reduceAtoms` gained `StringQ[t] ->
-{{Symbol[t], br}}`. Crucially the string→symbol promotion happens **only inside a
-bracket** — a bare top-level string is still an illegal axis term, so a globally bound
-non-size value stays rejected (the `reduce-global-illegal` feature). Legacy symbol
-forms remain tolerated. All ~34 test bracket sites migrated to `Slot["…"]` /
-`SlotSequence[1]` (per user: the out-facing DSL uses `Slot["b"]`), plus 3 new unify/
-identity tests. Composite (`Slot[CircleTimes[c_,d_]]`) and integer (`Slot[2]`) brackets
+**Built** (2026-06-30; refined 2026-07). Axis spelling is now a matrix:
+blank `b_` / bare `b` / string `"b"` times plain / targeted. A targeted string axis can
+be `#name` = `Slot["name"]`, `Highlighted["name"]`, or `Framed["name"]`, bound by
+unification on its string name; `[...]` is `##` = `SlotSequence[1]`. Kept targeted
+string axes remain targeted on the RHS with the same head (`{{a, #b}}` for `Slot`);
+referencing bare `b` is now a spelling-kind mismatch. `Highlighted[b_]` and `Framed[b_]`
+spell targeted blank axes; `Highlighted[b]` and `Framed[b]` spell targeted bare axes.
+`Slot[...]` is reserved for string-kind targets. Engine changes include `SlotSequence` handling like `___`,
+string/bracket reporting, bracket-wrapper unwrapping, and lowering support for
+`Slot`/`Highlighted`/`Framed`. Composite targeted symbol axes use `Highlighted[...]` or
+`Framed[...]`; integer (`Slot[2]`) brackets
 keep their explicit forms (no `#`-sugar); the Repeated destructuring template (§5.3,
 deferred) keeps its Pattern bracket `Slot[ds_]` (it is a template, not a unify-by-name).
-Suite 180 green (135 WL + 45 xval). Resolved open decisions: (1) `Slot["b"]` maps to
-the symbol `b` via `Symbol[]` resolved in the caller's context (= the desc's own
-context) — brackets and bare refs share identity; (2) bracketed integer immediates keep
-`Slot[2]`; (3) `##` = `SlotSequence[1]`, treated as `___` for matching. The original
-design follows:
+Suite 180 green (135 WL + 45 xval) at the original migration point. Resolved open
+decisions: (1) `Slot["b"]`, `Highlighted["b"]`, and `Framed["b"]` are targeted string
+axes; (2) bracketed integer
+immediates keep `Slot[2]`; (3) `##` = `SlotSequence[1]`, treated as `___` for matching.
+The original design follows:
 
 Move bracket notation to the ergonomic, hazard-free form:
 `Slot[name_]` / `Slot[name]` → **`#name`** (`Slot["name"]`); `Slot[___]` (anonymous
@@ -120,13 +120,13 @@ variadic `[...]`) → **`##`** (`SlotSequence[1]`). This is the large endeavor; 
 `Slot[2]` ≡ `#2` Function-aliasing hazard). The SPEC §3 table already documents
 `[a]` → `#a` → `Slot["a"]` as the canonical target, so this aligns code to spec.
 
-**Semantic shift (core decision):** a bracketed axis becomes a *string-named* axis
-bound by **unification** (first occurrence sets the size, repeats must agree — exactly
-how bare-symbol references already work via `unify`), rather than the `Slot[b_]`-binds-
-vs-`Slot[b]`-references Pattern asymmetry. So `Slot["b"]` maps to "axis `b`, bracketed"
-— the same identity a bare `b` on the RHS references. The non-bracket binding (`a_` vs
-`a`) is unchanged; only brackets migrate. Example: `{a_, #b, #b, c} :> {a, c}` —
-`a_` binds, `#b` is bracketed-`b` (unify), `c` is a bare reference.
+**Semantic shift (core decision):** a `Slot["b"]` bracket is a targeted string axis
+bound by **unification** (first occurrence sets the size, repeats must agree), rather
+than the `Slot[b_]`-binds-vs-`Slot[b]`-references Pattern asymmetry. `Highlighted["b"]`
+and `Framed["b"]` are alternate visual target heads for the same string kind. Targeted
+string does not share identity with bare `b`; blank/bare/string spelling remains
+load-bearing, and targetedness is orthogonal. Example: `{a_, #b, #b, c} :> {a, #b, c}`
+keeps the targeted string axis.
 
 **Touch points (all in scope):**
 - `Parsing.wl` `matchTerms`: handle `Slot["b"]` (string → axis `b`, bracketed, unify)
@@ -139,12 +139,11 @@ vs-`Slot[b]`-references Pattern asymmetry. So `Slot["b"]` maps to "axis `b`, bra
 - **all `Slot[` test sites** (7 files) rewritten to `#name` / `##`.
 
 **Resolved decisions from Part C:**
-- **Resolved:** `Slot["b"]` maps to the axis identity named `b`; brackets and bare
-  references share identity.
-- **Resolved later:** `Slot["b"]` is the string-tier bracket spelling and should stay
-  bracketed on a kept RHS (`{{a, #b}}`). `Highlighted[b_]` and `Framed[b_]` revive the
-  old bind-only bracket behavior under visual wrapper heads, with the RHS written
-  `{{a, b}}`.
+- **Resolved:** `Slot["b"]`, `Highlighted["b"]`, and `Framed["b"]` are targeted string
+  spellings and should stay targeted with the same head on a kept RHS. Binding may use
+  `"b" -> n` or the matching target-head key; a different target head is rejected.
+  `Highlighted[b_]`/`Framed[b_]` are targeted blank; `Highlighted[b]`/`Framed[b]` are
+  targeted bare.
 - **Bracketed integer immediates** (gather's `Slot[2]`): `#2` is `Slot[2]` (integer
   slot), not a string — so `#`-sugar can't express a bracketed literal cleanly. Gather
   is deferred anyway; bracketed immediates keep the explicit `Slot[2]`/`Slot["2"]`

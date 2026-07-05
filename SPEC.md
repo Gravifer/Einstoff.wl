@@ -42,7 +42,7 @@ matching do double duty as both parser and shape-binder.
 
 | Concept | einops/einx string | Einstoff form | WL construct |
 |---|---|---|---|
-| Named dimension (binding — "solve for this") | `a` | `a_` | `Pattern[a, Blank[]]` |
+| Named dimension (blank — "solve for this") | `a` | `a_` | `Pattern[a, Blank[]]` |
 | Named dimension (reference / env-capture) | `a` (repeated) | `a` | bare symbol |
 | Named dimension (string tier — fully hygienic) | `a` | `"a"` | a `String` (a valid identifier) — see §5.6 |
 | Integer immediate | `2` | `2` | literal integer |
@@ -53,8 +53,9 @@ matching do double duty as both parser and shape-binder.
 | Named ellipsis (inner mvar — destructuring template, see §5.3) | inner names in `(pattern)...` | names inside `Repeated[...]` | — (provisional) |
 | Product / axis composition | `(a b)` | `a ⊗ b` | `CircleTimes` |
 | Direct sum / concatenation | `(a + b)` | `a ⊕ b` | `CirclePlus` |
-| Bracket (string axis) | `[a]` | `#a` | `Slot["a"]` — a hygienic string-tier axis, kept as `#a` on the RHS when the bracketed axis is kept |
-| Bracket (bind-only axis) | `[a]` | highlighted/framed `a_` | `Highlighted[a_]` or `Framed[a_]` — visually bracketed binder; RHS references it as bare `a` |
+| Bracket / targeted string axis | `[a]` | `#a`, highlighted/framed `"a"` | `Slot["a"]`, `Highlighted["a"]`, or `Framed["a"]` — targeted string spelling; kept with the same target head on the RHS when the targeted axis is kept |
+| Bracket / targeted blank axis | `[a]` | highlighted/framed `a_` | `Highlighted[a_]` or `Framed[a_]` — visually targeted binder; RHS references it as bare `a` |
+| Bracket / targeted bare axis | `[a]` | highlighted/framed `a` | `Highlighted[a]` or `Framed[a]` — visually targeted bare reference; bind with `a -> n` when needed |
 | Bracket, multiple axes | `[a b]` ≡ `[a][b]` | `#a #b` | `Slot["a"], Slot["b"]` — adjacent single `Slot`s, `[a b]≡[a][b]`, see §7.3 |
 | Bracket, anonymous ellipsis | `[...]` | `##` | `SlotSequence[1]` |
 | Bracket, integer immediate | `[2]` | `Slot[2]` | `Slot[2]` — explicit (no `#`-sugar for a bracketed literal), see §7.2 |
@@ -65,7 +66,7 @@ matching do double duty as both parser and shape-binder.
 
 A *shape* is a `List` of dimension terms. A dimension term is one of:
 
-- a bare symbol (reference / env-capture) or `name_` (binding)
+- a bare symbol (reference / env-capture) or `name_` (blank binder)
 - a `String` `"a"` (a hygienic named axis — must be a valid identifier; §5.6)
 - an integer
 - `_`, `__`, `___`
@@ -74,10 +75,14 @@ A *shape* is a `List` of dimension terms. A dimension term is one of:
 - `CircleTimes[term, term, ...]` (product)
 - `CirclePlus[term, term, ...]` (direct sum)
 - `Slot[term, ...]`, `Highlighted[term, ...]`, or `Framed[term, ...]` wrapping any
-  of the above (bracket), nestable at any depth inside `CircleTimes`/`CirclePlus`/
-  `Repeated`. `Slot["a"]` is the string-tier bracket spelling; `Highlighted[a_]` and
-  `Framed[a_]` are bind-only bracket spellings. `Squiggled[...]` is intentionally not
-  used because it is visually confusing in the frontend.
+  of the above (targeted / bracketed), nestable at any depth inside `CircleTimes`/
+  `CirclePlus`/`Repeated`. Targetedness is orthogonal to the spelling inside the
+  wrapper: blank `a_` still means infer-only, bare `a` is bindable/reference-like, and
+  string `"a"` is the hygienic string tier. `Slot["a"]`, `Highlighted["a"]`, and
+  `Framed["a"]` are targeted string spellings; `Slot[...]` is reserved for string-kind
+  targets, while `Highlighted[...]` and `Framed[...]` also provide visually targeted
+  blank/bare symbol spellings. `Squiggled[...]` is intentionally not used because it is
+  visually confusing in the frontend.
 
 ### 4.2 Operation
 
@@ -119,15 +124,19 @@ New axes that appear only on the RHS (repeat-style) are *not* covered by
 this mechanism, since there is nothing on the LHS to bind them to — those
 are resolved from an out-of-band `sizeRules`-style argument instead.
 
-A **bracketed** axis is written `#name` (= `Slot["name"]`) and binds by
-*unification* on its string name: the bind/reference asymmetry of bare symbols
-(`a_` vs `a`) does **not** apply inside brackets — every `#b` is just `Slot["b"]`,
-so repeated occurrences are symmetric and must agree (first sets the size, the
-rest must match), and `#b` shares identity with a bare `b` referenced elsewhere
-(the string maps to the symbol `b`). This sidesteps the `Slot[2]`/`#2` integer-slot
-hazard (§7.2): named axes never use an integer `Slot`. The matcher still tolerates
-the legacy symbol forms `Slot[b_]`/`Slot[b]` (they unify identically), but
-`#name` is canonical.
+A named axis has two orthogonal coordinates: spelling kind (`b_` blank binder,
+bare `b`, or string `"b"`) and targetedness (plain or bracketed). The targeted
+string spelling is `#name` (= `Slot["name"]`) and binds by *unification* on its
+string name: repeated occurrences are symmetric and must agree (first sets the
+size, the rest must match). Because this spelling is string-kind and targeted, a
+kept targeted string axis must stay targeted on the RHS (`{{a_, #b}} :> {{a, #b}}`);
+writing bare `b` mixes spelling kind and is rejected. Targeted blank/bare symbol
+spellings use `Highlighted[...]` or `Framed[...]`: `Highlighted[b_]` infers a
+targeted blank axis, while `Highlighted[b]` is a targeted bare reference/bindable
+axis. `Highlighted["b"]` and `Framed["b"]` are also targeted string axes, with a
+different visual target head. `Slot` is reserved for string-kind targeting; use
+`Highlighted`/`Framed` for targeted blank or bare symbol axes. `#name` sidesteps the
+`Slot[2]`/`#2` integer-slot hazard (§7.2): named axes never use an integer `Slot`.
 
 ### 5.2 Reduce vs. elementary-op: the bracket disambiguates
 
@@ -208,26 +217,26 @@ materialization step that broadcasts the repeat axes (replicate), permutes the
 atomic axes into RHS order, and recomposes composites — so repetition is written
 once and obtained uniformly.
 
-### 5.6 Evaluation hygiene and the axis-name spelling tiers
+### 5.6 Evaluation hygiene and the axis-name spelling matrix
 
 A desc is an *ordinary WL expression*, so a global binding of an axis symbol
 (`Block[{c = 3}, …]`) would leak its value into the axis identity — turning axis
 `c` into the literal `3`, corrupting shapes and (as an `Association` key) the size
 environment. Einstoff removes this hazard by **canonicalizing every axis identity at
 the desc boundary** to a fresh, value-less `Temporary` symbol *before* any downstream
-code inspects it. The three surface spellings of a *named* axis are therefore hygiene
-tiers, not merely syntax:
+code inspects it. A *named* axis has a spelling kind (blank, bare, string) and an
+orthogonal targeted/bracketed bit:
 
-| Spelling | WL | Role | Hygiene |
-|---|---|---|---|
-| `a_` (binder) | `Pattern[a, _]` | "solve for this" — inferred from the tensor | safe (canonicalized) |
-| bare `a` | `Symbol` | reference to an *established* axis, else env-capture | opt-in: a bound `a` reads as its literal size |
-| `#a` (bracket) | `Slot["a"]` | elementary-op axis (§5.2), name-keyed | safe (string-keyed) |
-| `"a"` (string) | `String` | fully-hygienic named axis | immune to any `Block` |
+| Kind | Plain WL | Targeted WL | Role | Hygiene |
+|---|---|---|---|---|
+| blank | `a_` | `Highlighted[a_]` / `Framed[a_]` | infer-only binder | safe (canonicalized) |
+| bare | `a` | `Highlighted[a]` / `Framed[a]` | reference to an *established* axis, else env-capture; bindable when explicit size is needed | opt-in: a bound `a` reads as its literal size |
+| string | `"a"` | `#a` = `Slot["a"]`, `Highlighted["a"]`, `Framed["a"]` | fully-hygienic named axis; targeted form marks the elementary-op axis (§5.2) | immune to any `Block` |
 
 **Established vs. captured.** A bare symbol is an axis *reference* only if its name is
-**established** — spelled somewhere in the desc as a binder `a_`, a bracket `#a`, or a
-string `"a"`. An *unestablished* bare symbol env-captures: it evaluates, so a globally
+**established** — spelled somewhere in the desc as blank `a_`, targeted blank
+`Highlighted[a_]`/`Framed[a_]`, targeted/bare `a`, targeted string `#a`, or string
+`"a"`. An *unestablished* bare symbol env-captures: it evaluates, so a globally
 bound `k` reads as its literal dimension (`{{a_, k}} :> {{a}}` with `k = 4` reduces a
 size-4 axis) and an unbound one is an ordinary (unsafe) axis. This holds symmetrically
 on LHS and RHS — a bare RHS name is **not** automatically hygienic just because `:>`
@@ -245,13 +254,16 @@ binder, use as bare.)
 > get a *checked* stray-binding rejection, spell the axis hygienically (`a_` / `#a` /
 > `"a"`) so the name cannot be captured.
 
-**No mishmash.** A single name may not be spelled in both the symbol/slot tier
-(`a_`/`a`/`#a`) and the string tier (`"a"`) within one desc — rejected at the
-boundary. Within the symbol/slot tier the three spellings interoperate as before.
+**No mishmash.** A single name may not mix spelling kinds within one desc: blank/bare
+symbol spellings (`a_`, `a`, `Highlighted[a_]`, `Highlighted[a]`, and `Framed[...]`
+counterparts) cannot be mixed with string spellings (`"a"`/`#a`). Targetedness itself is
+orthogonal: mixing plain and targeted forms of the same spelling kind is allowed when
+the operator semantics allow the targeted axis to be kept or consumed.
 
 **Contexts are ignored.** Axis identity is the axis *name*, not the Wolfram Language
-context of the symbol used to spell it. Thus ``Foo`a_``, ``Bar`a_``, `a_`, `#a`,
-and `"a"` all denote the same surface name `a` (subject to the tier-mishmash rule above).
+context of the symbol used to spell it. Thus ``Foo`a_``, ``Bar`a_``, and `a_`
+all denote the same blank-kind surface name `a`; `"a"` and `#a` denote the
+string-kind surface name `a` (subject to the mishmash rule above).
 This is deliberate: axis names in the eDSL are small local labels, not WL namespace
 entities. If a desc needs so many axis names that contexts look necessary to avoid
 collisions, the desc should be refactored or use clearer local names instead of
@@ -260,8 +272,8 @@ expecting contexts to carry semantic identity.
 **Canonicalization.** Each established name is rewritten to one fresh
 `Unique[name <> "$", {Temporary}]` symbol shared across all its occurrences (binder,
 reference, bracket, binding key); the symbols are per-parse hermetic and GC'd when the
-parse scope closes. Names *inside a bracketed composite* (`Slot[(c d)]` =
-`Slot[CircleTimes[c_, d_]]`) are grammar positions and are canonicalized too. A string
+parse scope closes. Names *inside a targeted composite* (`Highlighted[(c d)]` =
+`Highlighted[CircleTimes[c_, d_]]`) are grammar positions and are canonicalized too. A string
 name must be a valid identifier (a locally-rolled `validAxisNameQ` — not the cloud
 `ResourceFunction["ValidSymbolIdentifierQ"]`, which is unavailable/slow in some
 kernels). Public output (`EinstoffParse`; `EinstoffShapes`' `Bindings`/`Bracketed`) is
@@ -276,12 +288,13 @@ matcher is untouched (it simply sees fresh symbols). Tests: `tests/Hygiene.wlt`.
 
 `bindings` supplies sizes for axes not inferable from the tensors (repetition §5.5,
 composite split-factors). A key names an axis; accepted spellings mirror the desc
-tiers and are canonicalized to the axis's fresh identity:
+spelling kind and are canonicalized to the axis's fresh identity:
 
-- **`#a -> n`** (`Slot["a"]` key) — hygienic; binds a bracket axis.
+- **Target-head keys** (`#a -> n`, `Highlighted["a"] -> n`, `Framed["a"] -> n`) —
+  accepted only when the desc used the same target head for string-kind axis `a`.
 - **`a -> n`** (bare symbol key) — convenient but unsafe: a shadowed `a` evaluates
   before we see it (`{a -> 2}` under `a = 3` arrives as `{3 -> 2}`).
-- **`"a" -> n`** (string key) — the only key form for a string-tier axis.
+- **`"a" -> n`** (string key) — works for any string-kind axis, plain or targeted.
 - **`->` and `:>`** are accepted indistinguishably for any non-`Pattern` key (the size
   is a concrete value; the arrow is moot).
 
@@ -290,12 +303,12 @@ Rejections and tolerances:
 - A **`Pattern` key** `a_ -> n` / `a_ :> n` is a category error (a matcher, not a name)
   — **hard reject** with a redirect (do not silently ignore, which would let a
   whole-axis binder be "bound" and still succeed by tensor inference).
-- A **whole-axis binder** `a_` (top-level on the LHS, never a composite factor,
-  bracket, or string) is **inference-only**: binding it is rejected. A
-  **composite-factor** binder — the `b_` in `(a b)` — *is* bindable, since a split
-  needs it.
-- A cross-**tier** key (a string axis bound by a symbol/slot key, or vice versa) is
-  rejected.
+- A **blank binder** `a_` is **inference-only**, plain or targeted and whether it is a
+  whole axis or a composite factor: binding it is rejected. Spell an externally supplied
+  split factor as a bare axis (`a`) or string axis (`"a"`) instead.
+- A cross-**kind** key (a string axis bound by a symbol key, or vice versa) is rejected.
+  A target-head key with a different head than the desc's targeted string spelling is
+  also rejected.
 - An **evaluated / junk key** (a non-name, e.g. the integer `3` from a shadowed
   `c = 3`) **warns and is dropped**, and resolution continues — failing only if the
   shapes are then unsatisfiable. The warning is targeted when the key equals the
@@ -479,21 +492,20 @@ invariants / maintainability smells. Retained here as a record of the hardening:
   `reject-duplicate-output-axis` (RHS reject) and `accept-repeated-input-axis` (LHS now
   resolves). Distinct-across-shapes (shared/contracted/kept axes) is unaffected. (A single
   new RHS axis still broadcasts — §5.5 repetition — only a *repeated name* is rejected.)
-- ✅ **`Symbol[string]` for `#name` axes was `$Context`-sensitive** — *fixed.* A single
-  resolver `resolveSlotStrings` (Lowering.wl, shared by `descParts` and `parseDesc`) now
-  maps each `#name` bracket to the *symbol the desc itself already uses* for that name
-  (collected from the desc, `System`` heads excluded), instead of `Symbol["name"]` in the
-  live `$Context`. So `#b` and a bare `b` are the same axis regardless of context; a name
-  seen only as a string is internal-only (harmless `Symbol[]` fallback). Demonstrated:
-  the previously-failing adversarial-`$Context` case now succeeds (test
-  `bracket-context-robust`). env stays symbol-keyed, so the CAS/`Solve` layer is
+- ✅ **`Symbol[string]` for `#name` axes was `$Context`-sensitive** — *fixed.* The old
+  resolver `resolveSlotStrings` mapped each `#name` bracket to the desc-local symbol
+  for that name instead of `Symbol["name"]` in the live `$Context`, so adversarial
+  `$Context` no longer broke bracket matching. Demonstrated by
+  `bracket-context-robust`. env stays symbol-keyed, so the CAS/`Solve` layer is
   untouched.
   **Superseded (2026-07, desc-hygiene branch, §5.6):** `resolveSlotStrings` was replaced
   by `canonHeld`, which canonicalizes *every* axis identity — binder, bracket, string —
   to a fresh `Temporary` symbol, so the `Block[{c=3},…]` value-leak (not just the
-  `$Context` variant) is closed, and a string axis tier `"a"` is added. The new
-  canonicalizer intentionally keys identities by `SymbolName`, not full symbol context:
-  contexts are not part of axis identity in this eDSL.
+  `$Context` variant) is closed, and a string axis tier `"a"` is added. `#a` now belongs
+  to that string kind, while targeted blank/bare symbol axes use `Highlighted[...]` or
+  `Framed[...]`.
+  The new canonicalizer intentionally keys identities by `SymbolName`, not full symbol
+  context: contexts are not part of axis identity in this eDSL.
 - ✅ **Duplicated desc normalization** across `descParts` (Lowering.wl) and `parseDesc`
   (Parsing.wl) — *fixed.* The `{} -> 1` unit policy and the CirclePlus-flatten rule (which
   were written out three times: `flattenDirectSum`, `normHeldRhs`, and inline in

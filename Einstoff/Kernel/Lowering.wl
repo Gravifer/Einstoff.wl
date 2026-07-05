@@ -86,11 +86,12 @@ einCatch[expr_] := Catch[expr, einThrowTag];
 (* ------------------------------------------------------------------ *)
 
 (* --- desc-boundary evaluation hygiene: axis-identity canonicalization ------------ *)
-(* Three surface spellings denote a named axis — a binder `a_`, a bracket `#a` =
-   Slot["a"], and a string "a" — plus bare references `a`.  A globally *shadowed* axis
+(* Named axes have a spelling kind (blank `a_`, bare `a`, string "a") and an orthogonal
+   targeted/bracketed bit (`#a` = targeted string, Highlighted/Framed for targeted
+   blank/bare).  A globally *shadowed* axis
    symbol (Block[{c=3}, …]) must not leak its value into an axis identity.  We fix this
-   at the desc boundary: every *established* axis name (spelled as a binder, a bracket,
-   or a string somewhere in the desc) is rewritten to a fresh, value-less Temporary
+   at the desc boundary: every *established* axis name (spelled as a blank, targeted,
+   or string somewhere in the desc) is rewritten to a fresh, value-less Temporary
    symbol shared by all its occurrences; a *bare* symbol whose name is NOT established
    is left untouched, so it env-captures on ReleaseHold (a bound `k` reads as its
    literal dimension — the opt-in "bare = value" path, SPEC).  The fresh symbols live
@@ -185,26 +186,44 @@ axisNamesOf[e_] := DeleteDuplicates @ Join[
   Cases[e, s_Symbol /; Context[s] =!= "System`" :> SymbolName[Unevaluated[s]], {0, Infinity}]];
 
 (* Collect axis-name kinds from the held desc without evaluating any symbol (names via
-   SymbolName[Unevaluated[…]]).  Detect a tier "mishmash" (a name spelled BOTH as a
-   symbol/slot AND as a string) and reject an invalid string identifier.  Returns the
-   established names (binder/slot/string — a bare-only name is NOT established) or
+   SymbolName[Unevaluated[…]]).  Detect a spelling-kind "mishmash" (a name spelled BOTH
+   as a symbol and as a string) and reject an invalid string identifier.  Returns the
+   established names (blank/targeted/string — a bare-only name is NOT established) or
    $Failed on a rejected desc.  Populates $axisKind as a side effect. *)
 collectEstablished[h_Hold] :=
-  Module[{slotNames, hNoBracket, binderNames, hNoBinder, bareNames, stringNames,
-          allStr, bad, symslot, mish, lhs, lhsNoSlot, lhsNoBinder, lhsBare,
-          lhsBareEstablished},
-    (* Every axis name inside ANY bracket wrapper is a bracket axis. Slot["a"] is the
-       string-axis spelling; Highlighted[a_]/Framed[a_] are bind-only bracket spellings.
+  Module[{slotNames, targetStringNames, symbolBracketNames, badSlotNames, hNoBracket,
+          binderNames, hNoBinder, bareNames, stringNames, stringTierNames, allStr, bad,
+          symslot, mish, lhs, lhsNoSlot, lhsNoBinder, lhsBare, lhsBareEstablished},
+    (* Every axis name inside ANY bracket wrapper is targeted. Slot["a"] is the targeted
+       string spelling; Highlighted/Framed carry the blank/bare spelling inside them.
        Collect ALL names inside the wrapper (do NOT drop the whole wrapper, which would
        miss composite factors and leave them un-canonicalized). *)
     slotNames = DeleteDuplicates @ Flatten @
       Cases[h, (Slot | Highlighted | Framed)[xs___] :> axisNamesOf[Hold[xs]], {0, Infinity}];
+    targetStringNames = DeleteDuplicates @ Flatten @
+      Cases[h, (Slot | Highlighted | Framed)[xs___] :>
+        Cases[Hold[xs], str_String :> str, {0, Infinity}], {0, Infinity}];
+    symbolBracketNames = Complement[slotNames, targetStringNames];
+    badSlotNames = DeleteDuplicates @ Flatten @ Cases[h,
+      Slot[xs___] :> Join[
+        Cases[Hold[xs],
+          Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> SymbolName[Unevaluated[s]],
+          {0, Infinity}],
+        Cases[Hold[xs],
+          s_Symbol /; Context[s] =!= "System`" :> SymbolName[Unevaluated[s]],
+          {0, Infinity}]],
+      {0, Infinity}];
+    If[badSlotNames =!= {},
+      With[{r = "Slot[...] targets only string-kind axes; use Highlighted[...] or \
+Framed[...] for blank/bare targeted axis " <> First[badSlotNames]},
+        $descRejectReason = r; Message[Einstoff::unsupp, r]];
+      Return[$Failed]];
     (* Binders anywhere — including inside a bracketed composite. *)
     binderNames = Cases[h,
       Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> SymbolName[Unevaluated[s]],
       {0, Infinity}];
-    (* Bare strings / bare symbols OUTSIDE any bracket wrapper (the string tier and bare
-       refs); names inside wrappers were already taken as bracket axes above. *)
+    (* Bare strings / bare symbols OUTSIDE any bracket wrapper (plain string and bare
+       refs); names inside wrappers were already taken as targeted axes above. *)
     hNoBracket = h /. (Slot | Highlighted | Framed)[___] :> Null;
     hNoBinder = hNoBracket /. Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> Null;
     bareNames = Cases[hNoBinder,
@@ -221,21 +240,34 @@ collectEstablished[h_Hold] :=
     Scan[recordKind[#, "binder"] &, binderNames];
     Scan[recordKind[#, "bare"] &, bareNames];
     Scan[recordKind[#, "slot"] &, slotNames];
-    Scan[recordKind[#, "string"] &, stringNames];
-    (* A name appearing inside a CircleTimes / CirclePlus is a *composite factor* — it
-       genuinely needs a binding to split/size the composite, so it is bindable even as
-       a binder.  A binder that is NEVER a composite factor (nor slot/string) is a
-       whole-axis binder: inference-only.  (SPEC 7.2: Cases patterns, no Slot in a `&`.) *)
+    stringTierNames = DeleteDuplicates @ Join[stringNames, targetStringNames];
+    Scan[recordKind[#, "string"] &, stringTierNames];
+    Scan[recordKind[#, "target:Slot"] &, DeleteDuplicates @ Flatten @
+      Cases[h, Slot[xs___] :> Cases[Hold[xs], str_String :> str, {0, Infinity}],
+        {0, Infinity}]];
+    Scan[recordKind[#, "target:Highlighted"] &, DeleteDuplicates @ Flatten @
+      Cases[h, Highlighted[xs___] :> Cases[Hold[xs], str_String :> str, {0, Infinity}],
+        {0, Infinity}]];
+    Scan[recordKind[#, "target:Framed"] &, DeleteDuplicates @ Flatten @
+      Cases[h, Framed[xs___] :> Cases[Hold[xs], str_String :> str, {0, Infinity}],
+        {0, Infinity}]];
+    Scan[recordKind[#, "target:Highlighted"] &, DeleteDuplicates @ Flatten @
+      Cases[h, Highlighted[xs___] :> axisNamesOf[Hold[xs]], {0, Infinity}]];
+    Scan[recordKind[#, "target:Framed"] &, DeleteDuplicates @ Flatten @
+      Cases[h, Framed[xs___] :> axisNamesOf[Hold[xs]], {0, Infinity}]];
+    (* A name appearing inside a CircleTimes / CirclePlus is a composite factor. Blank
+       composite factors are still infer-only; externally supplied split factors should
+       be spelled bare or string.  (SPEC 7.2: Cases patterns, no Slot in a `&`.) *)
     Scan[recordKind[#, "composite"] &,
       DeleteDuplicates @ Flatten @ Cases[h,
         (CircleTimes | CirclePlus)[xs___] :> axisNamesOf[Hold[xs]], {0, Infinity}]];
     (* A name appearing anywhere in the LHS shapes is inferable from a tensor. *)
     Scan[recordKind[#, "onlhs"] &, axisNamesOf @ Extract[h, {1, 1}, Hold]];
-    (* mishmash: the string tier (a *bare* string term) mixed with the symbol/bracket
-       tier for one name. stringNames is already wrapper-free, so #a = Slot["a"] does
-       not count as the string tier. *)
-    symslot = DeleteDuplicates @ Join[binderNames, bareNames, slotNames];
-    mish = Intersection[symslot, DeleteDuplicates[stringNames]];
+    (* mishmash: string spelling (a bare string term or #a = Slot["a"]) mixed with the
+       symbol spelling for one name. Highlighted/Framed add targetedness, not a new
+       spelling kind; Slot["a"] is targeted string. *)
+    symslot = DeleteDuplicates @ Join[binderNames, bareNames, symbolBracketNames];
+    mish = Intersection[symslot, stringTierNames];
     If[mish =!= {},
       With[{r = "axis " <> First[mish] <> " is spelled both as a symbol/bracket and as \
 the string \"" <> First[mish] <> "\"; use one spelling consistently"},
@@ -325,7 +357,8 @@ axisDisplayName[x_] :=
    same name in a private context — SymbolName stays "nm", but no global value can leak.
    The test is *has a value* (ValueQ), NOT *value =!= Null*, so a symbol shadowed to Null
    is still treated as shadowed.  Deterministic per name, so every spelling of one axis
-   ("a" / Slot["a"] / a composite factor "a") maps to the SAME identity and unifies.
+   ("a" / targeted string wrappers / a composite factor "a") maps to the SAME identity
+   and unifies.
    Shared by deCanon (display) and the raw EinstoffMatch string-tier path (Parsing.wl),
    which would otherwise leak a shadowed global into env keys. *)
 axisSymbol[nm_String] :=
@@ -433,11 +466,10 @@ canonBindingList[bindings_, mode_] :=
     If[mode === "Raw",
       Return[Catch[
         Replace[bindings,
-          (* string key "a" -> n, or the canonical bracket key #a = Slot["a"] -> n: both
-             name the axis `a`.  Only the STRING-keyed bracket is accepted — a bare-symbol
-             Slot[a] key is not canonical (#a = Slot["a"] is), is evaluation-fragile (a
-             shadowed a makes the key Slot[3] before we see it), and is redundant with a
-             bare a -> n key; so it is left for the _Symbol/dup/size checks to reject. *)
+          (* string key "a" -> n, or the canonical slot key #a = Slot["a"] -> n: both
+             name the string-kind axis `a`.  Bare-symbol Slot[a] is not canonical, is
+             evaluation-fragile (a shadowed a makes the key Slot[3] before we see it),
+             and is left for the _Symbol/dup/size checks to reject. *)
           (h : (Rule | RuleDelayed))[(k_String) | Slot[k_String], v_] :>
             If[validAxisNameQ[k], h[axisSymbol[k], v],
               Throw["invalid axis name \"" <> k <> "\" in a binding key \
@@ -448,7 +480,8 @@ canonBindingList[bindings_, mode_] :=
        Module and the Do; a plain Return there would only exit the inner Module. *)
     Catch[
       Do[
-        Module[{k = First[bd], v = Last[bd], kn, kk, kinds, hasSlot, hasStr, hit},
+        Module[{k = First[bd], v = Last[bd], kn, kk, kinds, hasBinder, hasSlot, hasStr,
+                targetKinds, targetKeyQ, hit},
           (* classify the (already-evaluated) key *)
           Which[
             (* a Pattern key r_ -> n / r_ :> n: Pattern is HoldFirst so it survives
@@ -457,10 +490,10 @@ canonBindingList[bindings_, mode_] :=
               kn = Replace[k,
                 Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> SymbolName[Unevaluated[s]]];
               kk = "pattern",
-            MatchQ[k, _Slot] && Length[k] === 1,
+            MatchQ[k, (_Slot | _Highlighted | _Framed)] && Length[k] === 1,
               kn = Replace[First[k],
                 {s_Symbol :> SymbolName[Unevaluated[s]], str_String :> str, _ :> $Failed}];
-              kk = "slot",
+              kk = "target:" <> SymbolName[Head[k]],
             StringQ[k], kn = k; kk = "string",
             (* An evaluated shadow-capture whose value is a System` symbol (e.g. {c->2}
                under c=Null arrives as {Null->2}; also True/False/E/…): never a legal axis
@@ -491,22 +524,34 @@ canonBindingList[bindings_, mode_] :=
                   "binding key " <> ToString[k, InputForm] <> " is the current value of \
 axis " <> hit <> " (probably a shadowed symbol); write #" <> hit <> " -> … or \"" <>
                     hit <> "\" -> …; ignoring it"]],
-            (* key names an established axis: check the spelling tier, canonicalize *)
+            (* key names an established axis: check the spelling kind, canonicalize *)
             KeyExistsQ[$axisFresh, kn],
               kinds = Lookup[$axisKind, kn, {}];
+              hasBinder = MemberQ[kinds, "binder"];
               hasSlot = MemberQ[kinds, "slot"]; hasStr = MemberQ[kinds, "string"];
+              targetKinds = Select[kinds, StringStartsQ[#, "target:"] &];
+              targetKeyQ = StringStartsQ[kk, "target:"];
               Which[
                 (* A binder on the LHS is inference-only everywhere, including inside
                    CircleTimes/CirclePlus.  To supply a composite factor size, spell that
                    factor as a string axis or a bare axis instead of a Pattern binder. *)
-                MemberQ[kinds, "onlhs"] && ! hasSlot && ! hasStr,
+                MemberQ[kinds, "onlhs"] && hasBinder,
                   Throw["axis " <> kn <> " is inferred from the tensor (binder " <> kn <>
                     "_); to supply a size, spell the factor as a string \"" <> kn <>
                     "\" or as a bare symbol " <> kn, "cblReject"],
-                hasStr && kk =!= "string",
+                kk === "target:Slot" && ! hasStr,
+                  Throw["Slot[...] binding keys only target string-kind axes; use " <> kn <>
+                    " -> … or the matching Highlighted/Framed key for symbol-kind axes",
+                    "cblReject"],
+                targetKeyQ && ! MemberQ[targetKinds, kk],
+                  Throw["axis " <> kn <> " is not targeted with " <>
+                    StringDelete[kk, "target:"] <> "[...] in the desc; bind it with " <>
+                    If[hasStr, "\"" <> kn <> "\"", kn] <> " -> … or the matching target head",
+                    "cblReject"],
+                hasStr && kk =!= "string" && ! targetKeyQ,
                   Throw["axis \"" <> kn <> "\" is a string axis; bind it with \"" <> kn <>
                     "\" -> …, not " <> ToString[k, InputForm], "cblReject"],
-                hasSlot && kk === "string",
+                hasSlot && ! hasStr && kk === "string",
                   Throw["axis " <> kn <> " is a bracket axis; bind it with #" <> kn <>
                     " -> … (or " <> kn <> " -> …), not a string key", "cblReject"],
                 True, AppendTo[out, $axisFresh[kn] -> v]],

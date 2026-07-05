@@ -136,7 +136,7 @@ VerificationTest[
   TestID -> "split-reject-composite-binder-slot-binding"
 ];
 
-(* 13d. Slot keys are only for actual Slot[...] axes, not string-tier axes. *)
+(* 13d. Slot keys do not bind string-tier composite factors. *)
 VerificationTest[
   Quiet @ With[{x = ArrayReshape[Range[20], {2, 10}]},
     Einstoff["Massage"][{{b_, CirclePlus["q", k_]}} :> {{b, "q"}, {b, k}}, {x}, {Slot["q"] -> 3}]],

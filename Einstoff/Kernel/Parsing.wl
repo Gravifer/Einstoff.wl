@@ -77,9 +77,9 @@ parseDesc[h : Hold[_Rule]] :=
    back to the generic desc-shape reason, not a stale invalid-name reason. *)
 parseDesc[_] := ($descRejectReason = None; <|"LHS" -> $Failed, "RHS" -> $Failed|>);
 
-(* Names that appear inside a bracket wrapper anywhere in lhs. By the time this runs the
-   desc has been through canonHeld, so a #name bracket is Slot[freshSym] and a
-   Highlighted[b_] binder is Highlighted[fresh_]. Used only for the informational
+(* Names that appear inside a targeted/bracket wrapper anywhere in lhs. By the time this
+   runs the desc has been through canonHeld, so #name is Slot[freshSym] and a targeted
+   blank is Highlighted[fresh_]/Framed[fresh_]. Used only for the informational
    "Bracketed" field (§5.2); the fresh symbols are mapped back to the user's names by
    deCanon on the public output. *)
 bracketedNames[lhs_] :=
@@ -227,8 +227,8 @@ matchTerms[terms_, dims_, env_] :=
        exist for the *public* EinstoffMatch entry, which takes raw shape lists. *)
     If[t === {}, Return[matchTerms[Join[{1}, rest], dims, env]]];
     (* Bracket wrappers are transparent to shape matching: splice their contents into the
-       stream and remember bracketedness only in lowering. Slot["name"] is the string-axis
-       bracket spelling; Highlighted[name_]/Framed[name_] are bind-only bracket spellings.
+       stream and remember targetedness only in lowering. Slot["name"] is targeted string;
+       Highlighted/Framed preserve the blank/bare spelling of their contents.
        Each string is validated before axisSymbol, so an illegal name yields a clean unsat
        reason, not a Symbol::symname crash. *)
     If[bracketWrapperQ[t],

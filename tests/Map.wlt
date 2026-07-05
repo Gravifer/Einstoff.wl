@@ -21,7 +21,7 @@ VerificationTest[
   TestID -> "map-flip-string"
 ];
 
-(* 1b-c. Highlighted/Framed mark a bind-only bracketed axis. *)
+(* 1b-c. Highlighted/Framed mark a targeted blank axis. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
     Einstoff[Map]["flip"][{{a_, Highlighted[b_]}} :> {{a, b}}, {x}]],
@@ -33,6 +33,48 @@ VerificationTest[
     Einstoff[Map]["flip"][{{a_, Framed[b_]}} :> {{a, b}}, {x}]],
   Reverse /@ ArrayReshape[Range[8], {2, 4}],
   TestID -> "map-flip-framed-binder"
+];
+
+(* 1d. Highlighted also supports a targeted bare axis, bound by a bare key. *)
+VerificationTest[
+  Block[{b},
+    With[{x = ArrayReshape[Range[8], {2, 4}]},
+      Einstoff[Map]["flip"][{{a_, Highlighted[b]}} :> {{a, b}}, {x}, {b -> 4}]]],
+  Reverse /@ ArrayReshape[Range[8], {2, 4}],
+  TestID -> "map-flip-highlighted-bare-binding"
+];
+
+(* 1e. A targeted blank axis is still a binder: external bindings are rejected. *)
+VerificationTest[
+  Block[{b},
+    With[{x = ArrayReshape[Range[8], {2, 4}]},
+      Quiet @ Einstoff[Map]["flip"][{{a_, Highlighted[b_]}} :> {{a, b}}, {x}, {b -> 4}]]],
+  $Failed,
+  TestID -> "map-reject-highlighted-binder-binding"
+];
+
+(* 1f. The old Slot["b"] -> bare b spelling mixes string and symbol tiers. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[8], {2, 4}]},
+    Quiet @ Einstoff[Map]["flip"][{{a_, Slot["b"]}} :> {{a, b}}, {x}]],
+  $Failed,
+  TestID -> "map-reject-slot-string-to-bare"
+];
+
+(* 1g. Highlighted/Framed can also target string-kind axes. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[8], {2, 4}]},
+    Einstoff[Map]["flip"][{{a_, Highlighted["b"]}} :> {{a, Highlighted["b"]}}, {x}]],
+  Reverse /@ ArrayReshape[Range[8], {2, 4}],
+  TestID -> "map-flip-highlighted-string"
+];
+
+(* 1h. Slot is reserved for string-kind targeting; it is not targeted blank notation. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[8], {2, 4}]},
+    Quiet @ Einstoff[Map]["flip"][{{a_, Slot[b_]}} :> {{a, b}}, {x}]],
+  $Failed,
+  TestID -> "map-reject-slot-binder-target"
 ];
 
 (* 2. A raw function works identically (the string is just a shortcut). *)

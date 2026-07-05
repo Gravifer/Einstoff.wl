@@ -80,24 +80,51 @@ VerificationTest[
   TestID -> "bracket-unify-mismatch"
 ];
 
-(* 6d. A bracketed axis shares identity with a bare reference: #b on the input is
-   the same axis `b` referenced bare on the output. *)
+(* 6d. A Slot["b"] bracket is targeted string; referencing bare b is a kind mismatch. *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[{{a_, Slot["b"]}} :> {{a, b}}, {{2, 4}}],
-  {{2, 4}},
-  TestID -> "bracket-shares-identity-with-bare"
+  Quiet @ sat @ Einstoff`EinstoffShapes[{{a_, Slot["b"]}} :> {{a, b}}, {{2, 4}}],
+  False,
+  TestID -> "bracket-string-rejects-bare-reference"
 ];
 
-(* 6d'. A real slot axis accepts both a slot key and its bare key convenience. *)
+(* 6d'. A targeted string axis accepts the plain string key or its matching target head. *)
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[{{a_, Slot["q"]}} :> {{a}}, {{2, 3}}, {"q" -> 3}],
+  True,
+  TestID -> "bracket-binding-string-key-ok"
+];
 VerificationTest[
   sat @ Einstoff`EinstoffShapes[{{a_, Slot["q"]}} :> {{a}}, {{2, 3}}, {Slot["q"] -> 3}],
   True,
   TestID -> "bracket-binding-slot-key-ok"
 ];
 VerificationTest[
+  sat @ Einstoff`EinstoffShapes[{{a_, Slot["q"]}} :> {{a}}, {{2, 3}}, {Highlighted["q"] -> 3}],
+  False,
+  TestID -> "bracket-binding-wrong-target-head-reject"
+];
+VerificationTest[
   sat @ Einstoff`EinstoffShapes[{{a_, Slot["q"]}} :> {{a}}, {{2, 3}}, {q -> 3}],
+  False,
+  TestID -> "bracket-binding-bare-key-reject"
+];
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[
+    {{a_, Highlighted["q"]}} :> {{a}}, {{2, 3}}, {Highlighted["q"] -> 3}],
   True,
-  TestID -> "bracket-binding-bare-key-ok"
+  TestID -> "highlighted-string-binding-head-key-ok"
+];
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[
+    {{a_, Highlighted["q"]}} :> {{a}}, {{2, 3}}, {"q" -> 3}],
+  True,
+  TestID -> "highlighted-string-binding-string-key-ok"
+];
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[
+    {{a_, Highlighted["q"]}} :> {{a}}, {{2, 3}}, {Framed["q"] -> 3}],
+  False,
+  TestID -> "highlighted-string-binding-wrong-head-reject"
 ];
 
 (* 6e. A repeated axis name within the OUTPUT shape is rejected (einx: "must not contain
@@ -126,12 +153,11 @@ VerificationTest[
   TestID -> "accept-repeated-input-axis-shape"
 ];
 
-(* 6f. Context robustness: a #b bracket resolves to the desc's OWN symbol b (not a
-   $Context-dependent Symbol["b"]), so an unusual $Context does not break the match
-   between #b on the input and a bare b on the output. *)
+(* 6f. Context robustness: a #b bracket is a string-tier axis, so an unusual $Context
+   does not break a kept #b on the output. *)
 VerificationTest[
   Block[{$Context = "Sandbox`", $ContextPath = {"System`", "Einstoff`"}},
-    out @ Einstoff`EinstoffShapes[{{a_, Slot["b"]}} :> {{a, b}}, {{2, 4}}]],
+    out @ Einstoff`EinstoffShapes[{{a_, Slot["b"]}} :> {{a, Slot["b"]}}, {{2, 4}}]],
   {{2, 4}},
   TestID -> "bracket-context-robust"
 ];
