@@ -13,6 +13,8 @@ ClearAll[a, b, c, q, k, h, w, i, g, n, m];
 (* helpers *)
 sat[r_] := r["Satisfiable"];
 out[r_] := r["OutputShapes"];
+bindingKeyName[Verbatim[HoldPattern][s_Symbol]] := SymbolName[Unevaluated[s]];
+bindingKeyName[s_Symbol] := SymbolName[Unevaluated[s]];
 
 (* ===================== Satisfiable cases (SPEC 6) ================== *)
 
@@ -218,9 +220,16 @@ VerificationTest[
 VerificationTest[
   Einstoff`EinstoffShapes[
     {{a_, CircleTimes["b", c_]}} :> {{CircleTimes["b", a], c}}, {{4, 8}}, {"b" -> 2}]["Bindings"],
-  <|b -> 2, a -> 4, c -> 4|>,
+  <|HoldPattern[b] -> 2, HoldPattern[a] -> 4, HoldPattern[c] -> 4|>,
   SameTest -> (Sort[Normal[#1]] === Sort[Normal[#2]] &),
   TestID -> "ex2-bindings"
+];
+
+VerificationTest[
+  Sort[bindingKeyName /@ Keys @ Einstoff`EinstoffShapes[
+    {{a_, CircleTimes["b", c_]}} :> {{CircleTimes["b", a], c}}, {{4, 8}}, {"b" -> 2}]["Bindings"]],
+  {"a", "b", "c"},
+  TestID -> "ex2-bindings-held-key-names"
 ];
 
 (* targeted-axis reporting *)

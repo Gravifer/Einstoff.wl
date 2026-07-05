@@ -50,6 +50,9 @@ Einstoff["Dot"] := EinstoffDot;
 Einstoff[Inner] := EinstoffInner;
 Einstoff["Inner"] := EinstoffInner;
 
+Options[EinstoffDot] = {TraceAction -> None};
+Options[EinstoffInner] = {TraceAction -> None};
+
 (* Contract two atomic-axis tensors with combiner (mul, add), keeping the axes in
    `keep`; return {tensor, labels} reshaped to atomic axes (label order B,M,N).
    Emits a message and Throws $Failed on a within-operand drop. *)
@@ -106,7 +109,7 @@ sanitizeOperand[t_, atoms_, env_] :=
    (uniform convention): a globally bound axis symbol substitutes — a bound integer
    reads as a literal dimension, illegal values rejected downstream; Pattern still
    holds each binding `name_` and `:>` holds the RHS. *)
-innerLower[mul_, add_, desc_, tensors_, bindings_] := withAxisScope @
+innerLower[mul_, add_, desc_, tensors_, bindings_, traceAction_] := withAxisScope @
   Module[{parts, lhs, rhs, shp, env, labs, outA, sanitized, stensors, slabs, result},
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
@@ -174,13 +177,17 @@ output for an elementwise/batch product, or contract pairwise)"];
         keep = Union[outA, Join @@ slabs[[i + 1 ;;]]];
         {accT, accL} = contractPair[mul, add, accT, accL, stensors[[i]], slabs[[i]], keep, env],
         {i, 2, Length[stensors]}];
-      materializeOutput[accT, accL, First[rhs], env]];
+      With[{accT0 = accT, accL0 = accL, rhs0 = First[rhs], env0 = env},
+        traceReturn[materializeOutput[accT0, accL0, rhs0, env0], traceAction]]];
     If[result === $Failed, Return[$Failed]];
     result
   ];
 
-EinstoffDot[desc_, tensors_, bindings_List : {}] :=
-  innerLower[Times, Plus, desc, tensors, bindings];
+EinstoffDot[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
+  innerLower[Times, Plus, desc, tensors, bindings,
+    OptionValue[TraceAction]];
 
-EinstoffInner[mul_, add_][desc_, tensors_, bindings_List : {}] :=
-  innerLower[mul, add, desc, tensors, bindings];
+EinstoffInner[mul_, add_][desc_, tensors_, bindings_List : {},
+    opts : OptionsPattern[EinstoffInner]] :=
+  innerLower[mul, add, desc, tensors, bindings,
+    OptionValue[EinstoffInner, {opts}, TraceAction]];

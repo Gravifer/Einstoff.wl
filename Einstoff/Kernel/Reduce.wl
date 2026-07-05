@@ -39,6 +39,8 @@ the einx reduction style; a bare dropped axis is the einops style.";
 Einstoff[ArrayReduce] := EinstoffReduce;
 Einstoff["Reduce"] := EinstoffReduce;
 
+Options[EinstoffReduce] = {TraceAction -> None};
+
 (* Resolve a reducer spec to a list-reducing function.  Accepts a raw function
    (Total, Mean, Max, Min, ...) as-is, or a convenience string matched
    case-insensitively.  The string set covers every einx reduction op
@@ -65,10 +67,12 @@ reduceFunction[f_] := f;
 
 (* Curried: Einstoff[ArrayReduce][reducer] is the operator, applied to
    [desc, tensors, bindings]. A subvalue of EinstoffReduce. *)
-EinstoffReduce[reducerSpec_][desc_, tensors_, bindings_List : {}] := withAxisScope @
+EinstoffReduce[reducerSpec_][desc_, tensors_, bindings_List : {},
+    opts : OptionsPattern[EinstoffReduce]] := withAxisScope @
   Module[{parts, lhs, rhs, inShapes, shp, env, x, reducer,
           lhsTagged, lhsAtoms, lhsBr, rhsAtoms, reducedPos, keptOrder,
-          decompDims, xr, xred, result},
+          decompDims, xr, xred, result, traceAction},
+    traceAction = OptionValue[EinstoffReduce, {opts}, TraceAction];
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
@@ -135,7 +139,9 @@ elementary op (softmax/flip/sort/…) is the Einstoff[Map][f] path, not reductio
     (* Surviving atoms, in their LHS-relative order (= xred's axis order); then
        materialize repeats, permute to RHS order, and recompose. *)
     keptOrder = Delete[lhsAtoms, List /@ reducedPos];
-    result = einCatch[materializeOutput[xred, keptOrder, First[rhs], env]];
+    With[{xred0 = xred, keptOrder0 = keptOrder, rhs0 = First[rhs], env0 = env},
+      result = einCatch[
+        traceReturn[materializeOutput[xred0, keptOrder0, rhs0, env0], traceAction]]];
     If[result === $Failed,
       Message[Einstoff::unsat,
         "an output axis size is unbound (a repeated axis needs a binding)"];

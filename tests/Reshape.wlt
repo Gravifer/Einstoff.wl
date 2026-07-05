@@ -365,4 +365,26 @@ VerificationTest[
   TestID -> "unit-empty-duplicate-output"
 ];
 
+(* 33. TraceAction returns the lowered expression wrapped by the requested action. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
+    Head @ Einstoff[ArrayReshape][{{a_, b_}} :> {{b, a}}, {x}, {}, TraceAction -> Hold]],
+  Hold,
+  TestID -> "traceaction-hold-head"
+];
+
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
+    ReleaseHold @ Einstoff[ArrayReshape][{{a_, b_}} :> {{b, a}}, {x}, {}, TraceAction -> Hold]],
+  Transpose[ArrayReshape[Range[6], {2, 3}]],
+  TestID -> "traceaction-hold-releases"
+];
+
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
+    Head @ Einstoff[ArrayReshape][{{a_, b_}} :> {{b, a}}, {x}, {}, TraceAction -> Defer]],
+  Defer,
+  TestID -> "traceaction-defer-head"
+];
+
 EndTestSection[];

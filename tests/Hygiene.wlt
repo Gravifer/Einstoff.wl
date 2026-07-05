@@ -16,6 +16,9 @@ BeginTestSection["Einstoff`DescHygiene"];
 
 ClearAll[a, b, c, k, r, n];
 
+bindingKeyName[Verbatim[HoldPattern][s_Symbol]] := SymbolName[Unevaluated[s]];
+bindingKeyName[s_Symbol] := SymbolName[Unevaluated[s]];
+
 (* Fixtures. *)
 (* x23 = {{1,2,3},{4,5,6}} ; x24 = {{1,..,4},{5,..,8}} *)
 
@@ -142,7 +145,7 @@ VerificationTest[
        are axis identities (SymbolName recovers the user name), never the shadowed VALUE. *)
 VerificationTest[
   Block[{c = 3},
-    Sort[SymbolName /@ Keys[
+    Sort[bindingKeyName /@ Keys[
       Einstoff`EinstoffShapes[{{a_, c_}} :> {{c, a}}, {{2, 3}}]["Bindings"]]]],
   {"a", "c"},
   TestID -> "hyg-decanon-bindings-no-value-leak"
@@ -160,7 +163,7 @@ VerificationTest[
        hygiene test is ValueQ, not value =!= Null (else Block[{c=Null},…] leaks). *)
 VerificationTest[
   Block[{c = Null},
-    Sort[SymbolName /@ Keys[
+    Sort[bindingKeyName /@ Keys[
       Einstoff`EinstoffShapes[{{a_, c_}} :> {{c, a}}, {{2, 3}}]["Bindings"]]]],
   {"a", "c"},
   TestID -> "hyg-decanon-null-shadow-no-leak"
@@ -180,7 +183,7 @@ VerificationTest[
        Association keys.) *)
 VerificationTest[
   Block[{c = Null},
-    Sort[SymbolName /@ Keys[Quiet @ Einstoff`EinstoffShapes[
+    Sort[bindingKeyName /@ Keys[Quiet @ Einstoff`EinstoffShapes[
       {{a_, Highlighted[c_]}} :> {{a, c}}, {{2, 3}}, {c -> 2}]["Bindings"]]]],
   {"a", "c"},
   TestID -> "hyg-system-symbol-key-dropped"

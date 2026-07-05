@@ -45,6 +45,9 @@ Einstoff["Join"] := EinstoffJoin;
 Einstoff[Split] := EinstoffSplit;
 Einstoff["Split"] := EinstoffSplit;
 
+Options[EinstoffJoin] = {TraceAction -> None};
+Options[EinstoffSplit] = {TraceAction -> None};
+
 (* A valid direct-sum summand: an axis name (bare or blank), an
    integer, or a CircleTimes product of those. A targeted direct sum or
    any other head is not supported. Shared by the concat and split handlers. *)
@@ -60,7 +63,7 @@ directSumSummandQ[s_] :=
 
 SetAttributes[directSumConcat, HoldFirst];
 
-directSumConcat[desc_, tensors_, bindings_List] := withAxisScope @
+directSumConcat[desc_, tensors_, bindings_List, traceAction_ : None] := withAxisScope @
   Module[{parts, lhs, rhs, out, cpos, cp, summands, k, shp, env,
           aligned, n},
     parts = descParts[Hold[desc]];
@@ -135,7 +138,8 @@ summand distinctly; within-tensor contraction is not supported here)"];
         "an axis size is unbound while aligning a direct-sum operand"];
       Return[$Failed]];
 
-    Join[Sequence @@ aligned, n]
+    With[{aligned0 = aligned, n0 = n},
+      traceReturn[Join[Sequence @@ aligned0, n0], traceAction]]
   ];
 
 (* ------------------------------------------------------------------ *)
@@ -146,7 +150,7 @@ summand distinctly; within-tensor contraction is not supported here)"];
 
 SetAttributes[directSumSplit, HoldFirst];
 
-directSumSplit[desc_, tensors_, bindings_List] := withAxisScope @
+directSumSplit[desc_, tensors_, bindings_List, traceAction_ : None] := withAxisScope @
   Module[{parts, lhs, rhs, inShape, cpos, cp, summands, k, shp, env, x,
           ndims, n, outs},
     parts = descParts[Hold[desc]];
@@ -227,7 +231,7 @@ summand distinctly; within-tensor contraction is not supported here)"];
       Message[Einstoff::unsat,
         "an axis size is unbound while slicing a direct-sum block"];
       Return[$Failed]];
-    outs
+    With[{outs0 = outs}, traceReturn[outs0, traceAction]]
   ];
 
 (* ------------------------------------------------------------------ *)
@@ -236,8 +240,9 @@ summand distinctly; within-tensor contraction is not supported here)"];
 
 (* desc not held (uniform convention); the internal directSum* / EinstoffShapes
    layer still holds it for structural resolution. *)
-EinstoffJoin[desc_, tensors_, bindings_List : {}] := withAxisScope @
-  Module[{parts},
+EinstoffJoin[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] := withAxisScope @
+  Module[{parts, traceAction},
+    traceAction = OptionValue[TraceAction];
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
     (* Guard: Join is concatenation — CirclePlus must be on the RHS only. *)
@@ -250,11 +255,12 @@ not the input (LHS); use Einstoff[Split] for an input direct sum"];
       Message[Einstoff::unsupp,
         "Einstoff[Join] needs a direct-sum (CirclePlus) axis on the output"];
       Return[$Failed]];
-    directSumConcat[desc, tensors, bindings]
+    directSumConcat[desc, tensors, bindings, traceAction]
   ];
 
-EinstoffSplit[desc_, tensors_, bindings_List : {}] := withAxisScope @
-  Module[{parts},
+EinstoffSplit[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] := withAxisScope @
+  Module[{parts, traceAction},
+    traceAction = OptionValue[TraceAction];
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
     (* Guard: Split is the input direct sum — CirclePlus on the LHS only. *)
@@ -267,5 +273,5 @@ input (LHS), not the output (RHS); use Einstoff[Join] for an output direct sum"]
       Message[Einstoff::unsupp,
         "Einstoff[Split] needs a direct-sum (CirclePlus) axis on the input (LHS)"];
       Return[$Failed]];
-    directSumSplit[desc, tensors, bindings]
+    directSumSplit[desc, tensors, bindings, traceAction]
   ];

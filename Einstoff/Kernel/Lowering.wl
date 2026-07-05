@@ -66,7 +66,7 @@ PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
   distinctAxesQ, bracketWrapperQ, reduceAtoms, materializeOutput, selfContract,
   reshapeTo, hasCirclePlus, directSumConcat, directSumSplit, einThrowTag, einCatch,
-  einAxisCatch, $einAxisFail}]
+  einAxisCatch, $einAxisFail, traceReturn}]
 
 (* Internal control-flow tag.  The lowering helpers signal an unsupported / unsatisfiable
    desc with Throw[$Failed, einThrowTag]; the operator that called them recovers it with
@@ -139,7 +139,29 @@ withAxisScopeDeCanon[body_] :=
   If[AssociationQ[$axisFresh], body,
     Block[{$axisFresh = <||>, $axisKind = <||>, $descRejectReason = None,
            $axisFallbackMemo = <||>},
-      purgeAxisContext[]; einAxisCatch[deCanon[body], $Failed]]];
+      purgeAxisContext[]; einAxisCatch[holdPublicBindingKeys @ deCanon[body], $Failed]]];
+
+holdBindingKey[k_Symbol] :=
+  ToExpression[axisDisplayName[Unevaluated[k]], InputForm, HoldPattern];
+holdBindingKey[k_] := HoldPattern[k];
+
+holdBindingKeys[a_Association] :=
+  Association @ KeyValueMap[(holdBindingKey[#1] -> #2) &, a];
+
+holdPublicBindingKeys[a_Association] :=
+  Association @ KeyValueMap[
+    If[#1 === "Bindings" && AssociationQ[#2],
+      #1 -> holdBindingKeys[#2],
+      #1 -> holdPublicBindingKeys[#2]] &, a];
+holdPublicBindingKeys[l_List] := holdPublicBindingKeys /@ l;
+holdPublicBindingKeys[x_] := x;
+
+traceActionEnabledQ[None | False | Identity] := False;
+traceActionEnabledQ[_] := True;
+
+SetAttributes[traceReturn, HoldFirst];
+traceReturn[expr_, action_] :=
+  If[traceActionEnabledQ[action], Apply[action, Hold[expr]], expr];
 
 (* Shared desc-shape failure return for the operators.  descParts returns $Failed for
    BOTH a structurally-malformed desc (not lhs :> rhs) AND a canonHeld hygiene reject

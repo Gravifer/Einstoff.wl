@@ -40,6 +40,8 @@ kept on the output; dropping an axis is a reduction (use Einstoff[ArrayReduce]).
 Einstoff[Map] := EinstoffMap;
 Einstoff["Map"] := EinstoffMap;
 
+Options[EinstoffMap] = {TraceAction -> None};
+
 (* Resolve a map spec to a vector->vector function.  A raw function is used as-is;
    a convenience string is matched case-insensitively to the einx misc op of that
    name.  softmax/log_softmax use the max-shift stable form.  roll is omitted (its
@@ -56,11 +58,13 @@ mapFunction[f_] := f;
 
 (* Curried: Einstoff[Map][f] is the operator, applied to [desc, tensors, bindings].
    A subvalue of EinstoffMap, exactly as EinstoffReduce[reducer][…]. *)
-EinstoffMap[fSpec_][desc_, tensors_, bindings_List : {}] := withAxisScope @
+EinstoffMap[fSpec_][desc_, tensors_, bindings_List : {},
+    opts : OptionsPattern[EinstoffMap]] := withAxisScope @
   Module[{parts, lhs, rhs, inShapes, shp, env, f, x,
           lhsTagged, lhsAtoms, lhsBr, rhsAtoms, brAtoms, vmapAtoms,
           decompDims, order, srcPerm, xr, vmapDims, brDims, vmapProd, brProd,
-          mat, mapped, recombined, result},
+          mat, mapped, recombined, result, traceAction},
+    traceAction = OptionValue[EinstoffMap, {opts}, TraceAction];
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
@@ -152,7 +156,9 @@ Einstoff[ArrayReduce])"];
 
     recombined = ArrayReshape[mapped, Join[vmapDims, brDims]];
     (* order is recombined's atom order; materialize repeats, permute to RHS, recompose. *)
-    result = einCatch[materializeOutput[recombined, order, First[rhs], env]];
+    With[{recombined0 = recombined, order0 = order, rhs0 = First[rhs], env0 = env},
+      result = einCatch[
+        traceReturn[materializeOutput[recombined0, order0, rhs0, env0], traceAction]]];
     If[result === $Failed,
       Message[Einstoff::unsat,
         "an output axis size is unbound (a repeated axis needs a binding)"];

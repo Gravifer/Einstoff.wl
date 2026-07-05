@@ -269,4 +269,12 @@ VerificationTest[
   TestID -> "reduce-reject-kept-literal"
 ];
 
+(* 28. TraceAction is a standard option even on the curried reducer subvalue. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {3, 2}]},
+    Head @ Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a}}, {x}, {}, TraceAction -> Hold]],
+  Hold,
+  TestID -> "reduce-traceaction-hold-head"
+];
+
 EndTestSection[];

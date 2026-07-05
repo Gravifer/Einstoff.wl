@@ -58,6 +58,10 @@ Einstoff["Rearrange"]     := EinstoffReshape;
 Einstoff["ArrayContract"] := EinstoffContract;
 Einstoff["Contract"]      := EinstoffContract;
 
+Options[EinstoffMassage] = {TraceAction -> None};
+Options[EinstoffReshape] = {TraceAction -> None};
+Options[EinstoffContract] = {TraceAction -> None};
+
 (* The three entrances are one engine under three policies, differing only in which
    non-bijective features they admit (element counts, single tensor):
      All        (EinstoffMassage)  — permissive: also repetition and direct sum
@@ -66,13 +70,16 @@ Einstoff["Contract"]      := EinstoffContract;
    Keeping the policy inside the shared core (massageCore) means the guards are pure
    intent declarations and the classification of a rejected desc ("wrong guard" vs
    "wrong lowering") lives at the exact point each feature becomes known. *)
-EinstoffMassage[desc_, tensors_, bindings_List : {}]  := massageCore[desc, tensors, bindings, All];
-EinstoffReshape[desc_, tensors_, bindings_List : {}]  := massageCore[desc, tensors, bindings, "Reshape"];
-EinstoffContract[desc_, tensors_, bindings_List : {}] := massageCore[desc, tensors, bindings, "Contract"];
+EinstoffMassage[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
+  massageCore[desc, tensors, bindings, All, OptionValue[TraceAction]];
+EinstoffReshape[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
+  massageCore[desc, tensors, bindings, "Reshape", OptionValue[TraceAction]];
+EinstoffContract[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
+  massageCore[desc, tensors, bindings, "Contract", OptionValue[TraceAction]];
 
 (* desc is NOT held (uniform convention): Pattern holds each binding `name_` and `:>`
    holds the RHS, so only a bare reference to a globally bound symbol is substituted. *)
-massageCore[desc_, tensors_, bindings_List, policy_] := withAxisScope @
+massageCore[desc_, tensors_, bindings_List, policy_, traceAction_] := withAxisScope @
   Module[{parts, lhs, rhs, m, env, lhsAtoms, rhsAtoms, sc, xc, atomsc, result,
           outOnly, repeated, contracted},
     parts = descParts[Hold[desc]];
@@ -88,8 +95,9 @@ massageCore[desc_, tensors_, bindings_List, policy_] := withAxisScope @
           If[policy === "Reshape", "bijective reshape", "within-tensor contraction"] <>
           "; use Einstoff[Join]/[Split] or the permissive Einstoff[\"Massage\"]"];
         Return[$Failed]];
-      If[hasCirclePlus[rhs], Return[directSumConcat[desc, tensors, bindings]]];
-      Return[directSumSplit[desc, tensors, bindings]]];
+      If[hasCirclePlus[rhs],
+        Return[directSumConcat[desc, tensors, bindings, traceAction]]];
+      Return[directSumSplit[desc, tensors, bindings, traceAction]]];
     If[! MatchQ[tensors, {__}],
       Message[Einstoff::unsupp,
         "tensors must be a non-empty list of arrays"]; Return[$Failed]];
@@ -162,7 +170,8 @@ rearrange/contract (a size-1 unit axis is squeezed; a literal size > 1 axis has 
 carryable identity; name it); use Einstoff[ArrayReduce]"];
       Return[$Failed]];
 
-    result = einCatch[materializeOutput[xc, atomsc, First[rhs], env]];
+    With[{xc0 = xc, atomsc0 = atomsc, rhs0 = First[rhs], env0 = env},
+      result = einCatch[traceReturn[materializeOutput[xc0, atomsc0, rhs0, env0], traceAction]]];
     If[result === $Failed,
       Message[Einstoff::unsat,
         "an output axis size is unbound or not a positive integer (a repeated axis \
