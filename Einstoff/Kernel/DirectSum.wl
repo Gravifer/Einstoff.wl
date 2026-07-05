@@ -77,6 +77,10 @@ directSumJoinHeldBlocks[blocks_List, axes_List, counts_List] :=
         {i, Length[grouped]}];
       heldJoin[joined, First[axes]]]];
 
+directSumBlockStarts[sizes_List] :=
+  (* Prior cumulative block boundaries, in Mathematica's 1-indexed coordinates. *)
+  (Most[Accumulate[Prepend[#, 1]]] &) /@ sizes;
+
 (* ------------------------------------------------------------------ *)
 (* Concat handler.  Called with the held desc (so EinstoffShapes still   *)
 (* holds it), the operand tensors, and bindings.  lhs/rhs are re-parsed   *)
@@ -277,7 +281,7 @@ summand distinctly; within-tensor contraction is not supported here)"];
         sizes = Table[
           (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ summandLists[[j]],
           {j, Length[summandLists]}];
-        ends = Accumulate /@ sizes; starts = ends - sizes + 1;
+        ends = Accumulate /@ sizes; starts = directSumBlockStarts[sizes];
         Table[
           Module[{combo = combos[[i]], specs, terms, atoms, dims, block, replacements},
             specs = Table[
@@ -306,7 +310,7 @@ summand distinctly; within-tensor contraction is not supported here)"];
       sizes = Table[
         (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ summandLists[[j]],
         {j, Length[summandLists]}];
-      ends = Accumulate /@ sizes; starts = ends - sizes + 1;
+      ends = Accumulate /@ sizes; starts = directSumBlockStarts[sizes];
       Table[
         Module[{combo = combos[[i]], block, terms, atoms, dims, specs, replacements},
           (* slice block i along axis n; All on every other axis *)
