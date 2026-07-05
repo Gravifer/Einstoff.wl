@@ -70,6 +70,9 @@ For more details on the design, see `SPEC.md`
   so when writing inline code in markdown, use double backticks to fence it,
   e.g. ``Einstoff`Private`` or ``BeginTestSection["Einstoff`Lowering`Reduce"]``.
 
+- ``wolframscript -script`` does not accept the script from stdin, so don't use a heredoc;
+  instead, write the script to a temporary file and pass that filename to `-script`.
+
 - On windows, the shell we're using is most likely `pwsh` (powershell v7) or `powershell`;
   there are aliases matching common `bash` utilities, but the syntax for stuff like parameters can be different.
   You don't need to generate terminal commands with full powershell verbosity,
