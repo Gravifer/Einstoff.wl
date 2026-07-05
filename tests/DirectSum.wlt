@@ -401,6 +401,17 @@ VerificationTest[
   TestID -> "split-named-summand-carries"
 ];
 
+VerificationTest[
+  With[{x = ArrayReshape[Range[10], {2, 5}]},
+    With[{g = Einstoff[Split][{{b_, CirclePlus[q, k]}} :> {{b, q}, {b, k}},
+        {x}, {q -> 3, k -> 2}, TraceAction -> Hold]},
+      {Length @ Cases[g, _Take, Infinity], ReleaseHold[g],
+       FreeQ[g, _Einstoff`PackageScope`materializeOutput]}]],
+  With[{x = ArrayReshape[Range[10], {2, 5}]},
+    {2, {Take[x, All, {1, 3}], Take[x, All, {4, 5}]}, True}],
+  TestID -> "split-traceaction-holds-take-slices"
+];
+
 (* 37-38. A {} summand is the unit literal 1 (einx '()'): concat 'b c, -> b (c + ())'
    and split 'b (q + ()) -> b q, b' behave exactly like the literal-1 forms. *)
 VerificationTest[

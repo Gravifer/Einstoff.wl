@@ -66,6 +66,7 @@ PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
   distinctAxesQ, bracketWrapperQ, reduceAtoms, materializeOutput, selfContract,
   materializeOutputTrace, materializeOutputExprHeld, heldReshape, heldArrayReduce,
+  heldTake, heldTakeValue, heldList,
   reshapeTo, hasCirclePlus, directSumConcat, directSumSplit, einThrowTag, einCatch,
   einAxisCatch, $einAxisFail, traceActionEnabledQ, traceReturn, traceReturnHeld}]
 
@@ -673,6 +674,16 @@ heldTranspose[HoldComplete[e_], perm_] :=
   With[{p = perm}, HoldComplete[Transpose[e, p]]];
 heldArrayReduce[HoldComplete[e_], reducer_, pos_] :=
   With[{f = reducer, p = pos}, HoldComplete[ArrayReduce[f, e, p]]];
+heldTake[HoldComplete[e_], specs_List] :=
+  With[{s = specs}, HoldComplete[Take[e, Sequence @@ s]]];
+heldTakeValue[e_, specs_List] :=
+  With[{v = e, s = specs}, HoldComplete[Take[v, Sequence @@ s]]];
+heldExprString[HoldComplete[e_]] := ToString[Unevaluated[e], InputForm];
+heldList[helds_List] :=
+  ToExpression[
+    "HoldComplete[{" <> StringRiffle[heldExprString /@ helds, ", "] <> "}]",
+    InputForm,
+    Identity];
 
 (* Does any shape in `shapes` contain a CirclePlus (direct-sum) term?  Used to
    route a desc into the direct-sum path and to guard Join/Split direction. *)

@@ -211,6 +211,26 @@ summand distinctly; within-tensor contraction is not supported here)"];
 
     x = First[tensors];
     ndims = Length[inShape];
+    If[traceActionEnabledQ[traceAction],
+      outs = einCatch @ Module[{sz, en, st},
+        sz = (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ summands;
+        en = Accumulate[sz]; st = en - sz + 1;
+        Table[
+          Module[{specs, terms, atoms, dims, block},
+            specs = Table[If[d === n, {st[[i]], en[[i]]}, All], {d, ndims}];
+            terms = ReplacePart[inShape, n -> summands[[i]]];
+            atoms = If[terms === {}, {}, Join @@ (rearrangeAtoms /@ terms)];
+            dims = atomSize[#, env] & /@ atoms;
+            block = heldTakeValue[x, specs];
+            materializeOutputExprHeld[
+              If[dims === {}, block, heldReshape[block, dims]], atoms, rhs[[i]], env]],
+          {i, k}]];
+      If[outs === $Failed,
+        Message[Einstoff::unsat,
+          "an axis size is unbound while slicing a direct-sum block"];
+        Return[$Failed]];
+      Return[traceReturnHeld[heldList[outs], traceAction]]];
+
     outs = einCatch @ Module[{sz, en, st},
       (* block size of a summand = product over its atoms (a product block (a b)
          contributes a*b to the concat axis). *)
@@ -231,7 +251,7 @@ summand distinctly; within-tensor contraction is not supported here)"];
       Message[Einstoff::unsat,
         "an axis size is unbound while slicing a direct-sum block"];
       Return[$Failed]];
-    With[{outs0 = outs}, traceReturn[outs0, traceAction]]
+    outs
   ];
 
 (* ------------------------------------------------------------------ *)
