@@ -188,7 +188,8 @@ axisNamesOf[e_] := DeleteDuplicates @ Join[
    $Failed on a rejected desc.  Populates $axisKind as a side effect. *)
 collectEstablished[h_Hold] :=
   Module[{slotNames, hNoSlot, binderNames, hNoBinder, bareNames, stringNames,
-          allStr, bad, symslot, mish},
+          allStr, bad, symslot, mish, lhs, lhsNoSlot, lhsNoBinder, lhsBare,
+          lhsBareEstablished},
     (* Every axis name inside ANY Slot bracket — a simple #a = Slot["a"]/Slot[a] OR a
        bracketed composite like Slot[(c d)] = Slot[CircleTimes[c_, d_]] — is a bracket
        axis.  Collect ALL of them (do NOT drop the whole Slot, which would miss the
@@ -235,6 +236,25 @@ collectEstablished[h_Hold] :=
     If[mish =!= {},
       With[{r = "axis " <> First[mish] <> " is spelled both as a symbol/bracket and as \
 the string \"" <> First[mish] <> "\"; use one spelling consistently"},
+        $descRejectReason = r; Message[Einstoff::unsupp, r]];
+      Return[$Failed]];
+    (* WL pattern semantics are load-bearing for the desc surface: a repeated inferred
+       input axis is written a_ ... a_, not a_ ... a.  A bare symbol on the LHS is a
+       literal/env-capture position unless it is inside Slot; if its name has already
+       been established by a binder/bracket/string in this desc, accepting it as an axis
+       reference would silently teach the wrong RuleDelayed spelling. *)
+    lhs = Extract[h, {1, 1}, Hold];
+    lhsNoSlot = lhs /. _Slot :> Null;
+    lhsNoBinder = lhsNoSlot /. Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> Null;
+    lhsBare = DeleteDuplicates @ Cases[lhsNoBinder,
+      s_Symbol /; Context[s] =!= "System`" :> SymbolName[Unevaluated[s]], {0, Infinity}];
+    lhsBareEstablished = Intersection[lhsBare,
+      DeleteDuplicates @ Join[binderNames, slotNames, stringNames]];
+    If[lhsBareEstablished =!= {},
+      With[{r = "bare axis " <> First[lhsBareEstablished] <> " appears on the LHS after \
+that name is established; write " <> First[lhsBareEstablished] <>
+              "_ for each inferred input occurrence (e.g. repeated/contracted axes use \
+a_ ... a_), or use Slot[...] for bracket axes"},
         $descRejectReason = r; Message[Einstoff::unsupp, r]];
       Return[$Failed]];
     DeleteDuplicates @ Join[binderNames, slotNames, stringNames]];

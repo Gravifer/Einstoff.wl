@@ -13,7 +13,7 @@ ClearAll[a, b, c, d];
 (* 1. Within-tensor partial trace 'a b a d -> b d' (Ricci-style) === TensorContract. *)
 VerificationTest[
   With[{R = ArrayReshape[Range[16], {2, 2, 2, 2}]},
-    Einstoff["einsum"][{{a_, b_, a, d_}} :> {{b, d}}, {R}]],
+    Einstoff["einsum"][{{a_, b_, a_, d_}} :> {{b, d}}, {R}]],
   TensorContract[ArrayReshape[Range[16], {2, 2, 2, 2}], {{1, 3}}],
   TestID -> "einsum-partial-trace"
 ];
@@ -21,7 +21,7 @@ VerificationTest[
 (* 2. Full trace 'a a ->' === Tr. *)
 VerificationTest[
   With[{T = ArrayReshape[Range[9], {3, 3}]},
-    Einstoff["einsum"][{{a_, a}} :> {{}}, {T}]],
+    Einstoff["einsum"][{{a_, a_}} :> {{}}, {T}]],
   Tr[ArrayReshape[Range[9], {3, 3}]],
   TestID -> "einsum-full-trace"
 ];
@@ -29,7 +29,7 @@ VerificationTest[
 (* 3. Partial trace then permute 'a b a d -> d b'. *)
 VerificationTest[
   With[{R = ArrayReshape[Range[16], {2, 2, 2, 2}]},
-    Einstoff["einsum"][{{a_, b_, a, d_}} :> {{d, b}}, {R}]],
+    Einstoff["einsum"][{{a_, b_, a_, d_}} :> {{d, b}}, {R}]],
   Transpose[TensorContract[ArrayReshape[Range[16], {2, 2, 2, 2}], {{1, 3}}]],
   TestID -> "einsum-trace-permute"
 ];
@@ -53,14 +53,14 @@ VerificationTest[
 
 (* 6. A repeated index kept on the output (diagonal) is rejected — deferred. *)
 VerificationTest[
-  Quiet @ Einstoff["einsum"][{{a_, a}} :> {{a}}, {ArrayReshape[Range[9], {3, 3}]}],
+  Quiet @ Einstoff["einsum"][{{a_, a_}} :> {{a}}, {ArrayReshape[Range[9], {3, 3}]}],
   $Failed,
   TestID -> "einsum-reject-diagonal"
 ];
 
 (* 7. An index occurring more than twice (super-diagonal) is rejected — non-tensorial. *)
 VerificationTest[
-  Quiet @ Einstoff["einsum"][{{a_, a, a}} :> {{}}, {ArrayReshape[Range[27], {3, 3, 3}]}],
+  Quiet @ Einstoff["einsum"][{{a_, a_, a_}} :> {{}}, {ArrayReshape[Range[27], {3, 3, 3}]}],
   $Failed,
   TestID -> "einsum-reject-super-diagonal"
 ];
@@ -81,7 +81,7 @@ VerificationTest[
 
 (* 10. A within-operand repeat in a multi-tensor desc is deferred (rejected). *)
 VerificationTest[
-  Quiet @ Einstoff["einsum"][{{a_, a}, {a_, c_}} :> {{c}},
+  Quiet @ Einstoff["einsum"][{{a_, a_}, {a_, c_}} :> {{c}},
     {ArrayReshape[Range[9], {3, 3}], ArrayReshape[Range[6], {3, 2}]}],
   $Failed,
   TestID -> "einsum-reject-mixed-multitensor"

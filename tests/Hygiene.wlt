@@ -247,6 +247,24 @@ VerificationTest[
   TestID -> "hyg-reject-reason-structural"
 ];
 
+(* A repeated/shared inferred LHS axis must repeat the binder spelling (`a_ ... a_`).
+   The old binder-then-bare spelling (`a_ ... a`) is native-WL literal syntax, not a
+   pattern reference, and is rejected before lowering. *)
+VerificationTest[
+  StringContainsQ[
+    Quiet @ Einstoff`EinstoffShapes[{{a_, a}} :> {{}}, {{3, 3}}]["Reason"],
+    "write a_"],
+  True,
+  TestID -> "hyg-reject-lhs-bare-repeated-axis"
+];
+VerificationTest[
+  StringContainsQ[
+    Quiet @ Einstoff`EinstoffShapes[{{a_, b_}, {b, c_}} :> {{a, c}}, {{2, 3}, {3, 4}}]["Reason"],
+    "write b_"],
+  True,
+  TestID -> "hyg-reject-lhs-bare-shared-axis"
+];
+
 (* 19. Diagnostic strings show the USER's axis name, not the internal fresh identity
        (axisDisplayName maps a$nn back to "a"); a shadowed name still displays cleanly,
        never its leaked value. *)

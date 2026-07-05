@@ -19,7 +19,7 @@ ClearAll[a, b, c, d];
 (* 1. Partial trace 'a b a d -> b d' (Ricci-style) === TensorContract. *)
 VerificationTest[
   With[{R = ArrayReshape[Range[16], {2, 2, 2, 2}]},
-    Einstoff["ArrayContract"][{{a_, b_, a, d_}} :> {{b, d}}, {R}]],
+    Einstoff["ArrayContract"][{{a_, b_, a_, d_}} :> {{b, d}}, {R}]],
   TensorContract[ArrayReshape[Range[16], {2, 2, 2, 2}], {{1, 3}}],
   TestID -> "contract-partial-trace"
 ];
@@ -27,7 +27,7 @@ VerificationTest[
 (* 2. Full trace 'a a ->' === Tr. *)
 VerificationTest[
   With[{T = ArrayReshape[Range[9], {3, 3}]},
-    Einstoff["ArrayContract"][{{a_, a}} :> {{}}, {T}]],
+    Einstoff["ArrayContract"][{{a_, a_}} :> {{}}, {T}]],
   Tr[ArrayReshape[Range[9], {3, 3}]],
   TestID -> "contract-full-trace"
 ];
@@ -35,7 +35,7 @@ VerificationTest[
 (* 3. Partial trace then permute 'a b a d -> d b'. *)
 VerificationTest[
   With[{R = ArrayReshape[Range[16], {2, 2, 2, 2}]},
-    Einstoff["ArrayContract"][{{a_, b_, a, d_}} :> {{d, b}}, {R}]],
+    Einstoff["ArrayContract"][{{a_, b_, a_, d_}} :> {{d, b}}, {R}]],
   Transpose[TensorContract[ArrayReshape[Range[16], {2, 2, 2, 2}], {{1, 3}}]],
   TestID -> "contract-trace-permute"
 ];
@@ -43,8 +43,8 @@ VerificationTest[
 (* 4. Agrees with the permissive Massage engine on a contraction desc. *)
 VerificationTest[
   With[{R = ArrayReshape[Range[16], {2, 2, 2, 2}]},
-    Einstoff["ArrayContract"][{{a_, b_, a, d_}} :> {{b, d}}, {R}] ===
-      Einstoff["Massage"][{{a_, b_, a, d_}} :> {{b, d}}, {R}]],
+    Einstoff["ArrayContract"][{{a_, b_, a_, d_}} :> {{b, d}}, {R}] ===
+      Einstoff["Massage"][{{a_, b_, a_, d_}} :> {{b, d}}, {R}]],
   True,
   TestID -> "contract-agrees-with-massage"
 ];
@@ -52,8 +52,8 @@ VerificationTest[
 (* 5. ...and with the single-tensor einsum entrance (which routes through here). *)
 VerificationTest[
   With[{R = ArrayReshape[Range[16], {2, 2, 2, 2}]},
-    Einstoff["ArrayContract"][{{a_, b_, a, d_}} :> {{b, d}}, {R}] ===
-      Einstoff["einsum"][{{a_, b_, a, d_}} :> {{b, d}}, {R}]],
+    Einstoff["ArrayContract"][{{a_, b_, a_, d_}} :> {{b, d}}, {R}] ===
+      Einstoff["einsum"][{{a_, b_, a_, d_}} :> {{b, d}}, {R}]],
   True,
   TestID -> "contract-agrees-with-einsum"
 ];
@@ -108,14 +108,14 @@ VerificationTest[
 
 (* 12. A repeated index KEPT on the output (a diagonal) is deferred (rejected). *)
 VerificationTest[
-  Quiet @ Einstoff["ArrayContract"][{{a_, a}} :> {{a}}, {ArrayReshape[Range[9], {3, 3}]}],
+  Quiet @ Einstoff["ArrayContract"][{{a_, a_}} :> {{a}}, {ArrayReshape[Range[9], {3, 3}]}],
   $Failed,
   TestID -> "contract-reject-diagonal"
 ];
 
 (* 13. An index occurring more than twice (super-diagonal) is non-tensorial -> rejected. *)
 VerificationTest[
-  Quiet @ Einstoff["ArrayContract"][{{a_, a, a}} :> {{}}, {ArrayReshape[Range[27], {3, 3, 3}]}],
+  Quiet @ Einstoff["ArrayContract"][{{a_, a_, a_}} :> {{}}, {ArrayReshape[Range[27], {3, 3, 3}]}],
   $Failed,
   TestID -> "contract-reject-super-diagonal"
 ];

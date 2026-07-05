@@ -46,14 +46,14 @@ BeginTestSection["Einstoff`CrossValidation`Einsum", pythonReady];
 
 (* within-tensor partial trace *)
 VerificationTest[
-  Einstoff["einsum"][{{a_, b_, a, d_}} :> {{b, d}}, {ArrayReshape[Range[16], {2, 2, 2, 2}]}],
+  Einstoff["einsum"][{{a_, b_, a_, d_}} :> {{b, d}}, {ArrayReshape[Range[16], {2, 2, 2, 2}]}],
   pyEinsum["a b a d -> b d", {{2, 2, 2, 2}}],
   TestID -> "xval-einsum-partial-trace"
 ];
 
 (* within-tensor full trace (scalar) *)
 VerificationTest[
-  Einstoff["einsum"][{{a_, a}} :> {{}}, {ArrayReshape[Range[9], {3, 3}]}],
+  Einstoff["einsum"][{{a_, a_}} :> {{}}, {ArrayReshape[Range[9], {3, 3}]}],
   pyEinsum["a a ->", {{3, 3}}],
   TestID -> "xval-einsum-full-trace"
 ];

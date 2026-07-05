@@ -200,7 +200,7 @@ VerificationTest[
 (* A within-tensor contraction shrinks the element count — not bijective; ArrayReshape
    points at Einstoff["ArrayContract"] (which accepts it — see ArrayContract.wlt). *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{a_, b_, a, d_}} :> {{b, d}},
+  Quiet @ Einstoff[ArrayReshape][{{a_, b_, a_, d_}} :> {{b, d}},
     {ArrayReshape[Range[16], {2, 2, 2, 2}]}],
   $Failed,
   TestID -> "reshape-reject-contraction"

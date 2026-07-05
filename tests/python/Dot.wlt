@@ -66,7 +66,7 @@ BeginTestSection["Einstoff`CrossValidation`Dot", pythonReady];
 
 (* matmul 'a b, b c -> a c'  <->  {{a_,b_},{b,c_}} :> {{a,c}} *)
 VerificationTest[
-  Einstoff[Dot][{{a_, b_}, {b, c_}} :> {{a, c}},
+  Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c}},
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}],
   pyDot["a b, b c -> a c", {2, 3}, {3, 4}],
   TestID -> "xval-dot-matmul"
@@ -82,7 +82,7 @@ VerificationTest[
 
 (* batched matmul 'a b c, a c d -> a b d'  <->  {{a_,b_,c_},{a,c,d_}} :> {{a,b,d}} *)
 VerificationTest[
-  Einstoff[Dot][{{a_, b_, c_}, {a, c, d_}} :> {{a, b, d}},
+  Einstoff[Dot][{{a_, b_, c_}, {a_, c_, d_}} :> {{a, b, d}},
     {ArrayReshape[Range[24], {2, 3, 4}], ArrayReshape[Range[40], {2, 4, 5}]}],
   pyDot["a b c, a c d -> a b d", {2, 3, 4}, {2, 4, 5}],
   TestID -> "xval-dot-batched"

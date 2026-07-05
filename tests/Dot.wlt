@@ -15,7 +15,7 @@ ClearAll[a, b, c, d, e, n, r];
 (* 1. Plain matmul 'a b, b c -> a c' === native Dot. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[Dot][{{a_, b_}, {b, c_}} :> {{a, c}}, {x, y}]],
+    Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c}}, {x, y}]],
   ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}],
   TestID -> "dot-matmul-bare"
 ];
@@ -31,7 +31,7 @@ VerificationTest[
 (* 3. Batched matmul 'a b c, a c d -> a b d' === MapThread[Dot]. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[24], {2, 3, 4}], y = ArrayReshape[Range[40], {2, 4, 5}]},
-    Einstoff[Dot][{{a_, b_, c_}, {a, c, d_}} :> {{a, b, d}}, {x, y}]],
+    Einstoff[Dot][{{a_, b_, c_}, {a_, c_, d_}} :> {{a, b, d}}, {x, y}]],
   MapThread[Dot, {ArrayReshape[Range[24], {2, 3, 4}], ArrayReshape[Range[40], {2, 4, 5}]}],
   TestID -> "dot-batched"
 ];
@@ -45,7 +45,7 @@ VerificationTest[
 
 (* 5. Inner product 'a, a -> ' contracts everything to a scalar. *)
 VerificationTest[
-  Einstoff[Dot][{{a_}, {a}} :> {{}}, {Range[3], Range[3]}],
+  Einstoff[Dot][{{a_}, {a_}} :> {{}}, {Range[3], Range[3]}],
   Range[3] . Range[3],
   TestID -> "dot-inner-scalar"
 ];
@@ -61,7 +61,7 @@ VerificationTest[
 (* 7. Batched + permuted survivors 'a b c, a c d -> a d b'. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[24], {2, 3, 4}], y = ArrayReshape[Range[40], {2, 4, 5}]},
-    Einstoff[Dot][{{a_, b_, c_}, {a, c, d_}} :> {{a, d, b}}, {x, y}]],
+    Einstoff[Dot][{{a_, b_, c_}, {a_, c_, d_}} :> {{a, d, b}}, {x, y}]],
   Transpose[MapThread[Dot, {ArrayReshape[Range[24], {2, 3, 4}], ArrayReshape[Range[40], {2, 4, 5}]}], {1, 3, 2}],
   TestID -> "dot-batched-permute"
 ];
@@ -69,7 +69,7 @@ VerificationTest[
 (* 8. Output dims of batched matmul are correct. *)
 VerificationTest[
   Dimensions @ With[{x = ArrayReshape[Range[24], {2, 3, 4}], y = ArrayReshape[Range[40], {2, 4, 5}]},
-    Einstoff[Dot][{{a_, b_, c_}, {a, c, d_}} :> {{a, b, d}}, {x, y}]],
+    Einstoff[Dot][{{a_, b_, c_}, {a_, c_, d_}} :> {{a, b, d}}, {x, y}]],
   {2, 3, 5},
   TestID -> "dot-batched-dims"
 ];
@@ -80,7 +80,7 @@ VerificationTest[
    (N-operand chains ARE supported — see the 3- and 4-operand chain tests above; this
    rejects only because the tensor count disagrees with the desc's shape count.) *)
 VerificationTest[
-  Quiet @ Einstoff[Dot][{{a_, b_}, {b, c_}} :> {{a, c}},
+  Quiet @ Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c}},
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}], ArrayReshape[Range[6], {2, 3}]}],
   $Failed,
   TestID -> "dot-reject-operand-count-mismatch"
@@ -88,7 +88,7 @@ VerificationTest[
 
 (* 10. A single-operand axis dropped before contraction is rejected. *)
 VerificationTest[
-  Quiet @ Einstoff[Dot][{{a_, b_}, {b, c_}} :> {{a}},
+  Quiet @ Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a}},
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}],
   $Failed,
   TestID -> "dot-reject-within-drop"
@@ -107,7 +107,7 @@ VerificationTest[
 
 (* 11. A new output axis is repetition (SPEC 5.5); unbound it is rejected. *)
 VerificationTest[
-  Quiet @ Einstoff[Dot][{{a_, b_}, {b, c_}} :> {{a, c, d}},
+  Quiet @ Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c, d}},
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}],
   $Failed,
   TestID -> "dot-reject-unbound-repeat"
@@ -115,7 +115,7 @@ VerificationTest[
 
 (* 12. Unsatisfiable desc (shared axis size disagrees) returns $Failed. *)
 VerificationTest[
-  Quiet @ Einstoff[Dot][{{a_, b_}, {b, c_}} :> {{a, c}},
+  Quiet @ Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c}},
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[20], {5, 4}]}],
   $Failed,
   TestID -> "dot-reject-unsat"
