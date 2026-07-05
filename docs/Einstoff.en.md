@@ -76,15 +76,17 @@ Dimension terms include:
 | `a_` | infer a named axis size |
 | `a` | refer to an established axis or to a bound symbol value |
 | `"a"` | hygienic string-named axis |
+| `__` | infer a sequence of one or more axes sizes |
+| `___` | infer a sequence of zero or more axes sizes |
 | `2` | literal size |
 | `{}` or `1` | unit axis |
-| `CircleTimes[a, b]` | product axis |
-| `CirclePlus[a, b]` | direct-sum axis |
-| `Slot["a"]`, `Highlighted["a"]`, `Framed["a"]` | targeted string axis |
+| `a ⊗ b` | product axis |
+| `a ⊕ b` | direct-sum axis |
+| `#a`(`Slot["a"]`), `Highlighted["a"]`, `Framed["a"]` | targeted string axis |
 | `Highlighted[a_]`, `Framed[a_]` | targeted blank axis |
 | `Highlighted[a]`, `Framed[a]` | targeted bare axis |
-| `Slot[2]`, `Highlighted[2]`, `Framed[2]` | targeted literal axis |
-| `SlotSequence[1]` | targeted anonymous axis sequence |
+| `#2`(`Slot[2]`), `Highlighted[2]`, `Framed[2]` | targeted literal axis |
+| `##` | targeted anonymous axis sequence |
 
 The following options can be given:
 
@@ -107,7 +109,7 @@ Merge axes:
 
 ```wl
 m = ArrayReshape[Range[6], {2, 3}];
-Einstoff[ArrayReshape][{{a_, b_}} :> {{CircleTimes[a, b]}}, {m}]
+Einstoff[ArrayReshape][{{a_, b_}} :> {{a ⊗ b}}, {m}]
 ```
 
 Reduce an axis:
@@ -130,7 +132,7 @@ Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c}}, {x, y}]
 Split a composed axis with an explicit binding:
 
 ```wl
-Einstoff[ArrayReshape][{{CircleTimes["a", b_]}} :> {{"a", b}}, {Range[6]}, {"a" -> 2}]
+Einstoff[ArrayReshape][{{"a" ⊗ b_}} :> {{"a", b}}, {Range[6]}, {"a" -> 2}]
 ```
 
 Broadcast an output-only axis:
@@ -191,14 +193,14 @@ Concatenate along a direct-sum axis:
 ```wl
 x = ArrayReshape[Range[6], {2, 3}];
 y = ArrayReshape[Range[8], {2, 4}];
-Einstoff[Join][{{m_, a_}, {m_, b_}} :> {{m, CirclePlus[a, b]}}, {x, y}]
+Einstoff[Join][{{m_, a_}, {m_, b_}} :> {{m, a ⊕ b}}, {x, y}]
 ```
 
 Split a direct-sum axis:
 
 ```wl
 x = ArrayReshape[Range[20], {2, 10}];
-Einstoff[Split][{{b_, CirclePlus["q", k_]}} :> {{b, "q"}, {b, k}}, {x}, {"q" -> 3}]
+Einstoff[Split][{{b_, "q" ⊕ k_}} :> {{b, "q"}, {b, k}}, {x}, {"q" -> 3}]
 ```
 
 ### Applications
@@ -208,8 +210,8 @@ Space-to-depth-style rearrangement:
 ```wl
 x = ArrayReshape[Range[2*4*6], {2, 4, 6}];
 Einstoff[ArrayReshape][
-  {{b_, CircleTimes[h_, "h1"], CircleTimes[w_, "w1"]}} :>
-    {{b, h, w, CircleTimes["h1", "w1"]}},
+  {{b_, h_ ⊗ "h1", w_ ⊗ "w1"}} :>
+    {{b, h, w, "h1" ⊗ "w1"}},
   {x}, {"h1" -> 2, "w1" -> 3}]
 ```
 
@@ -238,7 +240,7 @@ x22 = {{30, 31, 32}, {33, 34, 35}};
 
 Einstoff["Massage"][
   {{a_, b_}, {a_, c_}, {d_, b_}, {d_, c_}} :>
-    {{CirclePlus[a, d], CirclePlus[b, c]}},
+    {{a ⊕ d, b ⊕ c}},
   {x11, x12, x21, x22}]
 ```
 
@@ -273,7 +275,7 @@ Einstoff[Map]["id"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}}, {ArrayReshape[Range[6
 Structural direct sums use bare `CirclePlus`:
 
 ```wl
-Einstoff[Join][{{a_}, {b_}} :> {{CirclePlus[a, b]}}, {Range[2], Range[3]}]
+Einstoff[Join][{{a_}, {b_}} :> {{a ⊕ b}}, {Range[2], Range[3]}]
 ```
 
 ## See Also
