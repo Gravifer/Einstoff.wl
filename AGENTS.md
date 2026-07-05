@@ -60,6 +60,9 @@ For more details on the design, see `SPEC.md`
   and would cost too much tokens to call for the agent.
   To explore on the agent's self, and persist the findings,
   create a `agent-explore.nb` notebook, or just use a plain `.wl` file.
+  - The agent should exclude notebooks when running diffs; they will be too noisy,
+    and the user will keep any code they need the agent to see out of those.
+    This applies primarily to `.nb` wolfram notebooks, but also to `.ipynb` jupyter notebooks if they are present.
 
 - For wolfram language, use [the structured package format](https://reference.wolfram.com/language/tutorial/UsingTheStructuredPackageFormat.en.md)
 
