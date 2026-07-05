@@ -97,7 +97,9 @@ VerificationTest[
 
 (* 10. A targeted axis kept on output is the feed-to-elementary path, not reduce. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a, b}}, {ArrayReshape[Range[12], {3, 4}]}],
+  Quiet[
+    Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a, b}}, {ArrayReshape[Range[12], {3, 4}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "reduce-reject-kept-bracket"
 ];
@@ -105,8 +107,10 @@ VerificationTest[
 (* 10b. A name repeated within an input shape is within-tensor contraction, not reduction
    — ArrayReduce rejects it (its own policy; EinstoffShapes no longer gates this). *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReduce][Total][{{a_, b_, a_}} :> {{b}},
-    {ArrayReshape[Range[12], {2, 3, 2}]}],
+  Quiet[
+    Einstoff[ArrayReduce][Total][{{a_, b_, a_}} :> {{b}},
+      {ArrayReshape[Range[12], {2, 3, 2}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "reduce-reject-repeated-input-axis"
 ];
@@ -114,14 +118,18 @@ VerificationTest[
 (* 11. A new output axis is repetition (SPEC 5.5); without a binding it is
    unsatisfiable and rejected. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a, c}}, {ArrayReshape[Range[12], {3, 4}]}],
+  Quiet[
+    Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a, c}}, {ArrayReshape[Range[12], {3, 4}]}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "reduce-reject-unbound-repeat"
 ];
 
 (* 12. Unsatisfiable desc (rank mismatch) returns $Failed. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReduce][Total][{{a_, b_, Slot["c"]}} :> {{a, b}}, {ArrayReshape[Range[12], {3, 4}]}],
+  Quiet[
+    Einstoff[ArrayReduce][Total][{{a_, b_, Slot["c"]}} :> {{a, b}}, {ArrayReshape[Range[12], {3, 4}]}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "reduce-reject-unsat"
 ];
@@ -135,8 +143,10 @@ VerificationTest[
 ];
 
 VerificationTest[
-  Quiet @ Einstoff[ArrayReduce][Total][{{a_, ___, c_}} :> {{a, c}},
-    {ArrayReshape[Range[24], {2, 3, 4}]}],
+  Quiet[
+    Einstoff[ArrayReduce][Total][{{a_, ___, c_}} :> {{a, c}},
+      {ArrayReshape[Range[24], {2, 3, 4}]}],
+    {Einstoff::unsupp, Einstoff::unsat}],
   $Failed,
   TestID -> "reduce-reject-raw-blanknullsequence"
 ];
@@ -164,7 +174,9 @@ VerificationTest[
 
 (* 14. Multi-tensor input is rejected. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}, {c_}} :> {{a, c}}, {ArrayReshape[Range[12], {3, 4}], Range[5]}],
+  Quiet[
+    Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}, {c_}} :> {{a, c}}, {ArrayReshape[Range[12], {3, 4}], Range[5]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "reduce-reject-multitensor"
 ];
@@ -202,8 +214,10 @@ VerificationTest[
 
 (* 18. A globally bound integer that disagrees with the tensor is rejected. *)
 VerificationTest[
-  Block[{k = 5}, Quiet @ With[{x = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[ArrayReduce][Total][{{a_, k}} :> {{a}}, {x}]]],
+  Block[{k = 5}, Quiet[
+    With[{x = ArrayReshape[Range[12], {3, 4}]},
+      Einstoff[ArrayReduce][Total][{{a_, k}} :> {{a}}, {x}]],
+    {Einstoff::unsat}]],
   $Failed,
   TestID -> "reduce-global-dim-mismatch"
 ];
@@ -213,8 +227,10 @@ VerificationTest[
    now a legal axis spelling): a Real like 2.5 is a genuine non-size that env-captures
    into an illegal dimension term and is rejected. *)
 VerificationTest[
-  Block[{k = 2.5}, Quiet @ With[{x = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[ArrayReduce][Total][{{a_, k}} :> {{a}}, {x}]]],
+  Block[{k = 2.5}, Quiet[
+    With[{x = ArrayReshape[Range[12], {3, 4}]},
+      Einstoff[ArrayReduce][Total][{{a_, k}} :> {{a}}, {x}]],
+    {Einstoff::unsat}]],
   $Failed,
   TestID -> "reduce-global-illegal"
 ];
@@ -267,8 +283,10 @@ VerificationTest[
 
 (* 25b. An unknown reducer name is rejected (not applied as "name"[slice]). *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReduce]["summ"][{{a_, Slot["b"]}} :> {{a}},
-    {ArrayReshape[Range[12], {3, 4}]}],
+  Quiet[
+    Einstoff[ArrayReduce]["summ"][{{a_, Slot["b"]}} :> {{a}},
+      {ArrayReshape[Range[12], {3, 4}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "reduce-reject-unknown-string"
 ];
@@ -292,8 +310,10 @@ VerificationTest[
 (* 27. ...but a literal-integer axis cannot be KEPT (it has no carryable identity —
    shared materializeOutput guard, Option A); rejected rather than leaked. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReduce][Total][{{a_, 2}} :> {{a, 2}},
-    {ArrayReshape[Range[6], {3, 2}]}],
+  Quiet[
+    Einstoff[ArrayReduce][Total][{{a_, 2}} :> {{a, 2}},
+      {ArrayReshape[Range[6], {3, 2}]}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "reduce-reject-kept-literal"
 ];

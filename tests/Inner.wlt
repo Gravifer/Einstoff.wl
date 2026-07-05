@@ -70,7 +70,9 @@ VerificationTest[
 
 (* 8. One input tensor is rejected (contraction needs >= 2). *)
 VerificationTest[
-  Quiet @ Einstoff[Inner][Times, Plus][{{a_, b_}} :> {{a, b}}, {ArrayReshape[Range[6], {2, 3}]}],
+  Quiet[
+    Einstoff[Inner][Times, Plus][{{a_, b_}} :> {{a, b}}, {ArrayReshape[Range[6], {2, 3}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "inner-reject-one-tensor"
 ];
@@ -78,8 +80,10 @@ VerificationTest[
 (* 9. Inner shares innerLower's Option-A operand sanitize: a size > 1 literal is not a
    shared contraction identity (two '2's are not the same axis) — reject, like Dot. *)
 VerificationTest[
-  Quiet @ Einstoff[Inner][Plus, Min][{{a_, 2}, {2, b_}} :> {{a, b}},
-    {ArrayReshape[Range[6], {3, 2}], ArrayReshape[Range[8], {2, 4}]}],
+  Quiet[
+    Einstoff[Inner][Plus, Min][{{a_, 2}, {2, b_}} :> {{a, b}},
+      {ArrayReshape[Range[6], {3, 2}], ArrayReshape[Range[8], {2, 4}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "inner-reject-shared-literal"
 ];
@@ -96,7 +100,9 @@ VerificationTest[
 (* 11. Inner shares innerLower's N-way guard: a contracted axis in >2 operands (dropped)
    is a super-diagonal — reject 'a, a, a ->', like Dot. *)
 VerificationTest[
-  Quiet @ Einstoff[Inner][Plus, Min][{{a_}, {a_}, {a_}} :> {{}}, {Range[3], Range[3], Range[3]}],
+  Quiet[
+    Einstoff[Inner][Plus, Min][{{a_}, {a_}, {a_}} :> {{}}, {Range[3], Range[3], Range[3]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "inner-reject-nary-contraction"
 ];

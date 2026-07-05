@@ -73,7 +73,9 @@ VerificationTest[
 
 (* 7. An invalid identifier string is rejected (not a legal axis name). *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{"a b"}} :> {{"a b"}}, {{1, 2, 3}}],
+  Quiet[
+    Einstoff[ArrayReshape][{{"a b"}} :> {{"a b"}}, {{1, 2, 3}}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "hyg-string-invalid-identifier-reject"
 ];
@@ -82,7 +84,9 @@ VerificationTest[
       is rejected. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}]},
-    Quiet @ Einstoff[ArrayReshape][{{a_, "a"}} :> {{a, "a"}}, {x}]],
+    Quiet[
+      Einstoff[ArrayReshape][{{a_, "a"}} :> {{a, "a"}}, {x}],
+      {Einstoff::unsupp}]],
   $Failed,
   TestID -> "hyg-mishmash-reject"
 ];
@@ -90,7 +94,7 @@ VerificationTest[
 (* 9. REGRESSION: a bare, unestablished RHS symbol env-captures (literal repeat),
       exactly as a bound bare axis does on the LHS. *)
 VerificationTest[
-  Block[{k = 4}, Quiet @ Dimensions @ Einstoff["Massage"][{{a_}} :> {{a, k}}, {{1, 2, 3}}]],
+  Block[{k = 4}, Dimensions @ Einstoff["Massage"][{{a_}} :> {{a, k}}, {{1, 2, 3}}]],
   {3, 4},
   TestID -> "hyg-bare-rhs-unestablished-literal"
 ];
@@ -116,7 +120,9 @@ VerificationTest[
        size agrees with the tensor. Block[{a}] keeps the bare `a` key unshadowed
        so it reaches the axis rather than evaluating to a junk key. *)
 VerificationTest[
-  Block[{a}, Quiet @ Einstoff["Massage"][{{a_}} :> {{a}}, {{1, 2, 3}}, {a -> 3}]],
+  Block[{a}, Quiet[
+    Einstoff["Massage"][{{a_}} :> {{a}}, {{1, 2, 3}}, {a -> 3}],
+    {Einstoff::unsat}]],
   $Failed,
   TestID -> "hyg-blank-not-bindable"
 ];
@@ -127,7 +133,9 @@ VerificationTest[
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}]},
     Block[{c = 3},
-      Quiet @ Einstoff[Map]["flip"][{{a_, Highlighted[c_]}} :> {{a, c}}, {x}, {c -> 2}]]],
+      Quiet[
+        Einstoff[Map]["flip"][{{a_, Highlighted[c_]}} :> {{a, c}}, {x}, {c -> 2}],
+        {Einstoff::evalkey}]]],
   Reverse /@ ArrayReshape[Range[6], {2, 3}],
   TestID -> "hyg-evaluated-binding-key-warns-continues"
 ];
@@ -136,7 +144,9 @@ VerificationTest[
        name) — rejected, not silently ignored (which would let a whole-axis blank be
        "bound" and still succeed by tensor inference). *)
 VerificationTest[
-  Block[{r}, Quiet @ Einstoff["Massage"][{{r_}} :> {{r}}, {{1, 2}}, {r_ -> 2}]],
+  Block[{r}, Quiet[
+    Einstoff["Massage"][{{r_}} :> {{r}}, {{1, 2}}, {r_ -> 2}],
+    {Einstoff::unsat}]],
   $Failed,
   TestID -> "hyg-pattern-key-reject"
 ];
@@ -183,8 +193,10 @@ VerificationTest[
        Association keys.) *)
 VerificationTest[
   Block[{c = Null},
-    Sort[bindingKeyName /@ Keys[Quiet @ Einstoff`EinstoffShapes[
-      {{a_, Highlighted[c_]}} :> {{a, c}}, {{2, 3}}, {c -> 2}]["Bindings"]]]],
+    Sort[bindingKeyName /@ Keys[Quiet[
+      Einstoff`EinstoffShapes[
+        {{a_, Highlighted[c_]}} :> {{a, c}}, {{2, 3}}, {c -> 2}],
+      {Einstoff::evalkey}]["Bindings"]]]],
   {"a", "c"},
   TestID -> "hyg-system-symbol-key-dropped"
 ];
@@ -229,14 +241,18 @@ VerificationTest[
        form lhs :> rhs" — which would misdescribe a structurally-correct desc. *)
 VerificationTest[
   StringContainsQ[
-    Quiet @ Einstoff`EinstoffShapes[{{"a b"}} :> {{"a b"}}, {{3}}]["Reason"],
+    Quiet[
+      Einstoff`EinstoffShapes[{{"a b"}} :> {{"a b"}}, {{3}}]["Reason"],
+      {Einstoff::unsupp}],
     "invalid axis name"],
   True,
   TestID -> "hyg-reject-reason-invalid-name"
 ];
 VerificationTest[
   StringContainsQ[
-    Quiet @ Einstoff`EinstoffShapes[{{a_}} :> {{"a"}}, {{3}}]["Reason"],
+    Quiet[
+      Einstoff`EinstoffShapes[{{a_}} :> {{"a"}}, {{3}}]["Reason"],
+      {Einstoff::unsupp}],
     "spelled both"],
   True,
   TestID -> "hyg-reject-reason-mishmash"
@@ -255,14 +271,18 @@ VerificationTest[
    pattern reference, and is rejected before lowering. *)
 VerificationTest[
   StringContainsQ[
-    Quiet @ Einstoff`EinstoffShapes[{{a_, a}} :> {{}}, {{3, 3}}]["Reason"],
+    Quiet[
+      Einstoff`EinstoffShapes[{{a_, a}} :> {{}}, {{3, 3}}]["Reason"],
+      {Einstoff::unsupp}],
     "write a_"],
   True,
   TestID -> "hyg-reject-lhs-bare-repeated-axis"
 ];
 VerificationTest[
   StringContainsQ[
-    Quiet @ Einstoff`EinstoffShapes[{{a_, b_}, {b, c_}} :> {{a, c}}, {{2, 3}, {3, 4}}]["Reason"],
+    Quiet[
+      Einstoff`EinstoffShapes[{{a_, b_}, {b, c_}} :> {{a, c}}, {{2, 3}, {3, 4}}]["Reason"],
+      {Einstoff::unsupp}],
     "write b_"],
   True,
   TestID -> "hyg-reject-lhs-bare-shared-axis"
@@ -307,7 +327,9 @@ VerificationTest[
        desc-shape reason, not the stale invalid-name reason ($descRejectReason is reset
        per parse, not just per scope). *)
 VerificationTest[
-  (Quiet @ Einstoff`EinstoffShapes[{{"a b"}} :> {{"a b"}}, {{3}}];
+  (Quiet[
+     Einstoff`EinstoffShapes[{{"a b"}} :> {{"a b"}}, {{3}}],
+     {Einstoff::unsupp}];
    StringContainsQ[
      Einstoff`EinstoffShapes[{{a_}}, {{3}}]["Reason"], "must be of the form"]),
   True,
@@ -319,7 +341,7 @@ VerificationTest[
 VerificationTest[
   (Einstoff`Axis`ztest = 88; Protect[Einstoff`Axis`ztest];
    Block[{ztest = 1},
-     SymbolName /@ Keys[Quiet @ Einstoff`EinstoffMatch[{{"ztest"}}, {{5}}]["env"]]]),
+     SymbolName /@ Keys[Einstoff`EinstoffMatch[{{"ztest"}}, {{5}}]["env"]]]),
   {"ztest"},
   TestID -> "hyg-private-context-protected-no-leak"
 ];
@@ -328,9 +350,11 @@ VerificationTest[
         only, not attributes) which works on a Locked symbol, so axisSymbol still yields a
         value-less identity. *)
 VerificationTest[
-  (Einstoff`Axis`ltest = 88; SetAttributes[Einstoff`Axis`ltest, Locked];
-   Block[{ltest = 1},
-     SymbolName /@ Keys[Quiet @ Einstoff`EinstoffMatch[{{"ltest"}}, {{5}}]["env"]]]),
+  Quiet[
+    (Einstoff`Axis`ltest = 88; SetAttributes[Einstoff`Axis`ltest, Locked];
+     Block[{ltest = 1},
+       SymbolName /@ Keys[Einstoff`EinstoffMatch[{{"ltest"}}, {{5}}]["env"]]]),
+    {Attributes::locked}],
   {"ltest"},
   TestID -> "hyg-private-context-locked-no-leak"
 ];
@@ -341,7 +365,9 @@ VerificationTest[
 VerificationTest[
   (Einstoff`Axis`protlk = 21; SetAttributes[Einstoff`Axis`protlk, {Protected, Locked}];
    With[{env = Block[{protlk = 1},
-       Quiet @ Einstoff`EinstoffMatch[{{"protlk"}}, {{5}}]["env"]]},
+       Quiet[
+         Einstoff`EinstoffMatch[{{"protlk"}}, {{5}}]["env"],
+         {Einstoff::privctx}]]},
      {MatchQ[Keys[env], {_Symbol}], FreeQ[Keys[env], 21], Values[env]}]),
   {True, True, {5}},
   TestID -> "hyg-private-context-protected-locked-fresh-fallback"
@@ -363,10 +389,18 @@ VerificationTest[
 VerificationTest[
   (Einstoff`Axis`protlk3 = 21; SetAttributes[Einstoff`Axis`protlk3, {Protected, Locked}];
    Block[{protlk3 = 1},
-     {Quiet @ Einstoff`EinstoffMatch[{{"protlk3", "protlk3"}}, {{5, 6}}]["ok"],   (* 5=/=6 -> False *)
-      Quiet @ Einstoff`EinstoffMatch[{{"protlk3", "protlk3"}}, {{5, 5}}]["ok"],   (* consistent -> True *)
-      Length @ Keys @ Quiet @ Einstoff`EinstoffMatch[{{"protlk3", "protlk3"}}, {{5, 5}}]["env"],
-      Quiet @ Einstoff`EinstoffMatch[{{"protlk3"}}, {{5}}, {"protlk3" -> 5}]["ok"]}]),   (* key binds term *)
+     {Quiet[
+        Einstoff`EinstoffMatch[{{"protlk3", "protlk3"}}, {{5, 6}}]["ok"],
+        {Einstoff::privctx}],   (* 5=/=6 -> False *)
+      Quiet[
+        Einstoff`EinstoffMatch[{{"protlk3", "protlk3"}}, {{5, 5}}]["ok"],
+        {Einstoff::privctx}],   (* consistent -> True *)
+      Length @ Keys @ Quiet[
+        Einstoff`EinstoffMatch[{{"protlk3", "protlk3"}}, {{5, 5}}]["env"],
+        {Einstoff::privctx}],
+      Quiet[
+        Einstoff`EinstoffMatch[{{"protlk3"}}, {{5}}, {"protlk3" -> 5}]["ok"],
+        {Einstoff::privctx}]}]),   (* key binds term *)
   {False, True, 1, True},
   TestID -> "hyg-private-context-fallback-identity-stable"
 ];

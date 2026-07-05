@@ -84,7 +84,9 @@ VerificationTest[
 
 (* 6d. A Slot["b"] bracket is targeted string; referencing bare b is a kind mismatch. *)
 VerificationTest[
-  Quiet @ sat @ Einstoff`EinstoffShapes[{{a_, Slot["b"]}} :> {{a, b}}, {{2, 4}}],
+  Quiet[
+    sat @ Einstoff`EinstoffShapes[{{a_, Slot["b"]}} :> {{a, b}}, {{2, 4}}],
+    {Einstoff::unsupp}],
   False,
   TestID -> "bracket-string-rejects-bare-reference"
 ];
@@ -347,7 +349,9 @@ VerificationTest[
    (Einstoff::evalkey) and is dropped rather than aborting, so with the remaining valid
    binding the desc still resolves. *)
 VerificationTest[
-  sat @ Quiet @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {2 -> 3, c -> 2}],
+  sat @ Quiet[
+    Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {2 -> 3, c -> 2}],
+    {Einstoff::evalkey}],
   True,
   TestID -> "bindings-nonsymbol-key-warns-continues"
 ];

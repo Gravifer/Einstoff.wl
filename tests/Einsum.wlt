@@ -53,36 +53,46 @@ VerificationTest[
 
 (* 6. A repeated index kept on the output (diagonal) is rejected — deferred. *)
 VerificationTest[
-  Quiet @ Einstoff["einsum"][{{a_, a_}} :> {{a}}, {ArrayReshape[Range[9], {3, 3}]}],
+  Quiet[
+    Einstoff["einsum"][{{a_, a_}} :> {{a}}, {ArrayReshape[Range[9], {3, 3}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "einsum-reject-diagonal"
 ];
 
 (* 7. An index occurring more than twice (super-diagonal) is rejected — non-tensorial. *)
 VerificationTest[
-  Quiet @ Einstoff["einsum"][{{a_, a_, a_}} :> {{}}, {ArrayReshape[Range[27], {3, 3, 3}]}],
+  Quiet[
+    Einstoff["einsum"][{{a_, a_, a_}} :> {{}}, {ArrayReshape[Range[27], {3, 3, 3}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "einsum-reject-super-diagonal"
 ];
 
 (* 8. A single dropped index (sum-reduction) is out of the contraction subset. *)
 VerificationTest[
-  Quiet @ Einstoff["einsum"][{{a_, b_}} :> {{a}}, {ArrayReshape[Range[6], {2, 3}]}],
+  Quiet[
+    Einstoff["einsum"][{{a_, b_}} :> {{a}}, {ArrayReshape[Range[6], {2, 3}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "einsum-reject-single-drop"
 ];
 
 (* 9. A new output axis (repetition / broadcast) is rejected. *)
 VerificationTest[
-  Quiet @ Einstoff["einsum"][{{a_}} :> {{a, c}}, {Range[3]}, {c -> 2}],
+  Quiet[
+    Einstoff["einsum"][{{a_}} :> {{a, c}}, {Range[3]}, {c -> 2}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "einsum-reject-repetition"
 ];
 
 (* 10. A within-operand repeat in a multi-tensor desc is deferred (rejected). *)
 VerificationTest[
-  Quiet @ Einstoff["einsum"][{{a_, a_}, {a_, c_}} :> {{c}},
-    {ArrayReshape[Range[9], {3, 3}], ArrayReshape[Range[6], {3, 2}]}],
+  Quiet[
+    Einstoff["einsum"][{{a_, a_}, {a_, c_}} :> {{c}},
+      {ArrayReshape[Range[9], {3, 3}], ArrayReshape[Range[6], {3, 2}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "einsum-reject-mixed-multitensor"
 ];
@@ -90,12 +100,16 @@ VerificationTest[
 (* 11. A literal integer output axis is also repetition (broadcast) — rejected,
    single- and multi-tensor (output integers count as repetition, Reshape.wlt §15). *)
 VerificationTest[
-  Quiet @ Einstoff["einsum"][{{a_}} :> {{a, 2}}, {Range[3]}],
+  Quiet[
+    Einstoff["einsum"][{{a_}} :> {{a, 2}}, {Range[3]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "einsum-reject-literal-repetition"
 ];
 VerificationTest[
-  Quiet @ Einstoff["einsum"][{{a_}, {b_}} :> {{a, b, 2}}, {Range[3], Range[4]}],
+  Quiet[
+    Einstoff["einsum"][{{a_}, {b_}} :> {{a, b, 2}}, {Range[3], Range[4]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "einsum-reject-literal-repetition-multi"
 ];
@@ -103,7 +117,9 @@ VerificationTest[
 (* 13. einsum rejects ANY literal output axis, even one matching an input literal
    (numpy.einsum has no integer subscripts; a literal output is broadcast, not einsum). *)
 VerificationTest[
-  Quiet @ Einstoff["einsum"][{{a_, 2}} :> {{a, 2}}, {ArrayReshape[Range[6], {3, 2}]}],
+  Quiet[
+    Einstoff["einsum"][{{a_, 2}} :> {{a, 2}}, {ArrayReshape[Range[6], {3, 2}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "einsum-reject-literal-on-input"
 ];
@@ -111,8 +127,10 @@ VerificationTest[
 (* 14. Multi-tensor: a size > 1 literal is not a shared contraction identity — reject
    'a 2, 2 b -> a b' (matches einx.dot). *)
 VerificationTest[
-  Quiet @ Einstoff["einsum"][{{a_, 2}, {2, b_}} :> {{a, b}},
-    {ArrayReshape[Range[6], {3, 2}], ArrayReshape[Range[8], {2, 4}]}],
+  Quiet[
+    Einstoff["einsum"][{{a_, 2}, {2, b_}} :> {{a, b}},
+      {ArrayReshape[Range[6], {3, 2}], ArrayReshape[Range[8], {2, 4}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "einsum-reject-shared-literal"
 ];
@@ -120,7 +138,9 @@ VerificationTest[
 (* 15. A contracted axis in >2 operands is an N-way super-diagonal — reject
    'a, a, a ->' (einx.dot: contracted axes must appear in exactly two inputs). *)
 VerificationTest[
-  Quiet @ Einstoff["einsum"][{{a_}, {a_}, {a_}} :> {{}}, {Range[3], Range[3], Range[3]}],
+  Quiet[
+    Einstoff["einsum"][{{a_}, {a_}, {a_}} :> {{}}, {Range[3], Range[3], Range[3]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "einsum-reject-nary-contraction"
 ];

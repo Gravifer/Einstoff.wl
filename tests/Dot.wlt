@@ -80,16 +80,20 @@ VerificationTest[
    (N-operand chains ARE supported — see the 3- and 4-operand chain tests above; this
    rejects only because the tensor count disagrees with the desc's shape count.) *)
 VerificationTest[
-  Quiet @ Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c}},
-    {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}], ArrayReshape[Range[6], {2, 3}]}],
+  Quiet[
+    Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c}},
+      {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}], ArrayReshape[Range[6], {2, 3}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "dot-reject-operand-count-mismatch"
 ];
 
 (* 10. A single-operand axis dropped before contraction is rejected. *)
 VerificationTest[
-  Quiet @ Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a}},
-    {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}],
+  Quiet[
+    Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a}},
+      {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "dot-reject-within-drop"
 ];
@@ -99,24 +103,30 @@ VerificationTest[
    own policy; EinstoffShapes no longer gates it).  'b' is a legitimate cross-operand
    contracted axis and must NOT trip the guard (firstDuplicateAxis is per-shape). *)
 VerificationTest[
-  Quiet @ Einstoff[Dot][{{a_, b_, a_}, {b_, c_}} :> {{c}},
-    {ArrayReshape[Range[12], {2, 3, 2}], ArrayReshape[Range[12], {3, 4}]}],
+  Quiet[
+    Einstoff[Dot][{{a_, b_, a_}, {b_, c_}} :> {{c}},
+      {ArrayReshape[Range[12], {2, 3, 2}], ArrayReshape[Range[12], {3, 4}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "dot-reject-repeated-within-operand"
 ];
 
 (* 11. A new output axis is repetition (SPEC 5.5); unbound it is rejected. *)
 VerificationTest[
-  Quiet @ Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c, d}},
-    {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}],
+  Quiet[
+    Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c, d}},
+      {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "dot-reject-unbound-repeat"
 ];
 
 (* 12. Unsatisfiable desc (shared axis size disagrees) returns $Failed. *)
 VerificationTest[
-  Quiet @ Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c}},
-    {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[20], {5, 4}]}],
+  Quiet[
+    Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c}},
+      {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[20], {5, 4}]}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "dot-reject-unsat"
 ];
@@ -179,7 +189,9 @@ VerificationTest[
 
 (* 19. One input tensor is rejected (Dot needs >= 2). *)
 VerificationTest[
-  Quiet @ Einstoff[Dot][{{a_, b_}} :> {{a, b}}, {ArrayReshape[Range[6], {2, 3}]}],
+  Quiet[
+    Einstoff[Dot][{{a_, b_}} :> {{a, b}}, {ArrayReshape[Range[6], {2, 3}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "dot-reject-one-tensor"
 ];
@@ -187,8 +199,10 @@ VerificationTest[
 (* 20. A kept literal-integer axis has no carryable identity (shared materializeOutput
    guard, Option A) — rejected, not leaked as an unevaluated ArrayReshape. *)
 VerificationTest[
-  Quiet @ Einstoff[Dot][{{a_, 2}, {2}} :> {{a, 2}},
-    {ArrayReshape[Range[6], {3, 2}], Range[2]}],
+  Quiet[
+    Einstoff[Dot][{{a_, 2}, {2}} :> {{a, 2}},
+      {ArrayReshape[Range[6], {3, 2}], Range[2]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "dot-reject-kept-literal"
 ];
@@ -197,8 +211,10 @@ VerificationTest[
    '2's in different operands must not become the same axis — reject (einx.dot rejects
    'a 2, 2 b -> a b': a contracted axis must be named). *)
 VerificationTest[
-  Quiet @ Einstoff[Dot][{{a_, 2}, {2, b_}} :> {{a, b}},
-    {ArrayReshape[Range[6], {3, 2}], ArrayReshape[Range[8], {2, 4}]}],
+  Quiet[
+    Einstoff[Dot][{{a_, 2}, {2, b_}} :> {{a, b}},
+      {ArrayReshape[Range[6], {3, 2}], ArrayReshape[Range[8], {2, 4}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "dot-reject-shared-literal"
 ];
@@ -217,7 +233,9 @@ VerificationTest[
 (* 23. A contracted axis in >2 operands (dropped) is an N-way super-diagonal — rejected
    (einx.dot: contracted axes must appear in exactly two inputs). *)
 VerificationTest[
-  Quiet @ Einstoff[Dot][{{a_}, {a_}, {a_}} :> {{}}, {Range[3], Range[3], Range[3]}],
+  Quiet[
+    Einstoff[Dot][{{a_}, {a_}, {a_}} :> {{}}, {Range[3], Range[3], Range[3]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "dot-reject-nary-contraction"
 ];

@@ -85,24 +85,30 @@ VerificationTest[
 
 (* 8. Einstoff[Join] with CirclePlus on the LHS (that is a split) is rejected. *)
 VerificationTest[
-  Quiet @ Einstoff[Join][{{m_, CirclePlus["a", b_]}} :> {{m, "a"}, {m, b}},
-    {ArrayReshape[Range[14], {2, 7}]}, {"a" -> 3}],
+  Quiet[
+    Einstoff[Join][{{m_, CirclePlus["a", b_]}} :> {{m, "a"}, {m, b}},
+      {ArrayReshape[Range[14], {2, 7}]}, {"a" -> 3}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "concat-reject-join-lhs"
 ];
 
 (* 11. Operand/summand count mismatch (2 summands, 1 tensor) is rejected. *)
 VerificationTest[
-  Quiet @ Einstoff["Massage"][{{m_, a_}, {m_, b_}} :> {{m, CirclePlus[a, b]}},
-    {ArrayReshape[Range[6], {2, 3}]}],
+  Quiet[
+    Einstoff["Massage"][{{m_, a_}, {m_, b_}} :> {{m, CirclePlus[a, b]}},
+      {ArrayReshape[Range[6], {2, 3}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "concat-reject-count"
 ];
 
 (* 12. Unsatisfiable: carrier axis size disagrees between operands. *)
 VerificationTest[
-  Quiet @ Einstoff["Massage"][{{m_, a_}, {m_, b_}} :> {{m, CirclePlus[a, b]}},
-    {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}],
+  Quiet[
+    Einstoff["Massage"][{{m_, a_}, {m_, b_}} :> {{m, CirclePlus[a, b]}},
+      {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "concat-reject-unsat"
 ];
@@ -114,8 +120,10 @@ VerificationTest[
    mis-reshapes — verified, so this test isolates the guard).  Carrier 'm' shared across
    operands is fine (firstDuplicateAxis is per-shape). *)
 VerificationTest[
-  Quiet @ Einstoff[Join][{{m_, a_, a_}, {m_, b_}} :> {{m, CirclePlus[a, b]}},
-    {ArrayReshape[Range[8], {2, 2, 2}], ArrayReshape[Range[6], {2, 3}]}],
+  Quiet[
+    Einstoff[Join][{{m_, a_, a_}, {m_, b_}} :> {{m, CirclePlus[a, b]}},
+      {ArrayReshape[Range[8], {2, 2, 2}], ArrayReshape[Range[6], {2, 3}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "concat-reject-repeated-input-axis"
 ];
@@ -135,22 +143,28 @@ VerificationTest[
 (* 13b-c. Pattern blanks inside composites remain inference-only: external bare
    and slot keys do not bind q_ in q_ (+) k_. *)
 VerificationTest[
-  Quiet @ With[{x = ArrayReshape[Range[20], {2, 10}]},
-    Einstoff["Massage"][{{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}}, {x}, {q -> 3}]],
+  Quiet[
+    With[{x = ArrayReshape[Range[20], {2, 10}]},
+      Einstoff["Massage"][{{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}}, {x}, {q -> 3}]],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "split-reject-composite-blank-bare-binding"
 ];
 VerificationTest[
-  Quiet @ With[{x = ArrayReshape[Range[20], {2, 10}]},
-    Einstoff["Massage"][{{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}}, {x}, {Slot["q"] -> 3}]],
+  Quiet[
+    With[{x = ArrayReshape[Range[20], {2, 10}]},
+      Einstoff["Massage"][{{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}}, {x}, {Slot["q"] -> 3}]],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "split-reject-composite-blank-slot-binding"
 ];
 
 (* 13d. Slot keys do not bind string-tier composite factors. *)
 VerificationTest[
-  Quiet @ With[{x = ArrayReshape[Range[20], {2, 10}]},
-    Einstoff["Massage"][{{b_, CirclePlus["q", k_]}} :> {{b, "q"}, {b, k}}, {x}, {Slot["q"] -> 3}]],
+  Quiet[
+    With[{x = ArrayReshape[Range[20], {2, 10}]},
+      Einstoff["Massage"][{{b_, CirclePlus["q", k_]}} :> {{b, "q"}, {b, k}}, {x}, {Slot["q"] -> 3}]],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "split-reject-string-factor-slot-binding"
 ];
@@ -172,8 +186,10 @@ VerificationTest[
   TestID -> "split-bare-factor-both-bindings-ok"
 ];
 VerificationTest[
-  Quiet @ With[{x = ArrayReshape[Range[20], {2, 10}]},
-    Einstoff["Massage"][{{b_, CirclePlus[q, k]}} :> {{b, q}, {b, k}}, {x}, {q -> 3, k -> 8}]],
+  Quiet[
+    With[{x = ArrayReshape[Range[20], {2, 10}]},
+      Einstoff["Massage"][{{b_, CirclePlus[q, k]}} :> {{b, q}, {b, k}}, {x}, {q -> 3, k -> 8}]],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "split-bare-factor-contradictory-bindings"
 ];
@@ -217,24 +233,30 @@ VerificationTest[
 
 (* 18. Einstoff[Split] with CirclePlus on the RHS (that is a concat) is rejected. *)
 VerificationTest[
-  Quiet @ Einstoff[Split][{{m_, a_}, {m_, b_}} :> {{m, CirclePlus[a, b]}},
-    {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[8], {2, 4}]}],
+  Quiet[
+    Einstoff[Split][{{m_, a_}, {m_, b_}} :> {{m, CirclePlus[a, b]}},
+      {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[8], {2, 4}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "split-reject-rhs"
 ];
 
 (* 19. Output/summand count mismatch (2 summands, 1 output) is rejected. *)
 VerificationTest[
-  Quiet @ Einstoff["Massage"][{{b_, CirclePlus["q", k_]}} :> {{b, "q"}},
-    {ArrayReshape[Range[20], {2, 10}]}, {"q" -> 3}],
+  Quiet[
+    Einstoff["Massage"][{{b_, CirclePlus["q", k_]}} :> {{b, "q"}},
+      {ArrayReshape[Range[20], {2, 10}]}, {"q" -> 3}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "split-reject-count"
 ];
 
 (* 20. Underdetermined direct sum (no summand bound) is unsatisfiable. *)
 VerificationTest[
-  Quiet @ Einstoff["Massage"][{{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}},
-    {ArrayReshape[Range[20], {2, 10}]}],
+  Quiet[
+    Einstoff["Massage"][{{b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}},
+      {ArrayReshape[Range[20], {2, 10}]}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "split-reject-underdetermined"
 ];
@@ -246,8 +268,10 @@ VerificationTest[
    verified, so this test isolates the guard).  (A repeated direct-sum *summand* q (+) q
    is a distinct, deferred equal-split case; here the repeat is a carried axis.) *)
 VerificationTest[
-  Quiet @ Einstoff[Split][{{b_, b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}},
-    {ArrayReshape[Range[20], {2, 2, 5}]}, {"q" -> 2}],
+  Quiet[
+    Einstoff[Split][{{b_, b_, CirclePlus[q_, k_]}} :> {{b, q}, {b, k}},
+      {ArrayReshape[Range[20], {2, 2, 5}]}, {"q" -> 2}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "split-reject-repeated-input-axis"
 ];
@@ -315,8 +339,10 @@ VerificationTest[
 
 (* 27. A targeted (Slot) summand is not a product block -> rejected. *)
 VerificationTest[
-  Quiet @ Einstoff["Massage"][{{m_, Slot["a"]}, {m_, c_}} :> {{m, CirclePlus[Slot["a"], c]}},
-    {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[8], {2, 4}]}],
+  Quiet[
+    Einstoff["Massage"][{{m_, Slot["a"]}, {m_, c_}} :> {{m, CirclePlus[Slot["a"], c]}},
+      {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[8], {2, 4}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "concat-reject-slot-summand"
 ];
@@ -349,8 +375,10 @@ VerificationTest[
 
 (* 30. Composite split underdetermined (only a bound, 2b + c = 10) is rejected. *)
 VerificationTest[
-  Quiet @ Einstoff["Massage"][{{m_, CirclePlus[CircleTimes["a", b_], c_]}} :> {{m, "a", b}, {m, c}},
-    {ArrayReshape[Range[20], {2, 10}]}, {"a" -> 2}],
+  Quiet[
+    Einstoff["Massage"][{{m_, CirclePlus[CircleTimes["a", b_], c_]}} :> {{m, "a", b}, {m, c}},
+      {ArrayReshape[Range[20], {2, 10}]}, {"a" -> 2}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "split-composite-reject-underdetermined"
 ];
@@ -386,7 +414,9 @@ VerificationTest[
    — rejected cleanly, not leaked. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
-    Quiet @ Einstoff["Massage"][{{b_, CirclePlus[q_, 2]}} :> {{b, q}, {b}}, {x}]],
+    Quiet[
+      Einstoff["Massage"][{{b_, CirclePlus[q_, 2]}} :> {{b, q}, {b}}, {x}],
+      {Einstoff::unsat}]],
   $Failed,
   TestID -> "split-integer-summand-oversized-reject"
 ];
@@ -397,7 +427,9 @@ VerificationTest[
    appear in the output").  Only size-1 (unit) literals are special (tests 32-33). *)
 VerificationTest[
   With[{x = ArrayReshape[Range[10], {2, 5}]},
-    Quiet @ Einstoff["Massage"][{{b_, CirclePlus[q_, 2]}} :> {{b, q}, {b, 2}}, {x}]],
+    Quiet[
+      Einstoff["Massage"][{{b_, CirclePlus[q_, 2]}} :> {{b, q}, {b, 2}}, {x}],
+      {Einstoff::unsat}]],
   $Failed,
   TestID -> "split-integer-summand-preserve-reject"
 ];
@@ -444,8 +476,10 @@ VerificationTest[
    with k = 2 would truncate the second block (data loss) — reject centrally.  (Only
    a size-1 unit summand may be squeezed, tests 32/38; name+carry it via test 36.) *)
 VerificationTest[
-  Quiet @ Einstoff["Massage"][{{b_, CirclePlus[q, k]}} :> {{b, q}, {b}},
-    {ArrayReshape[Range[10], {2, 5}]}, {q -> 3, k -> 2}],
+  Quiet[
+    Einstoff["Massage"][{{b_, CirclePlus[q, k]}} :> {{b, q}, {b}},
+      {ArrayReshape[Range[10], {2, 5}]}, {q -> 3, k -> 2}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "split-drop-named-summand-reject"
 ];
@@ -453,8 +487,10 @@ VerificationTest[
 (* 40. Concat must NOT silently drop a size > 1 operand axis into a size-1 summand:
    'b c, b k -> b (c + 1)' discards most of the second operand — reject. *)
 VerificationTest[
-  Quiet @ Einstoff["Massage"][{{b_, c_}, {b_, k_}} :> {{b, CirclePlus[c, 1]}},
-    {ArrayReshape[Range[6], {2, 3}], ArrayReshape[10 + Range[4], {2, 2}]}],
+  Quiet[
+    Einstoff["Massage"][{{b_, c_}, {b_, k_}} :> {{b, CirclePlus[c, 1]}},
+      {ArrayReshape[Range[6], {2, 3}], ArrayReshape[10 + Range[4], {2, 2}]}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "concat-drop-operand-axis-reject"
 ];

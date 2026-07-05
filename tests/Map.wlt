@@ -57,7 +57,9 @@ VerificationTest[
 VerificationTest[
   Block[{b},
     With[{x = ArrayReshape[Range[8], {2, 4}]},
-      Quiet @ Einstoff[Map]["flip"][{{a_, Highlighted[b]}} :> {{a, b}}, {x}, {Framed[b] -> 4}]]],
+      Quiet[
+        Einstoff[Map]["flip"][{{a_, Highlighted[b]}} :> {{a, b}}, {x}, {Framed[b] -> 4}],
+        {Einstoff::unsat}]]],
   $Failed,
   TestID -> "map-reject-highlighted-bare-wrong-head-binding"
 ];
@@ -66,7 +68,9 @@ VerificationTest[
 VerificationTest[
   Block[{b},
     With[{x = ArrayReshape[Range[8], {2, 4}]},
-      Quiet @ Einstoff[Map]["flip"][{{a_, Highlighted[b_]}} :> {{a, b}}, {x}, {b -> 4}]]],
+      Quiet[
+        Einstoff[Map]["flip"][{{a_, Highlighted[b_]}} :> {{a, b}}, {x}, {b -> 4}],
+        {Einstoff::unsat}]]],
   $Failed,
   TestID -> "map-reject-highlighted-blank-binding"
 ];
@@ -74,7 +78,9 @@ VerificationTest[
 (* 1h. The old Slot["b"] -> bare b spelling mixes string and symbol kinds. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
-    Quiet @ Einstoff[Map]["flip"][{{a_, Slot["b"]}} :> {{a, b}}, {x}]],
+    Quiet[
+      Einstoff[Map]["flip"][{{a_, Slot["b"]}} :> {{a, b}}, {x}],
+      {Einstoff::unsupp}]],
   $Failed,
   TestID -> "map-reject-slot-string-to-bare"
 ];
@@ -90,7 +96,9 @@ VerificationTest[
 (* 1j. Slot is reserved for string-kind targeting; it is not targeted blank notation. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
-    Quiet @ Einstoff[Map]["flip"][{{a_, Slot[b_]}} :> {{a, b}}, {x}]],
+    Quiet[
+      Einstoff[Map]["flip"][{{a_, Slot[b_]}} :> {{a, b}}, {x}],
+      {Einstoff::unsupp}]],
   $Failed,
   TestID -> "map-reject-slot-blank-target"
 ];
@@ -171,9 +179,11 @@ VerificationTest[
 ];
 
 VerificationTest[
-  Quiet @ Einstoff[Map][Reverse][
-    {{a_, Highlighted[CirclePlus["b", c_]]}} :> {{a, Highlighted[CirclePlus["b", c]]}},
-    {ArrayReshape[Range[14], {2, 7}]}, {"b" -> 3}],
+  Quiet[
+    Einstoff[Map][Reverse][
+      {{a_, Highlighted[CirclePlus["b", c_]]}} :> {{a, Highlighted[CirclePlus["b", c]]}},
+      {ArrayReshape[Range[14], {2, 7}]}, {"b" -> 3}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "map-reject-highlighted-direct-sum"
 ];
@@ -229,8 +239,10 @@ VerificationTest[
 
 (* 11. A dropped axis is a reduction, not a map — rejected (points at ArrayReduce). *)
 VerificationTest[
-  Quiet @ Einstoff[Map][Reverse][{{a_, Slot["b"]}} :> {{a}},
-    {ArrayReshape[Range[8], {2, 4}]}],
+  Quiet[
+    Einstoff[Map][Reverse][{{a_, Slot["b"]}} :> {{a}},
+      {ArrayReshape[Range[8], {2, 4}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "map-reject-dropped-axis"
 ];
@@ -241,40 +253,50 @@ VerificationTest[
    guard, backed by Map's shape-preserving drop-check — defense in depth), not the
    resolver's output-uniqueness check. *)
 VerificationTest[
-  Quiet @ Einstoff[Map][Reverse][{{a_, a_, Slot["b"]}} :> {{a, Slot["b"]}},
-    {ArrayReshape[Range[16], {2, 2, 4}]}],
+  Quiet[
+    Einstoff[Map][Reverse][{{a_, a_, Slot["b"]}} :> {{a, Slot["b"]}},
+      {ArrayReshape[Range[16], {2, 2, 4}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "map-reject-repeated-input-axis"
 ];
 
 (* 12. No targeted axis is a pure rearrange — rejected (points at ArrayReshape). *)
 VerificationTest[
-  Quiet @ Einstoff[Map][Reverse][{{a_, b_}} :> {{a, b}},
-    {ArrayReshape[Range[8], {2, 4}]}],
+  Quiet[
+    Einstoff[Map][Reverse][{{a_, b_}} :> {{a, b}},
+      {ArrayReshape[Range[8], {2, 4}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "map-reject-no-bracket"
 ];
 
 (* 13. A non-shape-preserving f (collapses the block) is rejected. *)
 VerificationTest[
-  Quiet @ Einstoff[Map][Total][{{a_, Slot["b"]}} :> {{a, Slot["b"]}},
-    {ArrayReshape[Range[8], {2, 4}]}],
+  Quiet[
+    Einstoff[Map][Total][{{a_, Slot["b"]}} :> {{a, Slot["b"]}},
+      {ArrayReshape[Range[8], {2, 4}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "map-reject-not-shape-preserving"
 ];
 
 (* 14b. An unknown map op name is rejected with a clear error. *)
 VerificationTest[
-  Quiet @ Einstoff[Map]["flipp"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}},
-    {ArrayReshape[Range[8], {2, 4}]}],
+  Quiet[
+    Einstoff[Map]["flipp"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}},
+      {ArrayReshape[Range[8], {2, 4}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "map-reject-unknown-string"
 ];
 
 (* 14. More than one input tensor is rejected (Map is single-tensor). *)
 VerificationTest[
-  Quiet @ Einstoff[Map][Reverse][{{a_, Slot["b"]}} :> {{a, Slot["b"]}},
-    {ArrayReshape[Range[8], {2, 4}], ArrayReshape[Range[8], {2, 4}]}],
+  Quiet[
+    Einstoff[Map][Reverse][{{a_, Slot["b"]}} :> {{a, Slot["b"]}},
+      {ArrayReshape[Range[8], {2, 4}], ArrayReshape[Range[8], {2, 4}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "map-reject-multitensor"
 ];
@@ -282,8 +304,10 @@ VerificationTest[
 (* 15. A kept literal-integer axis has no carryable identity (shared materializeOutput
    guard, Option A) — rejected, not leaked. *)
 VerificationTest[
-  Quiet @ Einstoff[Map]["id"][{{a_, Slot[2]}} :> {{a, 2}},
-    {ArrayReshape[Range[6], {3, 2}]}],
+  Quiet[
+    Einstoff[Map]["id"][{{a_, Slot[2]}} :> {{a, 2}},
+      {ArrayReshape[Range[6], {3, 2}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "map-reject-kept-literal"
 ];
@@ -301,8 +325,10 @@ VerificationTest[
 
 (* 17. ...but a dropped size > 1 axis is still a reduction — rejected. *)
 VerificationTest[
-  Quiet @ Einstoff[Map]["flip"][{{a_, b_, Slot["c"]}} :> {{a, Slot["c"]}},
-    {ArrayReshape[Range[24], {2, 4, 3}]}],
+  Quiet[
+    Einstoff[Map]["flip"][{{a_, b_, Slot["c"]}} :> {{a, Slot["c"]}},
+      {ArrayReshape[Range[24], {2, 4, 3}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "map-reject-drop-size-gt1"
 ];

@@ -65,32 +65,40 @@ VerificationTest[
 
 (* 7. Brackets (reduce) are not in the rearrange subset. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][
-    {{a_, Slot["b"]}} :> {{a}}, {Partition[Range[6], 3]}],
+  Quiet[
+    Einstoff[ArrayReshape][
+      {{a_, Slot["b"]}} :> {{a}}, {Partition[Range[6], 3]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "lower-reject-bracket"
 ];
 
 (* 8. Dropping an axis (reduce) is rejected as non-permutation. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][
-    {{a_, b_}} :> {{a}}, {Partition[Range[6], 3]}],
+  Quiet[
+    Einstoff[ArrayReshape][
+      {{a_, b_}} :> {{a}}, {Partition[Range[6], 3]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "lower-reject-drop-axis"
 ];
 
 (* 9. Unsatisfiable desc (rank mismatch) returns $Failed. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][
-    {{a_, b_, c_}} :> {{c, a, b}}, {ArrayReshape[Range[8], {4, 2}]}],
+  Quiet[
+    Einstoff[ArrayReshape][
+      {{a_, b_, c_}} :> {{c, a, b}}, {ArrayReshape[Range[8], {4, 2}]}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "lower-reject-unsat"
 ];
 
 (* 10. Multi-tensor input is rejected (separate path). *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][
-    {{a_}, {b_}} :> {{a, b}}, {Range[4], Range[5]}],
+  Quiet[
+    Einstoff[ArrayReshape][
+      {{a_}, {b_}} :> {{a, b}}, {Range[4], Range[5]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "lower-reject-multitensor"
 ];
@@ -125,7 +133,9 @@ VerificationTest[
 
 (* 14. An unbound repeat axis (no binding) is unsatisfiable. *)
 VerificationTest[
-  Quiet @ Einstoff["Massage"][{{a_}} :> {{a, c}}, {Range[4]}],
+  Quiet[
+    Einstoff["Massage"][{{a_}} :> {{a, c}}, {Range[4]}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "repeat-reject-unbound"
 ];
@@ -154,17 +164,23 @@ VerificationTest[
 (* 18-20. An output axis must be a positive integer (Massage sizes via EinstoffMatch,
    so this positivity guard lives in materializeOutput, not EinstoffShapes). *)
 VerificationTest[
-  Quiet @ Einstoff["Massage"][{{a_}} :> {{a, 0}}, {Range[3]}],
+  Quiet[
+    Einstoff["Massage"][{{a_}} :> {{a, 0}}, {Range[3]}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "reject-zero-output-integer"
 ];
 VerificationTest[
-  Quiet @ Einstoff["Massage"][{{a_}} :> {{a, c}}, {Range[3]}, {c -> 0}],
+  Quiet[
+    Einstoff["Massage"][{{a_}} :> {{a, c}}, {Range[3]}, {c -> 0}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "reject-zero-output-binding"
 ];
 VerificationTest[
-  Quiet @ Einstoff["Massage"][{{a_}} :> {{a, -1}}, {Range[3]}],
+  Quiet[
+    Einstoff["Massage"][{{a_}} :> {{a, -1}}, {Range[3]}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "reject-negative-output-integer"
 ];
@@ -183,32 +199,42 @@ VerificationTest[
    an element-count-preserving reindexing.  (A size-1 output-only axis is a unit insert,
    still bijective — covered by the unit-axis tests below.) *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{a_}} :> {{a, c}}, {Range[4]}, {c -> 3}],
+  Quiet[
+    Einstoff[ArrayReshape][{{a_}} :> {{a, c}}, {Range[4]}, {c -> 3}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "reshape-reject-repeat"
 ];
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{a_}} :> {{a, 2}}, {Range[4]}],
+  Quiet[
+    Einstoff[ArrayReshape][{{a_}} :> {{a, 2}}, {Range[4]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "reshape-reject-output-integer"
 ];
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{a_}} :> {{a, 2, 2}}, {Range[3]}],
+  Quiet[
+    Einstoff[ArrayReshape][{{a_}} :> {{a, 2, 2}}, {Range[3]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "reshape-reject-duplicate-literal"
 ];
 (* A within-tensor contraction shrinks the element count — not bijective; ArrayReshape
    points at Einstoff["ArrayContract"] (which accepts it — see ArrayContract.wlt). *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{a_, b_, a_, d_}} :> {{b, d}},
-    {ArrayReshape[Range[16], {2, 2, 2, 2}]}],
+  Quiet[
+    Einstoff[ArrayReshape][{{a_, b_, a_, d_}} :> {{b, d}},
+      {ArrayReshape[Range[16], {2, 2, 2, 2}]}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "reshape-reject-contraction"
 ];
 (* A direct sum is a structural join/split, not a reshape. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{b_, CirclePlus["q", k_]}} :> {{b, "q"}, {b, k}},
-    {ArrayReshape[Range[20], {2, 10}]}, {"q" -> 3}],
+  Quiet[
+    Einstoff[ArrayReshape][{{b_, CirclePlus["q", k_]}} :> {{b, "q"}, {b, k}},
+      {ArrayReshape[Range[20], {2, 10}]}, {"q" -> 3}],
+    {Einstoff::unsupp}],
   $Failed,
   TestID -> "reshape-reject-direct-sum"
 ];
@@ -216,7 +242,9 @@ VerificationTest[
 (* 22. A literal-integer INPUT axis cannot be carried to the output (it has no
    identity to permute — cf. einx rejecting 'a 2 -> a 2'); that is a drop = reduce. *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{a_, 2}} :> {{2, a}}, {ArrayReshape[Range[6], {3, 2}]}],
+  Quiet[
+    Einstoff[ArrayReshape][{{a_, 2}} :> {{2, a}}, {ArrayReshape[Range[6], {3, 2}]}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "reject-literal-carry"
 ];
@@ -352,7 +380,9 @@ VerificationTest[
 (* 31. A size > 1 literal still cannot be carried even with a {} unit beside it:
    '2 () 3 -> 2 1 3' rejects (anonymous 2 and 3 have no carryable identity; einx errors). *)
 VerificationTest[
-  Quiet @ Einstoff[ArrayReshape][{{2, {}, 3}} :> {{2, 1, 3}}, {ArrayReshape[Range[6], {2, 1, 3}]}],
+  Quiet[
+    Einstoff[ArrayReshape][{{2, {}, 3}} :> {{2, 1, 3}}, {ArrayReshape[Range[6], {2, 1, 3}]}],
+    {Einstoff::unsat}],
   $Failed,
   TestID -> "reject-literal-carry-with-unit"
 ];
