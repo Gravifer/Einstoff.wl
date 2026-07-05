@@ -303,10 +303,9 @@ axisSymbol[nm_String] :=
     (* A shadowed name needs an identity other than the (valued) global symbol.  Prefer a
        value-less token in our private Einstoff`Axis` context (its SymbolName stays "nm").
        That context is sanitized ONCE per operation by purgeAxisContext (at the scope /
-       raw-match boundary), NOT here on every call — a per-call ClearAll would strip the
-       Temporary attribute off THIS operation's sibling tokens mid-match.  So here we only
-       read the (already-sanitized) token: if it is STILL valued it is Protected+Locked and
-       un-sanitizable, so fall back to a fresh unreachable identity; otherwise use it. *)
+       raw-match boundary), NOT here on every call.  So here we only read the (already-
+       sanitized) token: if it is STILL valued it is Protected+Locked and un-sanitizable, so
+       fall back to a fresh unreachable identity; otherwise use it. *)
     If[axisShadowedQ["Einstoff`Axis`" <> nm],
       (* MEMOIZED per name (per-operation memo): axisSymbol is called once per occurrence,
          so a fresh Unique each time would give repeated occurrences of one name DIFFERENT
@@ -329,17 +328,21 @@ axisSymbol[nm_String] :=
     Symbol[nm]];
 
 (* Sanitize the reserved Einstoff`Axis` identity context ONCE at an operation boundary: a
-   user must not populate it, but as a defense drop any external value AND the symbol
-   itself.  Unprotect clears Protected; Clear removes VALUES (works even on a Locked symbol,
-   since Clear touches only values); Remove then deletes the symbol outright (stronger than
-   ClearAll).  Run at the boundary (not per axisSymbol call), it only ever touches VESTIGIAL
-   tokens left from a prior operation — Removing one that a prior returned result still holds
-   turns that key into Removed[…], an accepted edge for holding a stale result across calls;
-   this operation's own tokens are minted fresh (Temporary) after this and are untouched.  A
-   Protected+Locked token survives all three (can't Unprotect/Remove through Locked, Clear
-   blocked by Protected) and is handled by the axisSymbol fallback above. *)
+   user must not populate it, but as a defense drop any external VALUE.  CLEAR-ONLY (Clear,
+   not ClearAll, and never Remove):
+   - Clear removes only values (works even on a Locked symbol — Clear does not touch
+     attributes), which is all we need: a value is the only thing that could leak.
+   - NOT Remove: a token minted for a shadowed axis can already be a live KEY in a public
+     result an earlier call returned (an EinstoffMatch env / EinstoffShapes Bindings).
+     Remove would rewrite that key to Removed["…"], silently corrupting a result the user
+     still holds.  A previously returned association must NOT decay because a later
+     operation ran.  Leaving an inert, value-less name behind is harmless by comparison.
+   - NOT ClearAll: it strips attributes, i.e. the Temporary that lets these tokens GC.
+   A Protected+Locked token survives (Locked blocks Unprotect, Protected blocks Clear) and
+   is handled by the axisSymbol fallback above.  Accumulation is bounded not by this purge
+   but by Temporary: an unreferenced token GCs once the result holding it is dropped. *)
 purgeAxisContext[] :=
-  Quiet[Unprotect["Einstoff`Axis`*"]; Clear["Einstoff`Axis`*"]; Remove["Einstoff`Axis`*"]];
+  Quiet[Unprotect["Einstoff`Axis`*"]; Clear["Einstoff`Axis`*"]];
 
 (* Catch the axis-context-compromised abort (an un-mintable Einstoff`Fallback` token) and
    yield `fail`.  HoldFirst on the body; the fail value is eager. *)

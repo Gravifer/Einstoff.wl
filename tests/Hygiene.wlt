@@ -359,15 +359,19 @@ VerificationTest[
   TestID -> "hyg-duplicate-key-reason-user-name"
 ];
 
-(* 24. Sub-namespace cleanup: a synthetic Einstoff`Axis` token minted for one shadowed
-       raw match is purged at the NEXT operation's entry, so the reserved context does not
-       accumulate across calls (it holds at most the current op's tokens). *)
+(* 24. A previously returned result must NOT decay when a later operation runs: the
+       boundary purge is CLEAR-ONLY (never Remove), so a synthetic Einstoff`Axis` token
+       that is a live key in an earlier env / Bindings is not rewritten to Removed[…].
+       (Regression: a Remove-based purge corrupted m["env"] into <|Removed["keepold"]->5|>.) *)
 VerificationTest[
-  (Block[{clnup1 = 3}, Einstoff`EinstoffMatch[{{"clnup1"}}, {{5}}]];
-   Block[{clnup2 = 3}, Einstoff`EinstoffMatch[{{"clnup2"}}, {{5}}]];
-   FreeQ[Names["Einstoff`Axis`*"], "Einstoff`Axis`clnup1"]),
-  True,
-  TestID -> "hyg-private-context-cleanup-across-ops"
+  (Module[{m, s},
+     m = Block[{keepold = 1}, Einstoff`EinstoffMatch[{{"keepold"}}, {{5}}]];
+     s = Block[{keepold2 = 1}, Einstoff`EinstoffShapes[{{"keepold2"}} :> {{"keepold2"}}, {{5}}]];
+     Block[{nextop = 1}, Einstoff`EinstoffMatch[{{"nextop"}}, {{7}}]];   (* later op purges *)
+     {FreeQ[Keys[m["env"]], _Removed], m["env"][[1]],
+      FreeQ[Keys[s["Bindings"]], _Removed]}]),
+  {True, 5, True},
+  TestID -> "hyg-returned-result-not-mutated-by-later-op"
 ];
 
 (* 25. A scoped operator on a shadowed bracket axis still lowers correctly through the
