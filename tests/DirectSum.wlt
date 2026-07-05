@@ -128,6 +128,17 @@ VerificationTest[
   TestID -> "concat-reject-repeated-input-axis"
 ];
 
+(* 12c. Targeted direct sums are ArrayReduce target syntax, not structural Join syntax
+   (matching einx id/rearrange, which accepts bare (a + b) but rejects [(a + b)]). *)
+VerificationTest[
+  Quiet[
+    Einstoff["Massage"][{{m_, a_}, {m_, b_}} :> {{m, Highlighted[CirclePlus[a, b]]}},
+      {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[8], {2, 4}]}],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "concat-reject-targeted-direct-sum"
+];
+
 (* ===================== splitting (einx `+` on LHS) ================ *)
 
 (* 13. Split into two outputs 'b (q + k) -> b q, b k', q=3 (SPEC ex3)
@@ -274,6 +285,16 @@ VerificationTest[
     {Einstoff::unsupp}],
   $Failed,
   TestID -> "split-reject-repeated-input-axis"
+];
+
+(* 20c. The structural split syntax is likewise bare CirclePlus, not a targeted wrapper. *)
+VerificationTest[
+  Quiet[
+    Einstoff["Massage"][{{m_, Highlighted[CirclePlus["a", b_]]}} :> {{m, "a"}, {m, b}},
+      {ArrayReshape[Range[14], {2, 7}]}, {"a" -> 3}],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "split-reject-targeted-direct-sum"
 ];
 
 (* ===================== nested CirclePlus (associativity) ========= *)

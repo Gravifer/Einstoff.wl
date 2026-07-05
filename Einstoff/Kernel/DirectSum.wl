@@ -76,6 +76,12 @@ directSumConcat[desc_, tensors_, bindings_List, traceAction_ : None] := withAxis
         "direct-sum concatenation produces exactly one output tensor"];
       Return[$Failed]];
     out = First[rhs];
+    If[Cases[out, t_ /; bracketWrapperQ[t] && ! FreeQ[t, CirclePlus], {1}] =!= {},
+      Message[Einstoff::unsupp,
+        "structural direct-sum concatenation uses a bare CirclePlus axis, not a \
+targeted direct sum. Use an unwrapped CirclePlus for Einstoff[Join]/[Split]; targeted \
+CirclePlus is only a single physical target axis for ArrayReduce"];
+      Return[$Failed]];
     cpos = Position[out, _CirclePlus, {1}];
     If[Length[cpos] =!= 1 || hasCirclePlus[Delete[out, cpos]],
       Message[Einstoff::unsupp,
@@ -179,6 +185,12 @@ directSumSplit[desc_, tensors_, bindings_List, traceAction_ : None] := withAxisS
         "direct-sum splitting takes exactly one input tensor"];
       Return[$Failed]];
     inShape = First[lhs];
+    If[Cases[inShape, t_ /; bracketWrapperQ[t] && ! FreeQ[t, CirclePlus], {1}] =!= {},
+      Message[Einstoff::unsupp,
+        "structural direct-sum splitting uses a bare CirclePlus axis, not a targeted \
+direct sum. Use an unwrapped CirclePlus for Einstoff[Join]/[Split]; targeted CirclePlus \
+is only a single physical target axis for ArrayReduce"];
+      Return[$Failed]];
     cpos = Position[inShape, _CirclePlus, {1}];
     If[Length[cpos] =!= 1 || hasCirclePlus[Delete[inShape, cpos]],
       Message[Einstoff::unsupp,

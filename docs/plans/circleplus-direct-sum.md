@@ -6,9 +6,10 @@
 > including nested and composite (CircleTimes-block) summands, integer/unit summands,
 > and the `EinstoffJoin`/`EinstoffSplit` directional guards. See SPEC.md §9 for the
 > authoritative current state; this file is kept for the original design rationale.
-> Still deferred (unchanged): targeted direct sum as structural `Join`/`Split` syntax
-> and >1 CirclePlus per shape. Targeted direct sum is supported only as a single
-> physical target axis for `ArrayReduce`; `Map` rejects it. The text below is the
+> Still deferred: >1 CirclePlus per shape. Targeted direct sum is supported as a
+> single physical target axis for `ArrayReduce`; `Map` rejects it, and structural
+> `Join`/`Split` intentionally keep the bare `CirclePlus` syntax (matching einx
+> `id`/`rearrange`, which rejects bracketed `[(a + b)]`). The text below is the
 > original phased plan (concat = phase 1,
 > split = phase 2); both phases have since landed.
 
@@ -102,8 +103,9 @@ summand a bare name or integer (carrier axes may permute); scalar operand + inte
 summand supported. Covers `b c, -> b (c + 1)` (ex4) and `m a, m b -> m (a + b)`.
 
 **Historical deferred list:** split direction (phase 2), nested summands, and
-composite summands have since landed. The still-current deferrals are CirclePlus
-combined with brackets (`Slot[CirclePlus[…]]`) and >1 CirclePlus per shape.
+composite summands have since landed. Targeted direct sum is implemented only as an
+`ArrayReduce` target and intentionally rejected as structural `Join`/`Split` syntax.
+The still-current structural deferral is >1 CirclePlus per shape.
 
 ## Files
 

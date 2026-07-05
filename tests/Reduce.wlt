@@ -172,6 +172,20 @@ VerificationTest[
   TestID -> "reduce-highlighted-direct-sum"
 ];
 
+VerificationTest[
+  Einstoff[ArrayReduce][Total][{{a_, Framed[CirclePlus["b", c_]]}} :> {{a}},
+    {ArrayReshape[Range[14], {2, 7}]}, {"b" -> 3}],
+  Total[ArrayReshape[Range[14], {2, 7}], {2}],
+  TestID -> "reduce-framed-direct-sum"
+];
+
+VerificationTest[
+  Einstoff[ArrayReduce][Total][{{a_, Slot[CirclePlus["b", "c"]]}} :> {{a}},
+    {ArrayReshape[Range[14], {2, 7}]}, {"b" -> 3, "c" -> 4}],
+  Total[ArrayReshape[Range[14], {2, 7}], {2}],
+  TestID -> "reduce-slot-string-direct-sum"
+];
+
 (* 14. Multi-tensor input is rejected. *)
 VerificationTest[
   Quiet[

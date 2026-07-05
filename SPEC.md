@@ -628,10 +628,13 @@ forces `a = b = 1`). On concat the block is just another term aligned by
 `materializeOutput` and `Join`'d; on split the block size is the product over its
 atoms (`Take` slice, then reshape). A targeted direct sum is supported as a
 single physical target axis for `Einstoff[ArrayReduce]`
-(`Highlighted[CirclePlus[…]]` / `Framed[CirclePlus[…]]`); `Einstoff[Map]` rejects it
-because mapping over a structural concatenation is not a single target-block
-operation. **Still deferred:** using targeted direct sum as structural `Join`/`Split`
-syntax and >1 CirclePlus per shape. Plan: `docs/plans/circleplus-direct-sum.md`.
+(`Highlighted[CirclePlus[…]]` / `Framed[CirclePlus[…]]`, and `Slot[CirclePlus[…]]`
+for string-only summands). `Einstoff[Map]` rejects it because mapping over a
+structural concatenation is not a single target-block operation. Structural
+`Join`/`Split` syntax intentionally remains the bare `CirclePlus` form; targeted
+`CirclePlus` is rejected there, matching einx `id`/`rearrange` behavior for
+`[(a + b)]`. **Still deferred:** >1 CirclePlus per shape. Plan:
+`docs/plans/circleplus-direct-sum.md`.
 
 **Target notation — string-named axes (implemented).** A targeted string axis is now
 `#name` = `Slot["name"]` (§5.1, §3 glossary), bound by unification on its string
@@ -729,9 +732,10 @@ pattern *string* with its Wolfram `desc` *expression* by hand; the equivalence i
 reasoned by a human and written into the test. The implemented subset is required
 to match: rearrange/reshape, reduce, dot, and repetition (§5.5) all cross-validate
 against einx (and einops where it has a single-call equivalent). Behavior outside
-the implemented lowering — structural targeted direct sums, nested name-binding, and
-surface forms without a Python equivalent — is explicitly **not** required to agree
-until that lowering exists.
+the implemented lowering — nested name-binding and surface forms without a Python
+equivalent — is explicitly **not** required to agree until that lowering exists.
+Targeted direct sums are an Einstoff extension for `ArrayReduce`; structural
+targeted direct sums are rejected in line with einx `id`/`rearrange`.
 
 ### 10.2 Future goal — `Interpreter` (einx string → Wolfram desc)
 
