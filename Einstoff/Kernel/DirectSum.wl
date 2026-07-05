@@ -277,7 +277,7 @@ summand distinctly; within-tensor contraction is not supported here)"];
         sizes = Table[
           (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ summandLists[[j]],
           {j, Length[summandLists]}];
-        ends = Accumulate /@ sizes; starts = MapThread[#1 - #2 + 1 &, {ends, sizes}, 2];
+        ends = Accumulate /@ sizes; starts = ends - sizes + 1;
         Table[
           Module[{combo = combos[[i]], specs, terms, atoms, dims, block, replacements},
             specs = Table[
@@ -306,7 +306,7 @@ summand distinctly; within-tensor contraction is not supported here)"];
       sizes = Table[
         (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ summandLists[[j]],
         {j, Length[summandLists]}];
-      ends = Accumulate /@ sizes; starts = MapThread[#1 - #2 + 1 &, {ends, sizes}, 2];
+      ends = Accumulate /@ sizes; starts = ends - sizes + 1;
       Table[
         Module[{combo = combos[[i]], block, terms, atoms, dims, specs, replacements},
           (* slice block i along axis n; All on every other axis *)

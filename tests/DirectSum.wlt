@@ -94,6 +94,81 @@ VerificationTest[
   TestID -> "concat-multiple-direct-sum-axes"
 ];
 
+(* 7c. Multiple direct-sum axes may be non-adjacent after a carried axis. *)
+VerificationTest[
+  With[{x11 = ArrayReshape[Range[4], {1, 2, 2}],
+        x12 = 10 + ArrayReshape[Range[6], {1, 2, 3}],
+        x21 = 20 + ArrayReshape[Range[8], {2, 2, 2}],
+        x22 = 40 + ArrayReshape[Range[12], {2, 2, 3}]},
+    Einstoff["Massage"][
+      {{a_, m_, b_}, {a_, m_, c_}, {d_, m_, b_}, {d_, m_, c_}} :>
+        {{CirclePlus[a, d], m, CirclePlus[b, c]}},
+      {x11, x12, x21, x22}]],
+  With[{x11 = ArrayReshape[Range[4], {1, 2, 2}],
+        x12 = 10 + ArrayReshape[Range[6], {1, 2, 3}],
+        x21 = 20 + ArrayReshape[Range[8], {2, 2, 2}],
+        x22 = 40 + ArrayReshape[Range[12], {2, 2, 3}]},
+    Join[Join[x11, x12, 3], Join[x21, x22, 3], 1]],
+  TestID -> "concat-multiple-direct-sum-axes-nonadjacent"
+];
+
+(* 7d. A 2-by-3 grid uses Cartesian product ordering, last axis fastest. *)
+VerificationTest[
+  With[{x11 = ArrayReshape[Range[2], {1, 2}],
+        x12 = 10 + ArrayReshape[Range[3], {1, 3}],
+        x13 = 20 + ArrayReshape[Range[4], {1, 4}],
+        x21 = 30 + ArrayReshape[Range[4], {2, 2}],
+        x22 = 40 + ArrayReshape[Range[6], {2, 3}],
+        x23 = 50 + ArrayReshape[Range[8], {2, 4}]},
+    Einstoff["Massage"][
+      {{a_, b_}, {a_, c_}, {a_, e_}, {d_, b_}, {d_, c_}, {d_, e_}} :>
+        {{CirclePlus[a, d], CirclePlus[b, c, e]}},
+      {x11, x12, x13, x21, x22, x23}]],
+  With[{x11 = ArrayReshape[Range[2], {1, 2}],
+        x12 = 10 + ArrayReshape[Range[3], {1, 3}],
+        x13 = 20 + ArrayReshape[Range[4], {1, 4}],
+        x21 = 30 + ArrayReshape[Range[4], {2, 2}],
+        x22 = 40 + ArrayReshape[Range[6], {2, 3}],
+        x23 = 50 + ArrayReshape[Range[8], {2, 4}]},
+    Join[Join[x11, x12, x13, 2], Join[x21, x22, x23, 2], 1]],
+  TestID -> "concat-multiple-direct-sum-axes-rectangular-grid"
+];
+
+(* 7e. Integer summands still broadcast in each Cartesian block. *)
+VerificationTest[
+  With[{x11 = ArrayReshape[Range[2], {1, 2}],
+        x12 = {10},
+        x21 = 20 + ArrayReshape[Range[4], {2, 2}]},
+    Einstoff["Massage"][
+      {{a_, b_}, {a_}, {d_, b_}, {}} :> {{CirclePlus[a, d], CirclePlus[b, 1]}},
+      {x11, x12, x21, 99}]],
+  With[{x11 = ArrayReshape[Range[2], {1, 2}],
+        x12 = {{10}},
+        x21 = 20 + ArrayReshape[Range[4], {2, 2}],
+        x22 = ConstantArray[99, {2, 1}]},
+    Join[Join[x11, x12, 2], Join[x21, x22, 2], 1]],
+  TestID -> "concat-multiple-direct-sum-axes-integer-summand"
+];
+
+(* 7f. Composite summands can appear under a second direct-sum axis. *)
+VerificationTest[
+  With[{x11 = ArrayReshape[Range[12], {1, 6, 2}],
+        x12 = 20 + ArrayReshape[Range[8], {1, 4, 2}],
+        x21 = 40 + ArrayReshape[Range[24], {2, 6, 2}],
+        x22 = 80 + ArrayReshape[Range[16], {2, 4, 2}]},
+    Einstoff["Massage"][
+      {{p_, CircleTimes["a", b_], x_}, {p_, c_, x_},
+       {n_, CircleTimes["a", b_], x_}, {n_, c_, x_}} :>
+        {{CirclePlus[p, n], CirclePlus[CircleTimes["a", b], c], x}},
+      {x11, x12, x21, x22}, {"a" -> 2}]],
+  With[{x11 = ArrayReshape[Range[12], {1, 6, 2}],
+        x12 = 20 + ArrayReshape[Range[8], {1, 4, 2}],
+        x21 = 40 + ArrayReshape[Range[24], {2, 6, 2}],
+        x22 = 80 + ArrayReshape[Range[16], {2, 4, 2}]},
+    Join[Join[x11, x12, 2], Join[x21, x22, 2], 1]],
+  TestID -> "concat-multiple-direct-sum-axes-composite-summand"
+];
+
 (* ===================== rejection paths ============================= *)
 
 (* 8. Einstoff[Join] with CirclePlus on the LHS (that is a split) is rejected. *)
@@ -267,6 +342,75 @@ VerificationTest[
     {Take[z, {1, 1}, {1, 2}], Take[z, {1, 1}, {3, 5}],
      Take[z, {2, 3}, {1, 2}], Take[z, {2, 3}, {3, 5}]}],
   TestID -> "split-multiple-direct-sum-axes"
+];
+
+(* 17c. Non-adjacent direct-sum axes slice around a carried axis. *)
+VerificationTest[
+  With[{z = ArrayReshape[Range[30] - 1, {3, 2, 5}]},
+    Einstoff["Massage"][
+      {{CirclePlus["a", d_], m_, CirclePlus["b", c_]}} :>
+        {{"a", m, "b"}, {"a", m, c}, {d, m, "b"}, {d, m, c}},
+      {z}, {"a" -> 1, "b" -> 2}]],
+  With[{z = ArrayReshape[Range[30] - 1, {3, 2, 5}]},
+    {Take[z, {1, 1}, All, {1, 2}], Take[z, {1, 1}, All, {3, 5}],
+     Take[z, {2, 3}, All, {1, 2}], Take[z, {2, 3}, All, {3, 5}]}],
+  TestID -> "split-multiple-direct-sum-axes-nonadjacent"
+];
+
+(* 17d. A 2-by-3 split grid uses the same last-axis-fastest order. *)
+VerificationTest[
+  With[{z = ArrayReshape[Range[27] - 1, {3, 9}]},
+    Einstoff["Massage"][
+      {{CirclePlus["a", d_], CirclePlus["b", "c", e_]}} :>
+        {{"a", "b"}, {"a", "c"}, {"a", e}, {d, "b"}, {d, "c"}, {d, e}},
+      {z}, {"a" -> 1, "b" -> 2, "c" -> 3}]],
+  With[{z = ArrayReshape[Range[27] - 1, {3, 9}]},
+    {Take[z, {1, 1}, {1, 2}], Take[z, {1, 1}, {3, 5}],
+     Take[z, {1, 1}, {6, 9}], Take[z, {2, 3}, {1, 2}],
+     Take[z, {2, 3}, {3, 5}], Take[z, {2, 3}, {6, 9}]}],
+  TestID -> "split-multiple-direct-sum-axes-rectangular-grid"
+];
+
+(* 17e. Each Cartesian slice may then be permuted independently. *)
+VerificationTest[
+  With[{z = ArrayReshape[Range[30] - 1, {3, 2, 5}]},
+    Einstoff["Massage"][
+      {{CirclePlus["a", d_], m_, CirclePlus["b", c_]}} :>
+        {{"b", m, "a"}, {"a", c, m}, {d, "b", m}, {c, d, m}},
+      {z}, {"a" -> 1, "b" -> 2}]],
+  With[{z = ArrayReshape[Range[30] - 1, {3, 2, 5}]},
+    {Transpose[Take[z, {1, 1}, All, {1, 2}], {3, 2, 1}],
+     Transpose[Take[z, {1, 1}, All, {3, 5}], {1, 3, 2}],
+     Transpose[Take[z, {2, 3}, All, {1, 2}], {1, 3, 2}],
+     Transpose[Take[z, {2, 3}, All, {3, 5}], {2, 3, 1}]}],
+  TestID -> "split-multiple-direct-sum-axes-permute-blocks"
+];
+
+(* 17f. Integer summand blocks keep singleton outputs when the RHS asks for them. *)
+VerificationTest[
+  With[{z = ArrayReshape[Range[9] - 1, {3, 3}]},
+    Einstoff["Massage"][
+      {{CirclePlus["a", d_], CirclePlus["b", 1]}} :>
+        {{"a", "b"}, {"a", 1}, {d, "b"}, {d, 1}},
+      {z}, {"a" -> 1, "b" -> 2}]],
+  With[{z = ArrayReshape[Range[9] - 1, {3, 3}]},
+    {Take[z, {1, 1}, {1, 2}], Take[z, {1, 1}, {3, 3}],
+     Take[z, {2, 3}, {1, 2}], Take[z, {2, 3}, {3, 3}]}],
+  TestID -> "split-multiple-direct-sum-axes-integer-summand"
+];
+
+(* 17g. Composite summand sizing composes with a second direct-sum axis. *)
+VerificationTest[
+  With[{z = ArrayReshape[Range[60] - 1, {3, 10, 2}]},
+    Einstoff["Massage"][
+      {{CirclePlus["p", n_], CirclePlus[CircleTimes["a", "b"], c_], x_}} :>
+        {{"p", CircleTimes["a", "b"], x}, {"p", c, x},
+         {n, CircleTimes["a", "b"], x}, {n, c, x}},
+      {z}, {"p" -> 1, "a" -> 2, "b" -> 3}]],
+  With[{z = ArrayReshape[Range[60] - 1, {3, 10, 2}]},
+    {Take[z, {1, 1}, {1, 6}, All], Take[z, {1, 1}, {7, 10}, All],
+     Take[z, {2, 3}, {1, 6}, All], Take[z, {2, 3}, {7, 10}, All]}],
+  TestID -> "split-multiple-direct-sum-axes-composite-summand"
 ];
 
 (* 18. Einstoff[Split] with CirclePlus on the RHS (that is a concat) is rejected. *)

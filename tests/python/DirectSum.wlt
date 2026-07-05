@@ -11,7 +11,7 @@
    einx matches direct-sum summands positionally; the einx pattern <-> Wolfram desc
    equivalence is reasoned out of band. *)
 
-ClearAll[a, b, c, m];
+ClearAll[a, b, c, d, e, m, n, p, x];
 
 pyRoot =
   If[ValueQ[Einstoff`Tests`$Root], Einstoff`Tests`$Root,
@@ -107,6 +107,68 @@ VerificationTest[
   TestID -> "xval-concat-composite"
 ];
 
+(* multiple direct-sum axes 'a b, a c, d b, d c -> (a + d) (b + c)' *)
+VerificationTest[
+  Einstoff["Massage"][
+    {{a_, b_}, {a_, c_}, {d_, b_}, {d_, c_}} :>
+      {{CirclePlus[a, d], CirclePlus[b, c]}},
+    {ArrayReshape[Range[2], {1, 2}], ArrayReshape[Range[3], {1, 3}],
+     ArrayReshape[Range[4], {2, 2}], ArrayReshape[Range[6], {2, 3}]}],
+  pyConcat["a b, a c, d b, d c -> (a + d) (b + c)",
+    {{1, 2}, {1, 3}, {2, 2}, {2, 3}}],
+  TestID -> "xval-concat-multiple-direct-sum-axes"
+];
+
+(* non-adjacent direct-sum axes around a carried axis *)
+VerificationTest[
+  Einstoff["Massage"][
+    {{a_, m_, b_}, {a_, m_, c_}, {d_, m_, b_}, {d_, m_, c_}} :>
+      {{CirclePlus[a, d], m, CirclePlus[b, c]}},
+    {ArrayReshape[Range[4], {1, 2, 2}], ArrayReshape[Range[6], {1, 2, 3}],
+     ArrayReshape[Range[8], {2, 2, 2}], ArrayReshape[Range[12], {2, 2, 3}]}],
+  pyConcat["a m b, a m c, d m b, d m c -> (a + d) m (b + c)",
+    {{1, 2, 2}, {1, 2, 3}, {2, 2, 2}, {2, 2, 3}}],
+  TestID -> "xval-concat-multiple-direct-sum-axes-nonadjacent"
+];
+
+(* rectangular 2-by-3 Cartesian grid; last direct-sum axis varies fastest *)
+VerificationTest[
+  Einstoff["Massage"][
+    {{a_, b_}, {a_, c_}, {a_, e_}, {d_, b_}, {d_, c_}, {d_, e_}} :>
+      {{CirclePlus[a, d], CirclePlus[b, c, e]}},
+    {ArrayReshape[Range[2], {1, 2}], ArrayReshape[Range[3], {1, 3}],
+     ArrayReshape[Range[4], {1, 4}], ArrayReshape[Range[4], {2, 2}],
+     ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[8], {2, 4}]}],
+  pyConcat["a b, a c, a e, d b, d c, d e -> (a + d) (b + c + e)",
+    {{1, 2}, {1, 3}, {1, 4}, {2, 2}, {2, 3}, {2, 4}}],
+  TestID -> "xval-concat-multiple-direct-sum-axes-rectangular-grid"
+];
+
+(* integer/unit summands broadcast inside a multi-axis Cartesian grid *)
+VerificationTest[
+  Einstoff["Massage"][
+    {{a_, b_}, {a_}, {d_, b_}, {}} :> {{CirclePlus[a, d], CirclePlus[b, 1]}},
+    {ArrayReshape[Range[2], {1, 2}], ArrayReshape[Range[1], {1}],
+     ArrayReshape[Range[4], {2, 2}], 42}],
+  pyConcat["a b, a, d b, -> (a + d) (b + 1)",
+    {{1, 2}, {1}, {2, 2}, {}}],
+  TestID -> "xval-concat-multiple-direct-sum-axes-integer-summand"
+];
+
+(* composite summand sizing composes with a second direct-sum axis *)
+VerificationTest[
+  Einstoff["Massage"][
+    {{p_, CircleTimes["a", b_], x_}, {p_, c_, x_},
+     {n_, CircleTimes["a", b_], x_}, {n_, c_, x_}} :>
+      {{CirclePlus[p, n], CirclePlus[CircleTimes["a", b], c], x}},
+    {ArrayReshape[Range[12], {1, 6, 2}], ArrayReshape[Range[8], {1, 4, 2}],
+     ArrayReshape[Range[24], {2, 6, 2}], ArrayReshape[Range[16], {2, 4, 2}]},
+    {"a" -> 2}],
+  pyConcat["p (a b) x, p c x, n (a b) x, n c x -> (p + n) ((a b) + c) x",
+    {{1, 6, 2}, {1, 4, 2}, {2, 6, 2}, {2, 4, 2}}, <|"a" -> 2|>],
+  TestID -> "xval-concat-multiple-direct-sum-axes-composite-summand"
+];
+
 (* --- splitting (einx `+` on LHS, returns a tuple of outputs) --- *)
 
 (* split 'm (a + b) -> m a, m b', a=3  <->  {{m_, a_ ⊕ b_}} :> {{m, a}, {m, b}} *)
@@ -140,6 +202,73 @@ VerificationTest[
     {ArrayReshape[Range[20], {2, 10}]}, {"a" -> 2, "b" -> 3}],
   pySplit["m ((a b) + c) -> m (a b), m c", {2, 10}, <|"a" -> 2, "b" -> 3|>],
   TestID -> "xval-split-composite"
+];
+
+(* multiple direct-sum axes '(a + d) (b + c) -> a b, a c, d b, d c' *)
+VerificationTest[
+  Einstoff["Massage"][
+    {{CirclePlus["a", d_], CirclePlus["b", c_]}} :>
+      {{"a", "b"}, {"a", c}, {d, "b"}, {d, c}},
+    {ArrayReshape[Range[15], {3, 5}]}, {"a" -> 1, "b" -> 2}],
+  pySplit["(a + d) (b + c) -> a b, a c, d b, d c",
+    {3, 5}, <|"a" -> 1, "b" -> 2|>],
+  TestID -> "xval-split-multiple-direct-sum-axes"
+];
+
+(* non-adjacent direct-sum axes around a carried axis *)
+VerificationTest[
+  Einstoff["Massage"][
+    {{CirclePlus["a", d_], m_, CirclePlus["b", c_]}} :>
+      {{"a", m, "b"}, {"a", m, c}, {d, m, "b"}, {d, m, c}},
+    {ArrayReshape[Range[30], {3, 2, 5}]}, {"a" -> 1, "b" -> 2}],
+  pySplit["(a + d) m (b + c) -> a m b, a m c, d m b, d m c",
+    {3, 2, 5}, <|"a" -> 1, "b" -> 2|>],
+  TestID -> "xval-split-multiple-direct-sum-axes-nonadjacent"
+];
+
+(* each Cartesian slice may then be permuted independently *)
+VerificationTest[
+  Einstoff["Massage"][
+    {{CirclePlus["a", d_], m_, CirclePlus["b", c_]}} :>
+      {{"b", m, "a"}, {"a", c, m}, {d, "b", m}, {c, d, m}},
+    {ArrayReshape[Range[30], {3, 2, 5}]}, {"a" -> 1, "b" -> 2}],
+  pySplit["(a + d) m (b + c) -> b m a, a c m, d b m, c d m",
+    {3, 2, 5}, <|"a" -> 1, "b" -> 2|>],
+  TestID -> "xval-split-multiple-direct-sum-axes-permute-blocks"
+];
+
+(* rectangular 2-by-3 split grid; last direct-sum axis varies fastest *)
+VerificationTest[
+  Einstoff["Massage"][
+    {{CirclePlus["a", d_], CirclePlus["b", "c", e_]}} :>
+      {{"a", "b"}, {"a", "c"}, {"a", e}, {d, "b"}, {d, "c"}, {d, e}},
+    {ArrayReshape[Range[27], {3, 9}]}, {"a" -> 1, "b" -> 2, "c" -> 3}],
+  pySplit["(a + d) (b + c + e) -> a b, a c, a e, d b, d c, d e",
+    {3, 9}, <|"a" -> 1, "b" -> 2, "c" -> 3|>],
+  TestID -> "xval-split-multiple-direct-sum-axes-rectangular-grid"
+];
+
+(* integer/unit summand blocks keep singleton outputs when requested *)
+VerificationTest[
+  Einstoff["Massage"][
+    {{CirclePlus["a", d_], CirclePlus["b", 1]}} :>
+      {{"a", "b"}, {"a", 1}, {d, "b"}, {d, 1}},
+    {ArrayReshape[Range[9], {3, 3}]}, {"a" -> 1, "b" -> 2}],
+  pySplit["(a + d) (b + 1) -> a b, a 1, d b, d 1",
+    {3, 3}, <|"a" -> 1, "b" -> 2|>],
+  TestID -> "xval-split-multiple-direct-sum-axes-integer-summand"
+];
+
+(* composite summand sizing composes with a second direct-sum axis *)
+VerificationTest[
+  Einstoff["Massage"][
+    {{CirclePlus["p", n_], CirclePlus[CircleTimes["a", "b"], c_], x_}} :>
+      {{"p", CircleTimes["a", "b"], x}, {"p", c, x},
+       {n, CircleTimes["a", "b"], x}, {n, c, x}},
+    {ArrayReshape[Range[60], {3, 10, 2}]}, {"p" -> 1, "a" -> 2, "b" -> 3}],
+  pySplit["(p + n) ((a b) + c) x -> p (a b) x, p c x, n (a b) x, n c x",
+    {3, 10, 2}, <|"p" -> 1, "a" -> 2, "b" -> 3|>],
+  TestID -> "xval-split-multiple-direct-sum-axes-composite-summand"
 ];
 
 EndTestSection[];
