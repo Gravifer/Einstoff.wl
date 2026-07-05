@@ -63,7 +63,7 @@ EinstoffMap[fSpec_][desc_, tensors_, bindings_List : {},
   Module[{parts, lhs, rhs, inShapes, shp, env, f, x,
           lhsTagged, lhsAtoms, lhsBr, rhsAtoms, brAtoms, vmapAtoms,
           decompDims, order, srcPerm, xr, vmapDims, brDims, vmapProd, brProd,
-          mat, mapped, recombined, result, traceAction},
+          mat, mapped, recombined, result, traceAction, h},
     traceAction = OptionValue[EinstoffMap, {opts}, TraceAction];
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
@@ -155,6 +155,21 @@ Einstoff[ArrayReduce])"];
       Return[$Failed]];
 
     recombined = ArrayReshape[mapped, Join[vmapDims, brDims]];
+    If[traceActionEnabledQ[traceAction],
+      h = heldReshape[heldValue[x], decompDims];
+      If[Length[srcPerm] > 1, h = heldTranspose[h, InversePermutation[srcPerm]]];
+      h = heldReshape[h, {vmapProd, brProd}];
+      h = heldMap[h, f];
+      h = heldReshape[h, Join[vmapDims, brDims]];
+      result = einCatch[
+        traceReturnHeld[
+          materializeOutputExprHeld[h, order, First[rhs], env],
+          traceAction]];
+      If[result === $Failed,
+        Message[Einstoff::unsat,
+          "an output axis size is unbound (a repeated axis needs a binding)"];
+        Return[$Failed]];
+      Return[result]];
     (* order is recombined's atom order; materialize repeats, permute to RHS, recompose. *)
     With[{recombined0 = recombined, order0 = order, rhs0 = First[rhs], env0 = env},
       result = einCatch[

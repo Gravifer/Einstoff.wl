@@ -252,4 +252,16 @@ VerificationTest[
   TestID -> "map-reject-drop-size-gt1"
 ];
 
+(* 18. TraceAction holds the row-map lowering, not only the final materialized value. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[8], {2, 4}]},
+    With[{g = Einstoff[Map]["flip"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}}, {x}, {},
+        TraceAction -> Hold]},
+      {! FreeQ[g, _Map], ! FreeQ[g, Reverse],
+       ReleaseHold[g] === Einstoff[Map]["flip"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}}, {x}],
+       FreeQ[g, _Einstoff`PackageScope`materializeOutput]}]],
+  {True, True, True, True},
+  TestID -> "map-traceaction-holds-map"
+];
+
 EndTestSection[];

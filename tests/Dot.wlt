@@ -230,4 +230,16 @@ VerificationTest[
   TestID -> "dot-nary-elementwise-keep"
 ];
 
+(* 25. TraceAction holds the contraction primitive instead of a precomputed result. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
+    With[{g = Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c}}, {x, y}, {},
+        TraceAction -> Hold]},
+      {! FreeQ[g, _MapThread], ! FreeQ[g, Dot],
+       ReleaseHold[g] === Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c}}, {x, y}],
+       FreeQ[g, _Einstoff`PackageScope`materializeOutput]}]],
+  {True, True, True, True},
+  TestID -> "dot-traceaction-holds-contraction"
+];
+
 EndTestSection[];

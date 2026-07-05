@@ -124,6 +124,22 @@ summand distinctly; within-tensor contraction is not supported here)"];
       Message[Einstoff::unsat, shp["Reason"]]; Return[$Failed]];
     env = shp["Bindings"];
 
+    If[traceActionEnabledQ[traceAction],
+      aligned = einCatch @ Table[
+        Module[{opShape = lhs[[i]], tensor = tensors[[i]], atoms, dims, target},
+          atoms = If[opShape === {}, {}, Join @@ (rearrangeAtoms /@ opShape)];
+          dims = atomSize[#, env] & /@ atoms;
+          target = ReplacePart[out, n -> summands[[i]]];
+          materializeOutputExprHeld[
+            If[dims === {}, heldValue[tensor], heldReshape[heldValue[tensor], dims]],
+            atoms, target, env]],
+        {i, k}];
+      If[aligned === $Failed,
+        Message[Einstoff::unsat,
+          "an axis size is unbound while aligning a direct-sum operand"];
+        Return[$Failed]];
+      Return[traceReturnHeld[heldJoin[aligned, n], traceAction]]];
+
     (* Align each operand to the output shape with CirclePlus -> its summand. *)
     aligned = einCatch @ Table[
       Module[{opShape = lhs[[i]], tensor = tensors[[i]], atoms, dims, target},

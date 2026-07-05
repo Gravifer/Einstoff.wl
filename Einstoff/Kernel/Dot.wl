@@ -88,6 +88,37 @@ within-operand reduction before contraction is not supported (use ArrayReduce)"]
     lab = Join[b, m, n];
     {If[lab === {}, First @ Flatten[mm], ArrayReshape[mm, sz[lab]]], lab}];
 
+heldScalarBlock[HoldComplete[e_]] := HoldComplete[ArrayReshape[{e}, {1, 1, 1}]];
+
+contractPairHeld[mul_, add_, ht1_HoldComplete, l1_, ht2_HoldComplete, l2_, keep_, env_] :=
+  Module[{both, b, k, m, n, sz, prod, x1, x2, p1, p2, x1r, x2r, mm, lab},
+    sz[atoms_] := atomSize[#, env] & /@ atoms;
+    prod[atoms_] := Times @@ sz[atoms];
+    both = Intersection[l1, l2];
+    b = Select[l1, MemberQ[both, #] && MemberQ[keep, #] &];
+    k = Select[l1, MemberQ[both, #] && ! MemberQ[keep, #] &];
+    m = Select[l1, ! MemberQ[l2, #] && MemberQ[keep, #] &];
+    n = Select[l2, ! MemberQ[l1, #] && MemberQ[keep, #] &];
+    If[AnyTrue[l1, ! MemberQ[l2, #] && ! MemberQ[keep, #] &] ||
+       AnyTrue[l2, ! MemberQ[l1, #] && ! MemberQ[keep, #] &],
+      Message[Einstoff::unsupp,
+        "an input axis appears in only one operand and is dropped; a \
+within-operand reduction before contraction is not supported (use ArrayReduce)"];
+      Throw[$Failed, einThrowTag]];
+    x1 = If[l1 === {}, ht1, heldReshape[ht1, sz[l1]]];
+    x2 = If[l2 === {}, ht2, heldReshape[ht2, sz[l2]]];
+    p1 = Flatten[FirstPosition[l1, #] & /@ Join[b, m, k]];
+    p2 = Flatten[FirstPosition[l2, #] & /@ Join[b, k, n]];
+    If[Length[p1] > 1, x1 = heldTranspose[x1, InversePermutation[p1]]];
+    If[Length[p2] > 1, x2 = heldTranspose[x2, InversePermutation[p2]]];
+    x1r = If[l1 === {}, heldScalarBlock[ht1], heldReshape[x1, {prod[b], prod[m], prod[k]}]];
+    x2r = If[l2 === {}, heldScalarBlock[ht2], heldReshape[x2, {prod[b], prod[k], prod[n]}]];
+    mm = If[mul === Times && add === Plus,
+      heldMapThreadDot[x1r, x2r],
+      heldMapThreadInner[mul, add, x1r, x2r]];
+    lab = Join[b, m, n];
+    {If[lab === {}, heldReshape[mm, {}], heldReshape[mm, sz[lab]]], lab}];
+
 (* Option A in the contraction path: a literal input axis is anonymous, so it cannot be
    a shared/contracted/batch/free identity.  A size-1 literal is a UNIT axis (carries no
    data) — squeeze it; a size-(>1) literal has no carryable identity — reject (cf.
@@ -105,12 +136,23 @@ sanitizeOperand[t_, atoms_, env_] :=
      If[keep === atoms, {t, atoms},
        {reshapeTo[t, atomSize[#, env] & /@ keep], keep}]]);
 
+sanitizeOperandHeld[t_, atoms_, env_] :=
+  (If[AnyTrue[atoms, IntegerQ[#] && # > 1 &],
+     Message[Einstoff::unsupp,
+       "a literal axis of size > 1 in a contraction operand has no carryable identity \
+(a shared/contracted axis must be named); only a unit (size-1) axis may be a literal"];
+     Throw[$Failed, einThrowTag]];
+   With[{keep = DeleteCases[atoms, _Integer]},
+     If[keep === atoms, {HoldComplete[t], atoms},
+       {heldReshape[HoldComplete[t], atomSize[#, env] & /@ keep], keep}]]);
+
 (* The shared lowering, parameterized by the (mul, add) combiner.  desc is NOT held
    (uniform convention): a globally bound axis symbol substitutes — a bound integer
    reads as a literal dimension, illegal values rejected downstream; Pattern still
    holds each binding `name_` and `:>` holds the RHS. *)
 innerLower[mul_, add_, desc_, tensors_, bindings_, traceAction_] := withAxisScope @
-  Module[{parts, lhs, rhs, shp, env, labs, outA, sanitized, stensors, slabs, result},
+  Module[{parts, lhs, rhs, shp, env, labs, outA, sanitized, stensors, slabs,
+          hsanitized, hstensors, hslabs, result},
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
@@ -154,6 +196,11 @@ case is unsupported); contract that operand first with Einstoff[\"ArrayContract\
     sanitized = einCatch[Table[sanitizeOperand[tensors[[j]], labs[[j]], env], {j, Length[lhs]}]];
     If[sanitized === $Failed, Return[$Failed]];
     stensors = sanitized[[All, 1]]; slabs = sanitized[[All, 2]];
+    hsanitized = If[traceActionEnabledQ[traceAction],
+      einCatch[Table[sanitizeOperandHeld[tensors[[j]], labs[[j]], env], {j, Length[lhs]}]],
+      {}];
+    If[hsanitized === $Failed, Return[$Failed]];
+    If[traceActionEnabledQ[traceAction], hstensors = hsanitized[[All, 1]]; hslabs = hsanitized[[All, 2]]];
 
     (* A contracted axis must be shared by *exactly two* operands.  A named axis that is
        absent from the output (contracted) and appears in more than two operands is an
@@ -172,6 +219,16 @@ output for an elementwise/batch product, or contract pairwise)"];
 
     (* Pairwise left fold: contract operand i into the accumulator, keeping the
        global output axes plus anything a later operand still needs. *)
+    If[traceActionEnabledQ[traceAction],
+      result = einCatch @ Module[{accT = First[hstensors], accL = First[hslabs], keep},
+        Do[
+          keep = Union[outA, Join @@ hslabs[[i + 1 ;;]]];
+          {accT, accL} = contractPairHeld[mul, add, accT, accL, hstensors[[i]], hslabs[[i]], keep, env],
+          {i, 2, Length[hstensors]}];
+        traceReturnHeld[materializeOutputExprHeld[accT, accL, First[rhs], env], traceAction]];
+      If[result === $Failed, Return[$Failed]];
+      Return[result]];
+
     result = einCatch @ Module[{accT = First[stensors], accL = First[slabs], keep},
       Do[
         keep = Union[outA, Join @@ slabs[[i + 1 ;;]]];

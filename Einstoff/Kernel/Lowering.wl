@@ -66,7 +66,8 @@ PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
   distinctAxesQ, bracketWrapperQ, reduceAtoms, materializeOutput, selfContract,
   materializeOutputTrace, materializeOutputExprHeld, heldReshape, heldArrayReduce,
-  heldTake, heldTakeValue, heldList,
+  heldTranspose, heldValue, heldTake, heldTakeValue, heldMap, heldMapThreadDot,
+  heldMapThreadInner, heldJoin, heldList,
   reshapeTo, hasCirclePlus, directSumConcat, directSumSplit, einThrowTag, einCatch,
   einAxisCatch, $einAxisFail, traceActionEnabledQ, traceReturn, traceReturnHeld}]
 
@@ -674,10 +675,23 @@ heldTranspose[HoldComplete[e_], perm_] :=
   With[{p = perm}, HoldComplete[Transpose[e, p]]];
 heldArrayReduce[HoldComplete[e_], reducer_, pos_] :=
   With[{f = reducer, p = pos}, HoldComplete[ArrayReduce[f, e, p]]];
+heldValue[e_] := With[{v = e}, HoldComplete[v]];
 heldTake[HoldComplete[e_], specs_List] :=
   With[{s = specs}, HoldComplete[Take[e, Sequence @@ s]]];
 heldTakeValue[e_, specs_List] :=
   With[{v = e, s = specs}, HoldComplete[Take[v, Sequence @@ s]]];
+heldMap[HoldComplete[e_], f_] :=
+  With[{fn = f}, HoldComplete[Map[fn, e]]];
+heldMapThreadDot[HoldComplete[e1_], HoldComplete[e2_]] :=
+  HoldComplete[MapThread[Dot, {e1, e2}]];
+heldMapThreadInner[mul_, add_, HoldComplete[e1_], HoldComplete[e2_]] :=
+  With[{m = mul, a = add}, HoldComplete[MapThread[Inner[m, #1, #2, a] &, {e1, e2}]]];
+heldJoin[helds_List, n_] :=
+  ToExpression[
+    "HoldComplete[Join[Sequence @@ {" <> StringRiffle[heldExprString /@ helds, ", "] <>
+      "}, " <> ToString[n, InputForm] <> "]]",
+    InputForm,
+    Identity];
 heldExprString[HoldComplete[e_]] := ToString[Unevaluated[e], InputForm];
 heldList[helds_List] :=
   ToExpression[

@@ -62,6 +62,17 @@ VerificationTest[
   TestID -> "concat-dims"
 ];
 
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[8], {2, 4}]},
+    With[{g = Einstoff[Join][{{m_, a_}, {m_, b_}} :> {{m, CirclePlus[a, b]}},
+        {x, y}, {}, TraceAction -> Hold]},
+      {! FreeQ[g, _Join],
+       ReleaseHold[g] === Join[x, y, 2],
+       FreeQ[g, _Einstoff`PackageScope`materializeOutput]}]],
+  {True, True, True},
+  TestID -> "concat-traceaction-holds-join"
+];
+
 (* 7. Einstoff[Join] is the same machinery as the Massage RHS-CirclePlus branch. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[8], {2, 4}]},
