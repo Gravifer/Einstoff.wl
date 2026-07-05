@@ -73,6 +73,13 @@ VerificationTest[
   TestID -> "xval-einx-sum"
 ];
 
+(* einx sum 'a [2] -> a' <-> targeted literal Slot[2]. *)
+VerificationTest[
+  Einstoff[ArrayReduce][Total][{{a_, Slot[2]}} :> {{a}}, {ArrayReshape[Range[6], {3, 2}]}],
+  pyReduce["einx", "sum", "a [2] -> a", {3, 2}],
+  TestID -> "xval-einx-sum-targeted-literal"
+];
+
 (* einops max 'a b -> a'  <->  {{a_,b_}} :> {{a}}, Reducer -> Max *)
 VerificationTest[
   Einstoff[ArrayReduce][Max][{{a_, b_}} :> {{a}}, {ArrayReshape[Range[12], {3, 4}]}],

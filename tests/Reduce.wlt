@@ -77,6 +77,29 @@ VerificationTest[
   TestID -> "reduce-full-scalar"
 ];
 
+(* 7b-d. Targeted literals are anonymous target axes with concrete sizes. einx accepts
+   the Slot spelling as 'a [2] -> a'; Highlighted/Framed are WL visual spellings. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {3, 2}]},
+    Einstoff[ArrayReduce][Total][{{a_, Slot[2]}} :> {{a}}, {x}]],
+  Total[ArrayReshape[Range[6], {3, 2}], {2}],
+  TestID -> "reduce-targeted-literal-slot"
+];
+
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {3, 2}]},
+    Einstoff[ArrayReduce][Total][{{a_, Highlighted[2]}} :> {{a}}, {x}]],
+  Total[ArrayReshape[Range[6], {3, 2}], {2}],
+  TestID -> "reduce-targeted-literal-highlighted"
+];
+
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {3, 2}]},
+    Einstoff[ArrayReduce][Total][{{a_, Framed[2]}} :> {{a}}, {x}]],
+  Total[ArrayReshape[Range[6], {3, 2}], {2}],
+  TestID -> "reduce-targeted-literal-framed"
+];
+
 (* 8. Reduce a targeted composite '(c d)' as a whole, with explicit string factor d=2. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[18], {3, 6}]},

@@ -106,8 +106,8 @@ keep their explicit forms (no `#`-sugar); the Repeated destructuring template (�
 deferred) keeps its Pattern bracket `Slot[ds_]` (it is a template, not a unify-by-name).
 Suite 180 green (135 WL + 45 xval) at the original migration point. Resolved open
 decisions: (1) `Slot["b"]`, `Highlighted["b"]`, and `Framed["b"]` are targeted string
-axes; (2) bracketed integer
-immediates keep `Slot[2]`; (3) `##` = `SlotSequence[1]`, treated as `___` for matching.
+axes; (2) targeted integer literals may use `Slot[2]`, `Highlighted[2]`, or
+`Framed[2]`; (3) `##` = `SlotSequence[1]`, treated as `___` for matching.
 The original design follows:
 
 Move bracket notation to the ergonomic, hazard-free form:
@@ -141,10 +141,12 @@ keeps the targeted string axis.
   `"b" -> n` or the matching target-head key; a different target head is rejected.
   `Highlighted[b_]`/`Framed[b_]` are targeted blank; `Highlighted[b]`/`Framed[b]` are
   targeted bare.
-- **Bracketed integer immediates** (gather's `Slot[2]`): `#2` is `Slot[2]` (integer
-  slot), not a string — so `#`-sugar can't express a targeted literal cleanly. Gather
-  is deferred anyway; targeted literals keep the explicit `Slot[2]`/`Slot["2"]`
-  form, to be resolved when gather is built.
+- **Targeted integer literals** (`Slot[2]`, `Highlighted[2]`, `Framed[2]`): `#2` is
+  `Slot[2]` (integer slot), not a string — so `#`-sugar can't express a targeted
+  literal cleanly. Targeted literals already lower where the corresponding operation
+  supports them (for example `ArrayReduce` and einx `a [2] -> a`). What remains
+  deferred is indexing-style gather/scatter lowering, where `[2]` is an index-vector
+  axis rather than just an anonymous targeted size-2 axis.
 - **Resolved:** `##` is `SlotSequence[1]`. The matcher treats it like `___`; Map/Reduce
   lower it by expanding the matched concrete target dimensions.
 

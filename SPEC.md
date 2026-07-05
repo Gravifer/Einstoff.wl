@@ -53,11 +53,11 @@ matching do double duty as both parser and shape matcher.
 | Named ellipsis (inner mvar — destructuring template, see §5.3) | inner names in `(pattern)...` | names inside `Repeated[...]` | — (provisional) |
 | Product / axis composition | `(a b)` | `a ⊗ b` | `CircleTimes` |
 | Direct sum / concatenation | `(a + b)` | `a ⊕ b` | `CirclePlus` |
-| Bracket / targeted string axis | `[a]` | `#a`, highlighted/framed `"a"` | `Slot["a"]`, `Highlighted["a"]`, or `Framed["a"]` — targeted string spelling; kept with the same target head on the RHS when the targeted axis is kept |
-| Bracket / targeted blank axis | `[a]` | highlighted/framed `a_` | `Highlighted[a_]` or `Framed[a_]` — visually targeted blank; RHS references it as bare `a` |
-| Bracket / targeted bare axis | `[a]` | highlighted/framed `a` | `Highlighted[a]` or `Framed[a]` — visually targeted bare reference; bind with `a -> n` or the matching target-head key when needed |
-| Bracket, multiple axes | `[a b]` ≡ `[a][b]` | `#a #b` | `Slot["a"], Slot["b"]` — adjacent single `Slot`s, `[a b]≡[a][b]`, see §7.3 |
-| Bracket, anonymous ellipsis | `[...]` | `##` | `SlotSequence[1]` |
+| Targeted string axis | `[a]` | `#a`, highlighted/framed `"a"` | `Slot["a"]`, `Highlighted["a"]`, or `Framed["a"]` — targeted string spelling; kept with the same target head on the RHS when the targeted axis is kept |
+| Targeted blank axis | `[a]` | highlighted/framed `a_` | `Highlighted[a_]` or `Framed[a_]` — visually targeted blank; RHS references it as bare `a` |
+| Targeted bare axis | `[a]` | highlighted/framed `a` | `Highlighted[a]` or `Framed[a]` — visually targeted bare reference; bind with `a -> n` or the matching target-head key when needed |
+| Multiple targeted axes | `[a b]` ≡ `[a][b]` | `#a #b` | `Slot["a"], Slot["b"]` — adjacent single targeted string axes, `[a b]≡[a][b]`, see §7.3 |
+| Targeted anonymous ellipsis | `[...]` | `##` | `SlotSequence[1]` |
 | Targeted literal | `[2]` | `Slot[2]`, `Highlighted[2]`, `Framed[2]` | targeted literal; `#2` is `Slot[2]`, see §7.2 |
 
 ## 4. Grammar
@@ -75,7 +75,7 @@ A *shape* is a `List` of dimension terms. A dimension term is one of:
 - `CircleTimes[term, term, ...]` (product)
 - `CirclePlus[term, term, ...]` (direct sum)
 - `Slot[term, ...]`, `Highlighted[term, ...]`, or `Framed[term, ...]` wrapping any
-  of the above (targeted / bracketed), nestable at any depth inside `CircleTimes`/
+  of the above (targeted; einx spells this with brackets), nestable at any depth inside `CircleTimes`/
   `CirclePlus`/`Repeated`. Targetedness is orthogonal to the spelling inside the
   wrapper: blank `a_` still means infer-only, bare `a` is bindable/reference-like, and
   string `"a"` is the hygienic string tier. `Slot["a"]`, `Highlighted["a"]`, and
@@ -138,13 +138,13 @@ different visual target head. `Slot` is reserved for string-kind targeting; use
 `Highlighted`/`Framed` for targeted blank or bare symbol axes. `#name` sidesteps the
 `Slot[2]`/`#2` integer-slot hazard (§7.2): named axes never use an integer `Slot`.
 
-### 5.2 Reduce vs. elementary-op: the bracket disambiguates
+### 5.2 Reduce vs. elementary-op: targetedness disambiguates
 
 "Axis present on LHS, absent on RHS" is ambiguous by itself — it could mean
 (a) classic reduction with a user-supplied function (einops `reduce`), or
 (b) the axis is fed whole into an elementary operation and everything else
-is vmapped (einx bracket semantics). `Slot[...]` presence is the only thing
-distinguishing these, so the compiler must branch on bracket-presence
+is vmapped (einx bracket semantics). Targeted wrapper presence is the only thing
+distinguishing these, so the compiler must branch on targetedness
 explicitly; it cannot be inferred from set difference between LHS/RHS axis
 names alone.
 
@@ -390,12 +390,14 @@ after that for brevity.
     `b_` binds in the first operand, bare `b` references it in the second
     — ordinary WL repeated-variable matching, no custom rule needed.
 
-11. **Gather with targeted literal** —
+11. **Indexing-style gather with targeted literal** —
     `einx.get_at("b [h w] c, b i [2] -> b i c", x, y)`
     ```
     {{b_, Slot["h"], Slot["w"], c_}, {b, i_, Slot[2]}} :> {{b, i, c}}
     ```
-    (a multi-axis bracket `[h w]` is adjacent single brackets — §7.3.)
+    (a multi-axis einx bracket `[h w]` is adjacent single targeted axes — §7.3.
+    In WL, targeted literals may be spelled `Slot[2]`, `Highlighted[2]`, or
+    `Framed[2]`; the indexing-style lowering itself remains deferred.)
 
 12. **Shape-preserving, one-sided** — `einx.flip("... (g [c])", x, c=2)`
     ```
@@ -433,30 +435,34 @@ semantics already is that interface.
 ### 7.2 `Slot` aliasing `Function` slots — largely resolved (named axes are string-keyed)
 
 `Slot[n]` for integer `n` is literally `#n`. Outside a `Function` body it
-sits inert; if any bracketed-immediate subexpression were ever spliced into a
+sits inert; if any targeted-literal subexpression were ever spliced into a
 `Function`/`&` template and applied, the integer would silently get
-reinterpreted as an argument reference instead of a bracketed dimension:
+reinterpreted as an argument reference instead of a targeted dimension:
 
 ```mathematica
 tmpl = {Slot[2], a} &;
 tmpl[x, y]      (* {y, a} — silent corruption, no error *)
 ```
 
-**Resolution.** A bracketed *axis* is now written `#name` = `Slot["name"]` (§5.1)
+**Resolution.** A targeted *axis* is now written `#name` = `Slot["name"]` (§5.1)
 — a *string* slot, never an integer one — so axes never collide with `Function`'s
-positional slots. The only integer `Slot` left is the gather immediate `[2]` =
-`Slot[2]`, which is part of the still-deferred gather/scatter path; that case keeps
-the explicit `Slot[2]` form and, if gather is built and ever emits `Function`-wrapped
-code, is normalized to `Slot["2"]` at that point (the previously-proposed mitigation,
-now scoped to just that one construct). The engine already never routes a `Slot`
+positional slots. Targeted literals may be written `Slot[2]`, `Highlighted[2]`, or
+`Framed[2]`; the integer `Slot` spelling is retained because it is the direct WL
+counterpart of einx `[2]`. Targeted literals already work for operations whose
+einx counterpart accepts them (for example `ArrayReduce` over `a [2] -> a`).
+What remains deferred is not the literal syntax but indexing-style gather/scatter
+lowering such as `get_at`, where `[2]` is an index-vector axis. If that lowering is
+built and ever emits `Function`-wrapped code, integer `Slot[2]` should be normalized
+to `Slot["2"]` at that point (the previously-proposed mitigation, now scoped to that
+construct). The engine already never routes a `Slot`
 through an anonymous `Function` (it iterates with `Table`, not `&`/`/@`), and none of
 the compilation targets (`Transpose`, `ArrayReshape`, `ArrayReduce`, `Join`, `Inner`,
 `Map`) are `Function`s, so even integer immediates do not flow into one today.
 
 
-### 7.3 `Slot` arity — resolved: brackets are single-axis
+### 7.3 Target arity — resolved: einx brackets are single-axis groups
 
-A multi-axis bracket `[a b c]` is **identical** to adjacent single brackets
+A multi-axis einx bracket `[a b c]` is **identical** to adjacent single brackets
 `[a][b][c]` — einx feeds the targeted axes to the elementary op as one
 flattened unit, and the order/grouping of the brackets does not matter (probed
 against the venv). So the canonical Einstoff form is one `Slot` per axis:

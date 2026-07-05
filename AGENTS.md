@@ -33,10 +33,12 @@ For more details on the design, see `SPEC.md`
 - **Parentheses vs brackets are different things** (don't conflate `(...)` with `[...]`).
   In the einx surface notation, *parentheses* group composition — `(a b)` is a
   product (``CircleTimes``, `⊗`) and `(a + b)` is a direct sum (``CirclePlus``, `⊕`);
-  *brackets* `[...]` are the elementary-op axis marker (``Slot``, used by reduce /
-  dot / gather). So ``CircleTimes``/``CirclePlus`` (parens) and ``Slot`` (brackets)
-  are orthogonal — e.g. ``Slot[CirclePlus[...]]`` is a *targeted direct sum*
-  (reducing/contracting over a concatenated axis).
+  *brackets* `[...]` are einx surface syntax for targeted axes/literals, used by
+  reduce / dot / indexing-style operations. In WL, targeted forms are spelled with
+  ``Slot`` for string-tier axes, or with ``Highlighted``/``Framed`` where those tiers
+  apply. So ``CircleTimes``/``CirclePlus`` (parens) and targeted wrappers are
+  orthogonal — e.g. ``Highlighted[CirclePlus[...]]`` is a *targeted direct sum*
+  (reducing over a concatenated axis).
 
 - **Axis-name hygiene matrix** (SPEC §5.6–5.7, `feat/desc-hygiene`). A named axis has
   a spelling kind and an orthogonal targeted bit: `a_` (blank — infer-only, "solve
