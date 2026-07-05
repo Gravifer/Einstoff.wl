@@ -133,15 +133,26 @@ elementary op (softmax/flip/sort/…) is the Einstoff[Map][f] path, not reductio
       Message[Einstoff::unsat, "an input axis size is unbound"];
       Return[$Failed]];
 
-    xr = reshapeTo[x, decompDims];     (* scalar-safe (decompDims may be {}) *)
-    xred = If[reducedPos === {}, xr, ArrayReduce[reducer, xr, reducedPos]];
-
-    (* Surviving atoms, in their LHS-relative order (= xred's axis order); then
-       materialize repeats, permute to RHS order, and recompose. *)
     keptOrder = Delete[lhsAtoms, List /@ reducedPos];
-    With[{xred0 = xred, keptOrder0 = keptOrder, rhs0 = First[rhs], env0 = env},
-      result = einCatch[
-        traceReturn[materializeOutput[xred0, keptOrder0, rhs0, env0], traceAction]]];
+    If[traceActionEnabledQ[traceAction],
+      With[{x0 = x, decompDims0 = decompDims, reducer0 = reducer,
+            reducedPos0 = reducedPos, keptOrder0 = keptOrder,
+            rhs0 = First[rhs], env0 = env},
+        result = einCatch @ traceReturnHeld[
+          materializeOutputExprHeld[
+            If[reducedPos0 === {},
+              heldReshape[HoldComplete[x0], decompDims0],
+              heldArrayReduce[heldReshape[HoldComplete[x0], decompDims0],
+                reducer0, reducedPos0]],
+            keptOrder0, rhs0, env0],
+          traceAction]],
+      xr = reshapeTo[x, decompDims];     (* scalar-safe (decompDims may be {}) *)
+      xred = If[reducedPos === {}, xr, ArrayReduce[reducer, xr, reducedPos]];
+      (* Surviving atoms, in their LHS-relative order (= xred's axis order); then
+         materialize repeats, permute to RHS order, and recompose. *)
+      With[{xred0 = xred, keptOrder0 = keptOrder, rhs0 = First[rhs], env0 = env},
+        result = einCatch[
+          materializeOutputTrace[xred0, keptOrder0, rhs0, env0, traceAction]]]];
     If[result === $Failed,
       Message[Einstoff::unsat,
         "an output axis size is unbound (a repeated axis needs a binding)"];

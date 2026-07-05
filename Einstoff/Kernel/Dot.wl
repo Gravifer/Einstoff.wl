@@ -178,7 +178,7 @@ output for an elementwise/batch product, or contract pairwise)"];
         {accT, accL} = contractPair[mul, add, accT, accL, stensors[[i]], slabs[[i]], keep, env],
         {i, 2, Length[stensors]}];
       With[{accT0 = accT, accL0 = accL, rhs0 = First[rhs], env0 = env},
-        traceReturn[materializeOutput[accT0, accL0, rhs0, env0], traceAction]]];
+        materializeOutputTrace[accT0, accL0, rhs0, env0, traceAction]]];
     If[result === $Failed, Return[$Failed]];
     result
   ];

@@ -158,7 +158,7 @@ Einstoff[ArrayReduce])"];
     (* order is recombined's atom order; materialize repeats, permute to RHS, recompose. *)
     With[{recombined0 = recombined, order0 = order, rhs0 = First[rhs], env0 = env},
       result = einCatch[
-        traceReturn[materializeOutput[recombined0, order0, rhs0, env0], traceAction]]];
+        materializeOutputTrace[recombined0, order0, rhs0, env0, traceAction]]];
     If[result === $Failed,
       Message[Einstoff::unsat,
         "an output axis size is unbound (a repeated axis needs a binding)"];

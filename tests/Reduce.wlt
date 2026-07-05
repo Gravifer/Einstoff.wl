@@ -269,12 +269,16 @@ VerificationTest[
   TestID -> "reduce-reject-kept-literal"
 ];
 
-(* 28. TraceAction is a standard option even on the curried reducer subvalue. *)
+(* 28. TraceAction is a standard option even on the curried reducer subvalue, and it
+   wraps the lowered expression itself rather than only proving that the head is Hold. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {3, 2}]},
-    Head @ Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a}}, {x}, {}, TraceAction -> Hold]],
-  Hold,
-  TestID -> "reduce-traceaction-hold-head"
+    With[{g = Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a}}, {x}, {},
+        TraceAction -> Hold]},
+      {MatchQ[g, Hold[_ArrayReshape]], ! FreeQ[g, _ArrayReduce],
+       FreeQ[g, _Einstoff`PackageScope`materializeOutput]}]],
+  {True, True, True},
+  TestID -> "reduce-traceaction-holds-public-lowering"
 ];
 
 EndTestSection[];

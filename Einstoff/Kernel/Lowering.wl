@@ -65,8 +65,9 @@ PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
   normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
   distinctAxesQ, bracketWrapperQ, reduceAtoms, materializeOutput, selfContract,
+  materializeOutputTrace, materializeOutputExprHeld, heldReshape, heldArrayReduce,
   reshapeTo, hasCirclePlus, directSumConcat, directSumSplit, einThrowTag, einCatch,
-  einAxisCatch, $einAxisFail, traceReturn}]
+  einAxisCatch, $einAxisFail, traceActionEnabledQ, traceReturn, traceReturnHeld}]
 
 (* Internal control-flow tag.  The lowering helpers signal an unsupported / unsatisfiable
    desc with Throw[$Failed, einThrowTag]; the operator that called them recovers it with
@@ -161,6 +162,9 @@ traceActionEnabledQ[_] := True;
 
 SetAttributes[traceReturn, HoldFirst];
 traceReturn[expr_, action_] :=
+  If[traceActionEnabledQ[action], Apply[action, Hold[expr]], expr];
+
+traceReturnHeld[HoldComplete[expr_], action_] :=
   If[traceActionEnabledQ[action], Apply[action, Hold[expr]], expr];
 
 (* Shared desc-shape failure return for the operators.  descParts returns $Failed for
@@ -660,6 +664,16 @@ atomSize[s_, env_] := Lookup[env, s, Throw[$Failed, einThrowTag]];
 reshapeTo[arr_, {}] := First @ Flatten @ {arr};
 reshapeTo[arr_, dims_] := ArrayReshape[arr, dims];
 
+heldReshape[HoldComplete[e_], {}] := HoldComplete[First[Flatten[{e}]]];
+heldReshape[HoldComplete[e_], dims_] :=
+  With[{d = dims}, HoldComplete[ArrayReshape[e, d]]];
+heldConstantArray[HoldComplete[e_], dim_] :=
+  With[{d = dim}, HoldComplete[ConstantArray[e, d]]];
+heldTranspose[HoldComplete[e_], perm_] :=
+  With[{p = perm}, HoldComplete[Transpose[e, p]]];
+heldArrayReduce[HoldComplete[e_], reducer_, pos_] :=
+  With[{f = reducer, p = pos}, HoldComplete[ArrayReduce[f, e, p]]];
+
 (* Does any shape in `shapes` contain a CirclePlus (direct-sum) term?  Used to
    route a desc into the direct-sum path and to guard Join/Split direction. *)
 hasCirclePlus[shapes_] := ! FreeQ[shapes, CirclePlus];
@@ -784,6 +798,43 @@ materializeOutput[arr_, presentAtoms_, rhsTerms_, env_] :=
     If[Length[srcOrder] > 1, acc = Transpose[acc, InversePermutation[srcOrder]]];
     outDims = (Times @@ (atomSize[#, env2] & /@ rearrangeAtoms[#])) & /@ rhsTerms2;
     reshapeTo[acc, outDims]];
+
+materializeOutputExpr[arr_, presentAtoms_, rhsTerms_, env_] :=
+  materializeOutputExprHeld[HoldComplete[arr], presentAtoms, rhsTerms, env];
+
+materializeOutputExprHeld[acc0_HoldComplete, presentAtoms_, rhsTerms_, env_] :=
+  Module[{env2 = env, rhsTerms2, rhsAtoms, present, repeats, acc = acc0, order,
+          srcOrder, outDims},
+    If[AnyTrue[presentAtoms, IntegerQ[#] && # > 1 &], Throw[$Failed, einThrowTag]];
+    Module[{litCounts = Counts[Cases[rhsTerms, _Integer, {0, Infinity}]]},
+      rhsTerms2 = Replace[rhsTerms,
+        n_Integer /; litCounts[n] > 1 :>
+          With[{u = Unique["lit$", {Temporary}]}, env2 = Append[env2, u -> n]; u],
+        {0, Infinity}]];
+    rhsAtoms = If[rhsTerms2 === {}, {},
+      Join @@ Table[rearrangeAtoms[t], {t, rhsTerms2}]];
+    If[! DuplicateFreeQ[rhsAtoms], Throw[$Failed, einThrowTag]];
+    If[! AllTrue[rhsAtoms, With[{s = atomSize[#, env2]}, IntegerQ[s] && s >= 1] &],
+      Throw[$Failed, einThrowTag]];
+    If[AnyTrue[presentAtoms, ! MemberQ[rhsAtoms, #] && atomSize[#, env2] > 1 &],
+      Throw[$Failed, einThrowTag]];
+    present = Select[presentAtoms, MemberQ[rhsAtoms, #] &];
+    If[present =!= presentAtoms,
+      acc = heldReshape[acc, atomSize[#, env2] & /@ present]];
+    repeats = Select[rhsAtoms, ! MemberQ[present, #] &];
+    Do[acc = heldConstantArray[acc, atomSize[r, env2]], {r, repeats}];
+    If[rhsAtoms === {}, Return[heldReshape[acc, {}]]];
+    order = Join[Reverse[repeats], present];
+    srcOrder = Flatten[FirstPosition[order, #] & /@ rhsAtoms];
+    If[Length[srcOrder] > 1, acc = heldTranspose[acc, InversePermutation[srcOrder]]];
+    outDims = (Times @@ (atomSize[#, env2] & /@ rearrangeAtoms[#])) & /@ rhsTerms2;
+    heldReshape[acc, outDims]];
+
+SetAttributes[materializeOutputTrace, HoldFirst];
+materializeOutputTrace[arr_, presentAtoms_, rhsTerms_, env_, action_] :=
+  If[traceActionEnabledQ[action],
+    traceReturnHeld[materializeOutputExpr[arr, presentAtoms, rhsTerms, env], action],
+    materializeOutput[arr, presentAtoms, rhsTerms, env]];
 
 (* ------------------------------------------------------------------ *)
 (* Within-tensor (self-) contraction.  einsum-style: a name repeated   *)

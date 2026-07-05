@@ -375,6 +375,15 @@ VerificationTest[
 
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}]},
+    With[{g = Einstoff[ArrayReshape][{{a_, b_}} :> {{b, a}}, {x}, {}, TraceAction -> Hold]},
+      {MatchQ[g, Hold[_ArrayReshape]], ! FreeQ[g, _Transpose],
+       FreeQ[g, _Einstoff`PackageScope`materializeOutput]}]],
+  {True, True, True},
+  TestID -> "traceaction-holds-public-lowering"
+];
+
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
     ReleaseHold @ Einstoff[ArrayReshape][{{a_, b_}} :> {{b, a}}, {x}, {}, TraceAction -> Hold]],
   Transpose[ArrayReshape[Range[6], {2, 3}]],
   TestID -> "traceaction-hold-releases"

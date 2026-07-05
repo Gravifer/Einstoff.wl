@@ -171,7 +171,7 @@ carryable identity; name it); use Einstoff[ArrayReduce]"];
       Return[$Failed]];
 
     With[{xc0 = xc, atomsc0 = atomsc, rhs0 = First[rhs], env0 = env},
-      result = einCatch[traceReturn[materializeOutput[xc0, atomsc0, rhs0, env0], traceAction]]];
+      result = einCatch[materializeOutputTrace[xc0, atomsc0, rhs0, env0, traceAction]]];
     If[result === $Failed,
       Message[Einstoff::unsat,
         "an output axis size is unbound or not a positive integer (a repeated axis \
