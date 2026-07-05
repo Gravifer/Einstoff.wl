@@ -95,10 +95,14 @@ einCatch[expr_] := Catch[expr, einThrowTag];
    literal dimension — the opt-in "bare = value" path, SPEC).  The fresh symbols live
    in a per-parse dynamic scope ($axisFresh), so the two desc parses every operator
    runs (descParts for atoms; EinstoffShapes/EinstoffMatch for sizes) mint the SAME
-   identities.  These Unique-generated Temporary symbols do not escape — deCanon maps them
-   back to the user's names in the returned result — so once the scope closes they are
-   unreferenced and eligible for GC.  Shared by both desc entry points (descParts here,
-   parseDesc in the shape layer). *)
+   identities.  These Unique-generated Temporary symbols normally do not escape: a top-level
+   public return (EinstoffShapes / EinstoffParse) is de-canonicalized (deCanon maps them
+   back to the user's names).  A NESTED public call inside an already-open operator scope
+   intentionally skips deCanon (withAxisScopeDeCanon) — so a user callback invoked mid-
+   operation CAN observe fresh identities (e.g. a$10 as a Bindings key) until any result it
+   captured is dropped; that is accepted.  Either way, once the scope closes and such
+   results are gone the symbols are unreferenced and eligible for GC.  Shared by both desc
+   entry points (descParts here, parseDesc in the shape layer). *)
 
 $axisFresh = None;   (* Association name->fresh while an axis scope is open, else None *)
 $axisKind  = None;   (* Association name->{kinds}: binder/bare/slot/string             *)
