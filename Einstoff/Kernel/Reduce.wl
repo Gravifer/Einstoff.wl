@@ -33,7 +33,7 @@ EinstoffReduce::usage =
 reduction ops / einops.reduce) of a single tensor: axes present on the LHS but \
 absent on the RHS are reduced away with reducer (a function such as Total/Mean/\
 Max, or a name like \"sum\"/\"mean\"/\"max\") via ArrayReduce, and the surviving \
-axes are permuted/recomposed as in EinstoffMassage. Bracketed (Slot) axes mark \
+axes are permuted/recomposed as in EinstoffMassage. Targeted axes mark \
 the einx reduction style; a bare dropped axis is the einops style.";
 
 Einstoff[ArrayReduce] := EinstoffReduce;

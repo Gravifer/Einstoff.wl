@@ -276,7 +276,7 @@ parse scope closes. Names *inside a targeted composite* (`Highlighted[(c d)]` =
 `Highlighted[CircleTimes[c_, d_]]`) are grammar positions and are canonicalized too. A string
 name must be a valid identifier (a locally-rolled `validAxisNameQ` — not the cloud
 `ResourceFunction["ValidSymbolIdentifierQ"]`, which is unavailable/slow in some
-kernels). Public output (`EinstoffParse`; `EinstoffShapes`' `Bindings`/`Bracketed`) is
+kernels). Public output (`EinstoffParse`; `EinstoffShapes`' `Bindings`/`Targeted`) is
 mapped back to the user's names for display; a *shadowed* name maps to a value-less
 `Einstoff`Axis`nm` (still `SymbolName`-recoverable) rather than leaking its value.
 

@@ -18,8 +18,8 @@ Two einx findings (probed against the repo venv) reshape the bracket roadmap:
   today ("feed-to-elementary-op is a separate path"). Resolves the §5.2 ambiguity:
   **bracket dropped = reduce; bracket kept = map/vmap.**
 
-Bracket handling lives in `Parsing.wl` (`matchTerms` bracket-splice,
-`bracketedNames`, `factorToExpr`, `evalOutShape` wrapper→`Sequence`), `Lowering.wl`
+Target handling lives in `Parsing.wl` (`matchTerms` target-splice,
+`targetedNames`, `factorToExpr`, `evalOutShape` wrapper->`Sequence`), `Lowering.wl`
 (`reduceAtoms` bracket branch), consumed in `Reduce.wl` (the `lhsBr` kept-bracket
 reject) and `Dot.wl` (unwrap); `DirectSum.wl` rejects brackets. The canonical targeted
 string axis is `Slot["a"]`/`#a`, `Highlighted["a"]`, or `Framed["a"]`; visual targeted
@@ -131,7 +131,7 @@ keeps the targeted string axis.
 **Touch points (all in scope):**
 - `Parsing.wl` `matchTerms`: handle `Slot["b"]` (string → axis `b`, bracketed, unify)
   and `SlotSequence[1]` (a bracketed run, like the variadic `Slot[___]` case);
-- `Parsing.wl` `bracketedNames`, `factorToExpr`: read the string-named bracket;
+- `Parsing.wl` `targetedNames`, `factorToExpr`: read the string-named target;
 - `Lowering.wl` `reduceAtoms`: `Slot["b"]` → `{b, True}`; `SlotSequence` → variadic
   bracketed (ties into the still-deferred `Slot[___]` lowering);
 - `evalOutShape` `Slot→Sequence` stays (brackets rarely on the RHS);

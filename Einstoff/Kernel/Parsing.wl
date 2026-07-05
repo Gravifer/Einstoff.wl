@@ -31,7 +31,7 @@ EinstoffShapes::usage =
   "EinstoffShapes[desc, inputShapes, bindings] resolves the einstoff \
 description desc against the given input tensor shapes (lists of integers) \
 and axis-size bindings, returning an association with keys \"Satisfiable\", \
-\"OutputShapes\", \"Bindings\", \"Bracketed\" and \"Reason\". desc is held.";
+\"OutputShapes\", \"Bindings\", \"Targeted\" and \"Reason\". desc is held.";
 
 EinstoffParse::usage =
   "EinstoffParse[desc] normalizes desc (lhs :> rhs, or lhs -> rhs) into an \
@@ -80,9 +80,9 @@ parseDesc[_] := ($descRejectReason = None; <|"LHS" -> $Failed, "RHS" -> $Failed|
 (* Names that appear inside a target wrapper anywhere in lhs. By the time this
    runs the desc has been through canonHeld, so #name is Slot[freshSym] and a targeted
    blank is Highlighted[fresh_]/Framed[fresh_]. Used only for the informational
-   "Bracketed" field (§5.2; historical public key); the fresh symbols are mapped back
+   "Targeted" field (§5.2); the fresh symbols are mapped back
    to the user's names by deCanon on the public output. *)
-bracketedNames[lhs_] :=
+targetedNames[lhs_] :=
   DeleteDuplicates @ Flatten @
     Cases[lhs,
       s_ /; bracketWrapperQ[s] :>
@@ -405,16 +405,16 @@ evalOutShape[Hold[rhs_], env_] :=
 
 SetAttributes[EinstoffShapes, HoldFirst];
 EinstoffShapes[desc_, inputShapes_, bindings_ : {}] := withAxisScopeDeCanon @
-  Module[{p, lhs, heldRhs, bracketed, relRhs, dup, m, env, out},
+  Module[{p, lhs, heldRhs, targeted, relRhs, dup, m, env, out},
     p = parseDesc[Hold[desc]];
     If[p["LHS"] === $Failed,
       (* descFailReason surfaces the accurate canonHeld reject reason (invalid axis name /
          tier mishmash) when there is one, else the generic desc-shape reason. *)
       Return[<|"Satisfiable" -> False,
         "Reason" -> descFailReason[],
-        "OutputShapes" -> Missing[], "Bindings" -> <||>, "Bracketed" -> {}|>]];
+        "OutputShapes" -> Missing[], "Bindings" -> <||>, "Targeted" -> {}|>]];
     lhs = p["LHS"]; heldRhs = p["RHS"];
-    bracketed = bracketedNames[lhs];
+    targeted = targetedNames[lhs];
     (* Universal shape invariant: an axis name must be distinct within the OUTPUT shape
        (einx: "the output expression must not contain multiple vectorized axes with the
        same name") — a duplicate output axis has no well-defined layout.  Only the RHS is
@@ -432,12 +432,12 @@ EinstoffShapes[desc_, inputShapes_, bindings_ : {}] := withAxisScopeDeCanon @
         "Reason" -> "axis " <> axisDisplayName[dup] <> " appears more than once within \
 the output shape; output axis names must be distinct (einx forbids multiple vectorized \
 axes with the same name)",
-        "OutputShapes" -> Missing[], "Bindings" -> <||>, "Bracketed" -> bracketed|>]];
+        "OutputShapes" -> Missing[], "Bindings" -> <||>, "Targeted" -> targeted|>]];
     m = EinstoffMatch[lhs, inputShapes, bindings];
     If[! TrueQ[m["ok"]],
       Return[<|"Satisfiable" -> False, "Reason" -> m["reason"],
         "OutputShapes" -> Missing[], "Bindings" -> <||>,
-        "Bracketed" -> bracketed|>]];
+        "Targeted" -> targeted|>]];
     env = m["env"];
     out = evalOutShape[heldRhs, env];
     If[! MatchQ[out, {___List}] ||
@@ -446,6 +446,6 @@ axes with the same name)",
         "Reason" -> "output shape did not resolve to positive integers \
 (unbound RHS symbol or non-integer dim): " <> ToString[out],
         "OutputShapes" -> Missing[], "Bindings" -> env,
-        "Bracketed" -> bracketed|>]];
+        "Targeted" -> targeted|>]];
     <|"Satisfiable" -> True, "OutputShapes" -> out, "Bindings" -> env,
-      "Bracketed" -> bracketed, "Reason" -> ""|>];
+      "Targeted" -> targeted, "Reason" -> ""|>];

@@ -323,7 +323,7 @@ canonHeld[h_Hold] :=
 
 (* Map fresh internal axis symbols back to symbols of their original user names, for
    user-facing output (EinstoffParse's normalized desc, EinstoffShapes' Bindings /
-   Bracketed).  Replaces at all levels including Association keys.  Outside a scope, or
+   Targeted).  Replaces at all levels including Association keys.  Outside a scope, or
    with no axes, it is the identity.  A shadowed name maps back to its (valued) symbol —
    acceptable for display; the engine already ran on the fresh identities. *)
 deCanon[expr_] :=

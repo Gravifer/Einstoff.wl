@@ -223,10 +223,10 @@ VerificationTest[
   TestID -> "ex2-bindings"
 ];
 
-(* targeted-axis reporting (historical public key: "Bracketed") *)
+(* targeted-axis reporting *)
 VerificationTest[
   Einstoff`EinstoffShapes[
-    {{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {{2, 3}, {3, 4}}]["Bracketed"],
+    {{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {{2, 3}, {3, 4}}]["Targeted"],
   {b},
   TestID -> "ex10-targeted"
 ];
