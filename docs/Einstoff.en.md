@@ -83,6 +83,8 @@ related_functions:
 - `bindings` is a list of rules such as `{"channels" -> 3}` or `{c -> 3}`.
 - The public operators do not hold `desc`.
 - `TraceAction -> Hold` and `TraceAction -> Defer` return the lowered Wolfram expression in held or deferred form.
+- `Einstoff[ArrayReduce]` allows named recipes `"sum" | "total" | "add"` `"mean" | "average"` `"max"` `"min"` `"prod" | "product" | "times"` `"var" | "variance"` `"std" | "stddev"` `"count_nonzero" | "countnonzero"` `"any"` `all` and `"logsumexp" | "lse"`;
+  `Einstoff[Map]` allows named recipes `id` `flip` `sort` `softmax` and `log_softmax`.
 
 Dimension terms include:
 
@@ -185,16 +187,6 @@ Einstoff[ArrayReduce][Total][{{a_, Highlighted[2]}} :> {{a}}, {y}]
 Out[13]= {3, 7, 11}
 ```
 
-### Generalizations & Extensions
-
-Use named reducers:
-
-```wl
-In[14]:= Einstoff[ArrayReduce]["max"][{{a_, b_}} :> {{a}}, {ArrayReshape[Range[12], {3, 4}]}]
-
-Out[14]= {4, 8, 12}
-```
-
 Apply a shape-preserving operation to targeted blocks:
 
 ```wl
@@ -212,7 +204,7 @@ In[17]:= Einstoff[Map][Reverse][{{a_, Highlighted[b_]}} :> {{a, Highlighted[b]}}
 Out[17]= {{3, 2, 1}, {6, 5, 4}}
 ```
 
-Generalize a tensor contraction:
+Do a tropical tensor contraction:
 
 ```wl
 In[18]:= Einstoff[Inner][Plus, Min][{{a_}, {b_}} :> {{a, b}}, {Range[2], Range[3]}]
@@ -237,6 +229,16 @@ In[22]:= y = ArrayReshape[Range[8], {2, 4}];
 In[23]:= Einstoff[Join][{{m_, a_}, {m_, b_}} :> {{m, a ⊕ b}}, {x, y}]
 
 Out[23]= {{1, 2, 3, 1, 2, 3, 4}, {4, 5, 6, 5, 6, 7, 8}}
+```
+
+### Generalizations & Extensions
+
+Use named reducers:
+
+```wl
+In[14]:= Einstoff[ArrayReduce]["max"][{{a_, b_}} :> {{a}}, {ArrayReshape[Range[12], {3, 4}]}]
+
+Out[14]= {4, 8, 12}
 ```
 
 Split a direct-sum axis:
@@ -339,7 +341,25 @@ In[32]:= Einstoff[Join][{{a_}, {b_}} :> {{a ⊕ b}}, {Range[2], Range[3]}]
 Out[32]= {1, 2, 1, 2, 3}
 ```
 
-## See Also
+### Neat Examples
+<!-- fill in notebook version; agents should skip this for now -->
+
+## Additional Information
+
+### Contributed By
+
+* Gravifer
+
+### Version History
+
+* 0.1.0 — 07 July 2026 <!-- not actually published yet -->
+
+### Related Resources
+
+* [`ResourceFunction["ArrayContract"]`](https://resources.wolframcloud.com/FunctionRepository/resources/ArrayContract)
+* [`ResourceFunction["EinsteinSummation"]`](https://resources.wolframcloud.com/FunctionRepository/resources/EinsteinSummation)
+
+### Related Symbols
 
 * [`ArrayReshape`](https://reference.wolfram.com/language/ref/ArrayReshape.en.md)
 * [`Transpose`](https://reference.wolfram.com/language/ref/Transpose.en.md)
@@ -349,23 +369,61 @@ Out[32]= {1, 2, 1, 2, 3}
 * [`Dot`](https://reference.wolfram.com/language/ref/Dot.en.md)
 * [`TensorContract`](https://reference.wolfram.com/language/ref/TensorContract.en.md)
 * [`TensorTranspose`](https://reference.wolfram.com/language/ref/TensorTranspose.en.md)
-* [`ResourceFunction["ArrayContract"]`](https://resources.wolframcloud.com/FunctionRepository/resources/ArrayContract)
-* [`ResourceFunction["EinsteinSummation"]`](https://resources.wolframcloud.com/FunctionRepository/resources/EinsteinSummation)
 
-## Related Guides
+### Source/Reference Citation
+<!-- N/A -->
+
+### Links
+
+* [Python package `einops`](https://einops.rocks)
+* [Python package `einx`](https://einx.readthedocs.io)
+
+<!-- #### Related Guides -->
 
 * [Rearranging & Restructuring Lists](https://reference.wolfram.com/language/guide/RearrangingAndRestructuringLists.en.md)
 * [`Tensors`](https://reference.wolfram.com/language/guide/Tensors.en.md)
 * [Matrix Operations](https://reference.wolfram.com/language/guide/MatrixOperations.en.md)
 * [Handling Arrays of Data](https://reference.wolfram.com/language/guide/HandlingArraysOfData.en.md)
 
-## Related Links
+<!-- ### Tests -->
+<!-- fill in notebook version; agents should ignore -->
 
-* [einops `rearrange`](https://einops.rocks/api/rearrange/)
-* [einops `reduce`](https://einops.rocks/api/reduce/)
-* [einops `einsum`](https://einops.rocks/api/einsum/)
-* [einx operations](https://einx.readthedocs.io/en/stable/api/operations/index.html)
+### Compatibility
 
-## History
+#### Wolfram Language Version
 
-* Introduced in 2026.
+* 14.0+
+
+<!-- 
+#### Operating System
+
+* [x] Windows
+* [x] Mac
+* [x] Unix
+
+#### Required Features
+
+* [ ] Notebooks
+* [ ] Parallel Kernels
+* [ ] Cloud Access
+
+#### Environments
+
+* [x] Session
+* [x] Script
+* [x] Subkernel
+* [x] WebEvaluation
+* [x] WebAPI
+* [x] Scheduled
+* [x] BatchJob
+
+#### Cloud Support
+
+* [x] Supported in cloud
+-->
+
+## Author Notes
+<!-- fill in notebook version; agents should ignore -->
+
+<!-- ## Submission Notes -->
+<!-- fill in notebook version; agents should ignore -->
