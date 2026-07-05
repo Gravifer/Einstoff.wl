@@ -8,15 +8,17 @@
    Two directions (einx is positional, left-to-right — summand i ↔ operand i):
 
    * Concat — CirclePlus on the RHS: `{op1, …, opk} :> {{ … s1 ⊕ … ⊕ sk … }}`.
-     Each operand is aligned to the output shape with the CirclePlus replaced by
-     its own summand block (reusing materializeOutput, so a scalar operand or an
-     integer summand broadcasts to fill — einx's `b c, -> b (c + 1)` with 42), then
-     the blocks are Join'd along the concat axis. IMPLEMENTED.
+     Each operand is aligned to the output shape with the top-level CirclePlus axes
+     replaced by one Cartesian summand combination (reusing materializeOutput, so a
+     scalar operand or an integer summand broadcasts to fill — einx's
+     `b c, -> b (c + 1)` with 42), then the blocks are Join'd along those concat
+     axes. IMPLEMENTED.
 
    * Split — CirclePlus on the LHS: `{{ … a ⊕ b … }} :> {out1, out2, …}`. One input
-     axis of size Σ sliced (Take, contiguous left-to-right: output i ← summand i)
-     into multiple output tensors; each slice is then rearranged to its output
-     shape (reusing materializeOutput). Returns a List of arrays. IMPLEMENTED.
+     is sliced into contiguous Cartesian blocks along the top-level direct-sum axes
+     (Take, left-to-right with the last axis varying fastest); each slice is then
+     rearranged to its output shape (reusing materializeOutput). Returns a List of
+     arrays. IMPLEMENTED.
 
    Surface: folded into the permissive Einstoff["Massage"] (einx puts `+` in `id`); the
    desc is routed here when it contains a CirclePlus.  The bijective Einstoff[ArrayReshape]
@@ -55,6 +57,26 @@ directSumSummandQ[s_] :=
   MatchQ[s, _Symbol | _Integer | Verbatim[Pattern][_Symbol, Verbatim[Blank[]]]] ||
     (Head[s] === CircleTimes && AllTrue[List @@ s, directSumSummandQ]);
 
+directSumJoinBlocks[blocks_List, axes_List, counts_List] :=
+  If[axes === {}, First[blocks],
+    Module[{chunk, grouped, joined},
+      chunk = Times @@ Rest[counts];
+      grouped = Partition[blocks, chunk];
+      joined = Table[
+        directSumJoinBlocks[grouped[[i]], Rest[axes], Rest[counts]],
+        {i, Length[grouped]}];
+      Join[Sequence @@ joined, First[axes]]]];
+
+directSumJoinHeldBlocks[blocks_List, axes_List, counts_List] :=
+  If[axes === {}, First[blocks],
+    Module[{chunk, grouped, joined},
+      chunk = Times @@ Rest[counts];
+      grouped = Partition[blocks, chunk];
+      joined = Table[
+        directSumJoinHeldBlocks[grouped[[i]], Rest[axes], Rest[counts]],
+        {i, Length[grouped]}];
+      heldJoin[joined, First[axes]]]];
+
 (* ------------------------------------------------------------------ *)
 (* Concat handler.  Called with the held desc (so EinstoffShapes still   *)
 (* holds it), the operand tensors, and bindings.  lhs/rhs are re-parsed   *)
@@ -64,13 +86,13 @@ directSumSummandQ[s_] :=
 SetAttributes[directSumConcat, HoldFirst];
 
 directSumConcat[desc_, tensors_, bindings_List, traceAction_ : None] := withAxisScope @
-  Module[{parts, lhs, rhs, out, cpos, cp, summands, k, shp, env,
-          aligned, n},
+  Module[{parts, lhs, rhs, out, cpos, cps, summandLists, counts, combos, k, shp,
+          env, aligned, axes},
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
 
-    (* Exactly one output shape, with exactly one top-level CirclePlus term. *)
+    (* Exactly one output shape, with one or more top-level CirclePlus terms. *)
     If[! MatchQ[rhs, {_List}],
       Message[Einstoff::unsupp,
         "direct-sum concatenation produces exactly one output tensor"];
@@ -82,32 +104,33 @@ directSumConcat[desc_, tensors_, bindings_List, traceAction_ : None] := withAxis
 targeted direct sum. Use an unwrapped CirclePlus for Einstoff[Join]/[Split]; targeted \
 CirclePlus is only a single physical target axis for ArrayReduce"];
       Return[$Failed]];
-    cpos = Position[out, _CirclePlus, {1}];
-    If[Length[cpos] =!= 1 || hasCirclePlus[Delete[out, cpos]],
+    cpos = Flatten @ Position[out, _CirclePlus, {1}];
+    If[cpos === {} || hasCirclePlus[Delete[out, List /@ cpos]],
       Message[Einstoff::unsupp,
-        "concatenation supports exactly one direct-sum (CirclePlus) axis per output \
+        "concatenation supports only top-level direct-sum (CirclePlus) axes per output \
 shape (top-level nesting like a \[CirclePlus] (b \[CirclePlus] c) is flattened and \
-supported; more than one direct-sum axis, or a CirclePlus nested inside another term \
-such as a CircleTimes, is not supported yet)"];
+supported; a CirclePlus nested inside another term such as a CircleTimes is not \
+supported yet)"];
       Return[$Failed]];
-    n = cpos[[1, 1]];                       (* concat axis = that term's position *)
-    cp = out[[n]];
-    summands = List @@ cp;
-    k = Length[summands];
+    cps = out[[cpos]];
+    summandLists = List @@ # & /@ cps;
+    counts = Length /@ summandLists;
+    combos = Tuples[Range /@ counts];
+    k = Length[combos];
 
     (* Each summand must be a name, integer, or product of those (a CircleTimes
        block); a targeted direct sum is not supported. *)
-    If[! AllTrue[summands, directSumSummandQ],
+    If[! AllTrue[Flatten[summandLists], directSumSummandQ],
       Message[Einstoff::unsupp,
         "each direct-sum summand must be an axis name, an integer, or a product \
 of those (targeted direct sums are not supported yet)"];
       Return[$Failed]];
 
-    (* k operands, one per summand (positional: summand i <- operand i). *)
+    (* k operands, one per summand combination (positional: combo i <- operand i). *)
     If[! MatchQ[lhs, {___List}] || Length[lhs] =!= k || Length[tensors] =!= k,
       Message[Einstoff::unsupp,
-        "direct-sum concatenation needs one operand per summand: the output has " <>
-          ToString[k] <> " summand(s) but " <> ToString[Length[tensors]] <>
+        "direct-sum concatenation needs one operand per summand combination: the output has " <>
+          ToString[k] <> " combination(s) but " <> ToString[Length[tensors]] <>
           " tensor(s) were given"];
       Return[$Failed]];
 
@@ -132,10 +155,14 @@ summand distinctly; within-tensor contraction is not supported here)"];
 
     If[traceActionEnabledQ[traceAction],
       aligned = einCatch @ Table[
-        Module[{opShape = lhs[[i]], tensor = tensors[[i]], atoms, dims, target},
+        Module[{opShape = lhs[[i]], tensor = tensors[[i]], atoms, dims, target,
+                replacements},
           atoms = If[opShape === {}, {}, Join @@ (rearrangeAtoms /@ opShape)];
           dims = atomSize[#, env] & /@ atoms;
-          target = ReplacePart[out, n -> summands[[i]]];
+          replacements = Table[
+            cpos[[j]] -> summandLists[[j, combos[[i, j]]]],
+            {j, Length[cpos]}];
+          target = ReplacePart[out, replacements];
           materializeOutputExprHeld[
             If[dims === {}, heldValue[tensor], heldReshape[heldValue[tensor], dims]],
             atoms, target, env]],
@@ -144,14 +171,18 @@ summand distinctly; within-tensor contraction is not supported here)"];
         Message[Einstoff::unsat,
           "an axis size is unbound while aligning a direct-sum operand"];
         Return[$Failed]];
-      Return[traceReturnHeld[heldJoin[aligned, n], traceAction]]];
+      Return[traceReturnHeld[directSumJoinHeldBlocks[aligned, cpos, counts], traceAction]]];
 
-    (* Align each operand to the output shape with CirclePlus -> its summand. *)
+    (* Align each operand to the output shape with CirclePlus -> its summands. *)
     aligned = einCatch @ Table[
-      Module[{opShape = lhs[[i]], tensor = tensors[[i]], atoms, dims, target},
+      Module[{opShape = lhs[[i]], tensor = tensors[[i]], atoms, dims, target,
+              replacements},
         atoms = If[opShape === {}, {}, Join @@ (rearrangeAtoms /@ opShape)];
         dims = atomSize[#, env] & /@ atoms;
-        target = ReplacePart[out, n -> summands[[i]]];
+        replacements = Table[
+          cpos[[j]] -> summandLists[[j, combos[[i, j]]]],
+          {j, Length[cpos]}];
+        target = ReplacePart[out, replacements];
         materializeOutput[
           If[dims === {}, tensor, ArrayReshape[tensor, dims]], atoms, target, env]],
       {i, k}];
@@ -160,26 +191,27 @@ summand distinctly; within-tensor contraction is not supported here)"];
         "an axis size is unbound while aligning a direct-sum operand"];
       Return[$Failed]];
 
-    With[{aligned0 = aligned, n0 = n},
-      traceReturn[Join[Sequence @@ aligned0, n0], traceAction]]
+    axes = cpos;
+    With[{aligned0 = aligned, axes0 = axes, counts0 = counts},
+      traceReturn[directSumJoinBlocks[aligned0, axes0, counts0], traceAction]]
   ];
 
 (* ------------------------------------------------------------------ *)
 (* Split handler.  CirclePlus on the LHS of a single input shape: slice the *)
-(* concat axis into contiguous blocks (output i <- summand i, left-to-right) *)
-(* and rearrange each block to its output shape.  Returns a List of arrays.  *)
+(* concat axes into contiguous Cartesian blocks (last axis fastest) and       *)
+(* rearrange each block to its output shape.  Returns a List of arrays.       *)
 (* ------------------------------------------------------------------ *)
 
 SetAttributes[directSumSplit, HoldFirst];
 
 directSumSplit[desc_, tensors_, bindings_List, traceAction_ : None] := withAxisScope @
-  Module[{parts, lhs, rhs, inShape, cpos, cp, summands, k, shp, env, x,
-          ndims, n, outs},
+  Module[{parts, lhs, rhs, inShape, cpos, cps, summandLists, counts, combos, k,
+          shp, env, x, ndims, outs},
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
 
-    (* Exactly one input shape with exactly one top-level CirclePlus term. *)
+    (* Exactly one input shape with one or more top-level CirclePlus terms. *)
     If[! MatchQ[lhs, {_List}] || Length[tensors] =!= 1,
       Message[Einstoff::unsupp,
         "direct-sum splitting takes exactly one input tensor"];
@@ -191,33 +223,34 @@ directSumSplit[desc_, tensors_, bindings_List, traceAction_ : None] := withAxisS
 direct sum. Use an unwrapped CirclePlus for Einstoff[Join]/[Split]; targeted CirclePlus \
 is only a single physical target axis for ArrayReduce"];
       Return[$Failed]];
-    cpos = Position[inShape, _CirclePlus, {1}];
-    If[Length[cpos] =!= 1 || hasCirclePlus[Delete[inShape, cpos]],
+    cpos = Flatten @ Position[inShape, _CirclePlus, {1}];
+    If[cpos === {} || hasCirclePlus[Delete[inShape, List /@ cpos]],
       Message[Einstoff::unsupp,
-        "splitting supports exactly one direct-sum (CirclePlus) axis per input shape \
+        "splitting supports only top-level direct-sum (CirclePlus) axes per input shape \
 (top-level nesting like a \[CirclePlus] (b \[CirclePlus] c) is flattened and \
-supported; more than one direct-sum axis, or a CirclePlus nested inside another term \
-such as a CircleTimes, is not supported yet)"];
+supported; a CirclePlus nested inside another term such as a CircleTimes is not \
+supported yet)"];
       Return[$Failed]];
-    n = cpos[[1, 1]];                       (* concat axis = that term's position *)
-    cp = inShape[[n]];
     (* On the LHS the summands are blanks (q_, or blanks inside a
        product block); reduce to bare names at every level so sizing/ReplacePart
        see bare symbols, as on the concat (RHS) side. *)
-    summands = (List @@ cp) //. Verbatim[Pattern][x_, _] :> x;
-    k = Length[summands];
+    cps = inShape[[cpos]];
+    summandLists = ((List @@ #) //. Verbatim[Pattern][x_, _] :> x) & /@ cps;
+    counts = Length /@ summandLists;
+    combos = Tuples[Range /@ counts];
+    k = Length[combos];
 
-    If[! AllTrue[summands, directSumSummandQ],
+    If[! AllTrue[Flatten[summandLists], directSumSummandQ],
       Message[Einstoff::unsupp,
         "each direct-sum summand must be an axis name, an integer, or a product \
 of those (targeted direct sums are not supported yet)"];
       Return[$Failed]];
 
-    (* k outputs, one per summand (positional: summand i -> output i). *)
+    (* k outputs, one per summand combination (positional: combo i -> output i). *)
     If[! MatchQ[rhs, {___List}] || Length[rhs] =!= k,
       Message[Einstoff::unsupp,
-        "direct-sum splitting needs one output per summand: the input has " <>
-          ToString[k] <> " summand(s) but " <> ToString[Length[rhs]] <>
+        "direct-sum splitting needs one output per summand combination: the input has " <>
+          ToString[k] <> " combination(s) but " <> ToString[Length[rhs]] <>
           " output shape(s) were given"];
       Return[$Failed]];
 
@@ -240,13 +273,21 @@ summand distinctly; within-tensor contraction is not supported here)"];
     x = First[tensors];
     ndims = Length[inShape];
     If[traceActionEnabledQ[traceAction],
-      outs = einCatch @ Module[{sz, en, st},
-        sz = (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ summands;
-        en = Accumulate[sz]; st = en - sz + 1;
+      outs = einCatch @ Module[{sizes, ends, starts},
+        sizes = Table[
+          (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ summandLists[[j]],
+          {j, Length[summandLists]}];
+        ends = Accumulate /@ sizes; starts = MapThread[#1 - #2 + 1 &, {ends, sizes}, 2];
         Table[
-          Module[{specs, terms, atoms, dims, block},
-            specs = Table[If[d === n, {st[[i]], en[[i]]}, All], {d, ndims}];
-            terms = ReplacePart[inShape, n -> summands[[i]]];
+          Module[{combo = combos[[i]], specs, terms, atoms, dims, block, replacements},
+            specs = Table[
+              With[{j = FirstPosition[cpos, d, Missing["NotFound"]]},
+                If[MissingQ[j], All,
+                  {starts[[j[[1]], combo[[j[[1]]]]]], ends[[j[[1]], combo[[j[[1]]]]]]}]],
+              {d, ndims}];
+            replacements = Table[
+              cpos[[j]] -> summandLists[[j, combo[[j]]]], {j, Length[cpos]}];
+            terms = ReplacePart[inShape, replacements];
             atoms = If[terms === {}, {}, Join @@ (rearrangeAtoms /@ terms)];
             dims = atomSize[#, env] & /@ atoms;
             block = heldTakeValue[x, specs];
@@ -259,17 +300,25 @@ summand distinctly; within-tensor contraction is not supported here)"];
         Return[$Failed]];
       Return[traceReturnHeld[heldList[outs], traceAction]]];
 
-    outs = einCatch @ Module[{sz, en, st},
+    outs = einCatch @ Module[{sizes, ends, starts},
       (* block size of a summand = product over its atoms (a product block (a b)
          contributes a*b to the concat axis). *)
-      sz = (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ summands;
-      en = Accumulate[sz]; st = en - sz + 1;       (* contiguous block bounds *)
+      sizes = Table[
+        (Times @@ (atomSize[#, env] & /@ rearrangeAtoms[#])) & /@ summandLists[[j]],
+        {j, Length[summandLists]}];
+      ends = Accumulate /@ sizes; starts = MapThread[#1 - #2 + 1 &, {ends, sizes}, 2];
       Table[
-        Module[{block, terms, atoms, dims},
+        Module[{combo = combos[[i]], block, terms, atoms, dims, specs, replacements},
           (* slice block i along axis n; All on every other axis *)
-          block = Take[x, Sequence @@ Table[
-            If[d === n, {st[[i]], en[[i]]}, All], {d, ndims}]];
-          terms = ReplacePart[inShape, n -> summands[[i]]];
+          specs = Table[
+            With[{j = FirstPosition[cpos, d, Missing["NotFound"]]},
+              If[MissingQ[j], All,
+                {starts[[j[[1]], combo[[j[[1]]]]]], ends[[j[[1]], combo[[j[[1]]]]]]}]],
+            {d, ndims}];
+          block = Take[x, Sequence @@ specs];
+          replacements = Table[
+            cpos[[j]] -> summandLists[[j, combo[[j]]]], {j, Length[cpos]}];
+          terms = ReplacePart[inShape, replacements];
           atoms = If[terms === {}, {}, Join @@ (rearrangeAtoms /@ terms)];
           dims = atomSize[#, env] & /@ atoms;
           materializeOutput[

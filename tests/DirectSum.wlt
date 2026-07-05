@@ -9,7 +9,7 @@
 
 BeginTestSection["Einstoff`Lowering`DirectSum"];
 
-ClearAll[a, b, c, k, m, p, q, r];
+ClearAll[a, b, c, d, k, m, p, q, r];
 
 (* ===================== concatenation (einx `+` on RHS) ============= *)
 
@@ -79,6 +79,19 @@ VerificationTest[
     Einstoff[Join][{{m_, a_}, {m_, b_}} :> {{m, CirclePlus[a, b]}}, {x, y}]],
   Join[ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[8], {2, 4}], 2],
   TestID -> "concat-join-operator"
+];
+
+(* 7b. Multiple direct-sum axes enumerate Cartesian blocks, last axis fastest:
+   'a b, a c, d b, d c -> (a + d) (b + c)'. *)
+VerificationTest[
+  With[{x11 = {{0, 1}}, x12 = {{10, 11, 12}},
+        x21 = {{20, 21}, {22, 23}}, x22 = {{30, 31, 32}, {33, 34, 35}}},
+    Einstoff["Massage"][
+      {{a_, b_}, {a_, c_}, {d_, b_}, {d_, c_}} :>
+        {{CirclePlus[a, d], CirclePlus[b, c]}},
+      {x11, x12, x21, x22}]],
+  {{0, 1, 10, 11, 12}, {20, 21, 30, 31, 32}, {22, 23, 33, 34, 35}},
+  TestID -> "concat-multiple-direct-sum-axes"
 ];
 
 (* ===================== rejection paths ============================= *)
@@ -240,6 +253,20 @@ VerificationTest[
   With[{x = ArrayReshape[Range[20], {2, 10}]},
     {Take[x, All, {1, 3}], Take[x, All, {4, 10}]}],
   TestID -> "split-operator"
+];
+
+(* 17b. Multiple direct-sum axes split into Cartesian blocks, last axis fastest:
+   '(a + d) (b + c) -> a b, a c, d b, d c'. *)
+VerificationTest[
+  With[{z = ArrayReshape[Range[15] - 1, {3, 5}]},
+    Einstoff["Massage"][
+      {{CirclePlus["a", d_], CirclePlus["b", c_]}} :>
+        {{"a", "b"}, {"a", c}, {d, "b"}, {d, c}},
+      {z}, {"a" -> 1, "b" -> 2}]],
+  With[{z = ArrayReshape[Range[15] - 1, {3, 5}]},
+    {Take[z, {1, 1}, {1, 2}], Take[z, {1, 1}, {3, 5}],
+     Take[z, {2, 3}, {1, 2}], Take[z, {2, 3}, {3, 5}]}],
+  TestID -> "split-multiple-direct-sum-axes"
 ];
 
 (* 18. Einstoff[Split] with CirclePlus on the RHS (that is a concat) is rejected. *)

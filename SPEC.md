@@ -604,13 +604,16 @@ sum — use `Einstoff[Join]`/`[Split]` or `Massage`) and routed by where the Cir
 appears:
 
 - **Concatenation** (CirclePlus on the RHS, `{op1, …, opk} :> {{… a ⊕ b …}}`; ex4):
-  each operand is aligned to the output shape with its own summand block (reusing
-  `materializeOutput`, so a scalar operand / integer summand broadcasts — einx's
-  `b c, -> b (c + 1)` with 42) and the blocks are `Join`'d along the concat axis.
+  each operand is aligned to the output shape with its own direct-sum summand
+  combination (reusing `materializeOutput`, so a scalar operand / integer summand
+  broadcasts — einx's `b c, -> b (c + 1)` with 42) and the blocks are `Join`'d
+  along the direct-sum axes. Multiple top-level direct-sum axes enumerate their
+  Cartesian product, matching einx's positional order (last axis fastest).
 - **Splitting** (CirclePlus on the LHS, `{{… a ⊕ b …}} :> {out1, …, outk}`; ex3):
-  the concat axis is sliced into contiguous blocks (`Take`, output *i* ← summand
-  *i*, left-to-right) and each block is rearranged to its output shape; returns a
-  `List` of arrays (the multi-output path).
+  the direct-sum axes are sliced into contiguous Cartesian blocks (`Take`, output
+  *i* ← summand-combination *i*, left-to-right with the last axis fastest) and each
+  block is rearranged to its output shape; returns a `List` of arrays (the
+  multi-output path).
 
 `Einstoff[Join]` (RHS-only) and `Einstoff[Split]` (LHS-only) are the same machinery
 under a directional guard. **Nested** direct sums are canonicalized by associativity
@@ -633,8 +636,9 @@ for string-only summands). `Einstoff[Map]` rejects it because mapping over a
 structural concatenation is not a single target-block operation. Structural
 `Join`/`Split` syntax intentionally remains the bare `CirclePlus` form; targeted
 `CirclePlus` is rejected there, matching einx `id`/`rearrange` behavior for
-`[(a + b)]`. **Still deferred:** >1 CirclePlus per shape. Plan:
-`docs/plans/circleplus-direct-sum.md`.
+`[(a + b)]`. The structural direct-sum gap that remains deferred is equal repeated
+summands such as `b (q + q) -> b q, b q` (the distinct-axis policy rejects this
+today). Historical plan: `docs/plans/circleplus-direct-sum.md`.
 
 **Target notation — string-named axes (implemented).** A targeted string axis is now
 `#name` = `Slot["name"]` (§5.1, §3 glossary), bound by unification on its string
