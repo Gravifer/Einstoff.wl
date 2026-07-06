@@ -203,6 +203,45 @@ anonymousTargetAtom[size_, env_] :=
   Module[{u = Unique["target$", {Temporary}]},
     {u, Append[env, u -> size]}];
 
+namedSequenceSpec[Verbatim[Pattern][s_Symbol, Verbatim[BlankSequence[]]]] :=
+  <|"Outer" -> s, "Body" -> Blank[], "Min" -> 1, "Named" -> True|>;
+namedSequenceSpec[Verbatim[Pattern][s_Symbol, Verbatim[BlankNullSequence[]]]] :=
+  <|"Outer" -> s, "Body" -> Blank[], "Min" -> 0, "Named" -> True|>;
+namedSequenceSpec[Verbatim[Pattern][s_Symbol, Verbatim[Repeated][body_]]] :=
+  <|"Outer" -> s, "Body" -> body, "Min" -> 1, "Named" -> True|>;
+namedSequenceSpec[Verbatim[Pattern][s_Symbol, Verbatim[RepeatedNull][body_]]] :=
+  <|"Outer" -> s, "Body" -> body, "Min" -> 0, "Named" -> True|>;
+namedSequenceSpec[Verbatim[Repeated][body_]] :=
+  <|"Outer" -> None, "Body" -> body, "Min" -> 1, "Named" -> False|>;
+namedSequenceSpec[Verbatim[RepeatedNull][body_]] :=
+  <|"Outer" -> None, "Body" -> body, "Min" -> 0, "Named" -> False|>;
+namedSequenceSpec[_] := None;
+
+namedSequenceInnerBinders[body_] := DeleteDuplicates @ Cases[body,
+  Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> s, {0, Infinity}];
+
+renameSequenceBody[body_, rules_] := body /. Join[
+  Table[
+    With[{old = First[r], new = Last[r]},
+      Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] /; s === old :> new],
+    {r, rules}],
+  Table[
+    With[{old = First[r], new = Last[r]},
+      s_Symbol /; s === old :> new],
+    {r, rules}]];
+
+namedSequenceLength[spec_Association, seq_Association, dimsLeft_Integer] :=
+  Module[{keys, lengths},
+    keys = Join[
+      If[spec["Named"], {spec["Outer"]}, {}],
+      namedSequenceInnerBinders[spec["Body"]]];
+    lengths = Lookup[seq, keys, Missing["NoCapture"]];
+    lengths = DeleteCases[lengths, Missing["NoCapture"]];
+    Which[
+      lengths =!= {} && SameQ @@ (Length /@ lengths), First[Length /@ lengths],
+      lengths =!= {}, $Failed,
+      True, dimsLeft]];
+
 (* Package-private payload for one captured anonymous sequence run.  Keep the run grouped until
    the RHS occurrence that consumes it is expanded; do not use active Sequence or public
    Inactive[Sequence], since this is an internal correspondence token. *)
@@ -212,6 +251,10 @@ anonymousCaptureAtomList[captures_List] :=
       anonymousSequence[xs___] :> {xs},
       other_ :> {other}}],
     {c, captures}];
+
+namedCaptureAtomList[captures_Association, key_] :=
+  With[{v = Lookup[captures, key, Missing["NoCapture"]]},
+    If[MissingQ[v], {}, anonymousCaptureAtomList[{v}]]];
 
 targetDecomposeTerm[t_, d_, env_, br_] :=
   Module[{atoms, env2 = env, atom},
@@ -227,9 +270,10 @@ targetDecomposeTerm[t_, d_, env_, br_] :=
       Throw[$Failed, einThrowTag]];
     {{#, br} & /@ atoms, env2, {}}];
 
-targetDecomposeTerms[terms_List, dims_List, env_] :=
-  Module[{tagged = {}, anonymous = {}, env2 = env, pos = 1, i, t,
-          restTerms, minRest, k, atom, group, parts, td, anon},
+targetDecomposeTerms[terms_List, dims_List, env_, seq_ : <||>] :=
+  Module[{tagged = {}, anonymous = {}, named = <||>, env2 = env, pos = 1, i, t,
+          restTerms, minRest, k, atom, group, parts, td, anon, spec, body, inner,
+          rules, fresh, vals, renamed, captures, j, outerGroup},
     If[plainSequenceCount[terms] > 1,
       Message[Einstoff::unsupp,
         "multiple plain anonymous sequences (__ / ___) in one shape are ambiguous; \
@@ -238,6 +282,49 @@ support for matching more than one is deferred"];
     For[i = 1, i <= Length[terms], i++,
       t = terms[[i]];
       Which[
+        AssociationQ[spec = namedSequenceSpec[t]],
+          body = spec["Body"];
+          If[! FreeQ[HoldComplete[body],
+              Verbatim[Repeated][_] | Verbatim[RepeatedNull][_] |
+                Verbatim[PatternSequence][___]],
+            Message[Einstoff::unsupp,
+              "nested named axis-sequences and PatternSequence are not supported in lowering"];
+            Throw[$Failed, einThrowTag]];
+          restTerms = Drop[terms, i];
+          minRest = Total[termDimCount /@ restTerms];
+          k = namedSequenceLength[spec, seq, Length[dims] - pos + 1 - minRest];
+          If[k === $Failed || k < spec["Min"] || k > Length[dims] - pos + 1 - minRest,
+            Throw[$Failed, einThrowTag]];
+          inner = namedSequenceInnerBinders[body];
+          captures = Association@Table[key -> {}, {key, inner}];
+          outerGroup = {};
+          Do[
+            If[body === Blank[],
+              {atom, env2} = anonymousTargetAtom[dims[[pos]], env2];
+              AppendTo[tagged, {atom, False}];
+              AppendTo[outerGroup, atom],
+              rules = Table[old -> Unique[SymbolName[old] <> "$seq$", {Temporary}],
+                {old, inner}];
+              fresh = Last /@ rules;
+              vals = Lookup[seq, inner, Missing["NoCapture"]];
+              If[Length[inner] > 0,
+                If[! ListQ[vals] || MemberQ[vals, Missing["NoCapture"]] ||
+                    ! AllTrue[vals, Length[#] >= j &],
+                  Throw[$Failed, einThrowTag]];
+                Do[env2 = Append[env2, fresh[[p]] -> vals[[p, j]]],
+                  {p, Length[fresh]}]];
+              renamed = renameSequenceBody[body, rules];
+              {td, env2, anon} = targetDecomposeTerm[renamed, dims[[pos]], env2, False];
+              tagged = Join[tagged, td];
+              anonymous = Join[anonymous, anon];
+              Do[captures[inner[[p]]] = Append[captures[inner[[p]]], fresh[[p]]],
+                {p, Length[inner]}];
+              outerGroup = Join[outerGroup, td[[All, 1]]]];
+            pos++,
+            {j, k}];
+          If[spec["Named"], named = Append[named, spec["Outer"] -> (anonymousSequence @@ outerGroup)]];
+          Do[named = Append[named, key -> (anonymousSequence @@ captures[key])],
+            {key, Keys[captures]}],
         bracketWrapperQ[t] && Length[t] === 1 && targetSequenceQ[First[t]],
           restTerms = Drop[terms, i];
           minRest = Total[termDimCount /@ restTerms];
@@ -294,9 +381,10 @@ support for matching more than one is deferred"];
           anonymous = Join[anonymous, anon];
           pos++]];
     If[pos =!= Length[dims] + 1, Throw[$Failed, einThrowTag]];
-    <|"Tagged" -> tagged, "Env" -> env2, "AnonymousTargetAtoms" -> anonymous|>];
+    <|"Tagged" -> tagged, "Env" -> env2, "AnonymousTargetAtoms" -> anonymous,
+      "NamedSequenceAtoms" -> named|>];
 
-expandAnonymousTargetRhs[terms_List, anonAtoms_List] :=
+expandAnonymousTargetRhs[terms_List, anonAtoms_List, namedAtoms_ : <||>] :=
   Module[{q = anonAtoms},
     If[plainSequenceCount[terms] > 1,
       Message[Einstoff::unsupp,
@@ -305,6 +393,9 @@ support for matching more than one is deferred"];
       Throw[$Failed, einThrowTag]];
     Flatten @ Table[
       Which[
+        MatchQ[t, Verbatim[Repeated][_Symbol] | Verbatim[RepeatedNull][_Symbol]] &&
+            KeyExistsQ[namedAtoms, First[t]],
+          namedCaptureAtomList[namedAtoms, First[t]],
         bracketWrapperQ[t] && Length[t] === 1 && targetSequenceQ[First[t]],
           With[{a = anonymousCaptureAtomList[q]}, q = {}; a],
         Head[t] === SlotSequence,

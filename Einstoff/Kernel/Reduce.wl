@@ -109,6 +109,9 @@ Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
       Return[$Failed]];
 
     inShapes = Dimensions /@ tensors;
+    m = EinstoffMatch[lhs, inShapes, bindings];
+    If[! TrueQ[m["ok"]],
+      Message[Einstoff::unsat, m["reason"]]; Return[$Failed]];
     shp = If[FreeQ[First[rhs], Verbatim[BlankSequence[]] | Verbatim[BlankNullSequence[]]],
       EinstoffShapes[desc, inShapes, bindings],
       Missing["SequenceRHS"]];
@@ -116,13 +119,12 @@ Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
       If[! TrueQ[shp["Satisfiable"]],
         Message[Einstoff::unsat, shp["Reason"]]; Return[$Failed]];
       env = shp["Bindings"],
-      m = EinstoffMatch[lhs, inShapes, bindings];
-      If[! TrueQ[m["ok"]],
-        Message[Einstoff::unsat, m["reason"]]; Return[$Failed]];
       env = m["env"]];
 
     (* Decompose: LHS bracket-aware (tagged), RHS plain (reuse rearrangeAtoms). *)
-    decomp = einCatch[targetDecomposeTerms[First[lhs], First[inShapes], env]];
+    decomp = einCatch[
+      targetDecomposeTerms[First[lhs], First[inShapes], env,
+        Lookup[m, "seq", <||>]]];
     If[decomp === $Failed,
       Message[Einstoff::unsat, "an input axis size is unbound or inconsistent"];
       Return[$Failed]];
@@ -132,7 +134,9 @@ Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
         "a plain anonymous sequence (__ / ___) on the output needs a corresponding \
 plain sequence in the input shape"];
       Return[$Failed]];
-    rhsTerms = einCatch[expandAnonymousTargetRhs[First[rhs], decomp["AnonymousTargetAtoms"]]];
+    rhsTerms = einCatch[
+      expandAnonymousTargetRhs[First[rhs], decomp["AnonymousTargetAtoms"],
+        decomp["NamedSequenceAtoms"]]];
     If[rhsTerms === $Failed, Return[$Failed]];
     If[lhsTagged === $Failed, Return[$Failed]];
     rhsAtoms = einCatch[Join @@ Table[rearrangeAtoms[t], {t, rhsTerms}]];

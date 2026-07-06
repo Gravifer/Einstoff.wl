@@ -115,7 +115,9 @@ massageCore[desc_, tensors_, bindings_List, policy_, traceAction_] := withAxisSc
       Message[Einstoff::unsat, m["reason"]]; Return[$Failed]];
     env = m["env"];
 
-    decomp = einCatch[targetDecomposeTerms[First[lhs], Dimensions[First[tensors]], env]];
+    decomp = einCatch[
+      targetDecomposeTerms[First[lhs], Dimensions[First[tensors]], env,
+        Lookup[m, "seq", <||>]]];
     If[decomp === $Failed,
       Message[Einstoff::unsat, "an input axis size is unbound or inconsistent"];
       Return[$Failed]];
@@ -125,7 +127,9 @@ massageCore[desc_, tensors_, bindings_List, policy_, traceAction_] := withAxisSc
         "a plain anonymous sequence (__ / ___) on the output needs a corresponding \
 plain sequence in the input shape"];
       Return[$Failed]];
-    rhsTerms = einCatch[expandAnonymousTargetRhs[First[rhs], decomp["AnonymousTargetAtoms"]]];
+    rhsTerms = einCatch[
+      expandAnonymousTargetRhs[First[rhs], decomp["AnonymousTargetAtoms"],
+        decomp["NamedSequenceAtoms"]]];
     If[rhsTerms === $Failed, Return[$Failed]];
     rhsAtoms = einCatch[Join @@ (rearrangeAtoms /@ rhsTerms)];
     If[lhsAtoms === $Failed || rhsAtoms === $Failed, Return[$Failed]];

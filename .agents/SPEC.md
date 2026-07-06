@@ -149,13 +149,17 @@ distinguishing these, so the compiler must branch on targetedness
 explicitly; it cannot be inferred from set difference between LHS/RHS axis
 names alone.
 
-### 5.3 Named ellipsis: where the name lives matters
+### 5.3 Named axis-sequences: where the name lives matters
 
-**Shape resolver implemented; data lowering deferred.** `EinstoffShapes` and
-`EinstoffMatch` understand named axis-sequences (`a__` / `a___`, and structured
-`grp : term..` / `grp : term...`) and re-walk their captures manually. Runtime
-lowerers reject raw descs containing named axis-sequences today, because
-operation-specific lowering for data arrays is not implemented yet.
+**Shape resolver implemented; first data-lowering slice implemented.**
+`EinstoffShapes` and `EinstoffMatch` understand named axis-sequences (`a__` /
+`a___`, and structured `grp : term..` / `grp : term...`) and re-walk their
+captures manually. The shared single-tensor decomposition path lowers plain named
+axis-sequences as carried/vmapped axis runs, and lowers structured repeated groups
+when their inner binders are projected on the RHS with postfix sequence syntax
+(for example `{{b_, grp : (s_⊗#ds).., c_}} :> {{b, s.., c}}` in an
+`Einstoff[ArrayReduce]` recipe). Broader operation-specific lowering remains
+deferred.
 
 Two roles a name can play inside an ellipsis:
 
@@ -669,8 +673,9 @@ needs a real matching policy beyond `Longest` / `Shortest`. Targeted variadic ru
 captured run to `ArrayReduce` / `Map`.
 
 **Other deferred lowering items** (rejected loudly today, not mis-compiled):
-named axis-sequence data lowering (§5.3); within-operand reduction
-before contraction in `Einstoff[Dot]`.
+the remaining named axis-sequence lowering surface (§5.3), especially cross-tensor
+and direct-sum interactions; within-operand reduction before contraction in
+`Einstoff[Dot]`.
 
 **Within-tensor contraction — pairwise core implemented.** A name repeated in one
 operand and dropped on the output is summed over its coincident slots (GR-style traces,

@@ -545,21 +545,9 @@ normHeldShapes[hshapes_Hold] :=
 (* Operators are HoldFirst and pass Hold[desc]; descParts releases the RHS (at lowering
    time RHS symbols are atom labels, not values to substitute) and canonicalizes both
    sides.  parseDesc (Parsing.wl) is the held-RHS twin. *)
-containsRepeatedTermQ[expr_] := ! FreeQ[HoldComplete[expr],
-  Verbatim[Repeated][_] | Verbatim[RepeatedNull][_] |
-    Verbatim[Pattern][_, Verbatim[Repeated][_]] |
-    Verbatim[Pattern][_, Verbatim[RepeatedNull][_]] |
-    Verbatim[Pattern][_, Verbatim[BlankSequence[]]] |
-    Verbatim[Pattern][_, Verbatim[BlankNullSequence[]]]];
-
 descParts[h : Hold[_Rule | _RuleDelayed]] :=
   Module[{hr = canonHeld[h]},
     If[hr === $Failed, $Failed,
-      If[containsRepeatedTermQ[hr],
-        Message[Einstoff::unsupp,
-          "named axis-sequences are supported only for shape \
-resolution for now; data lowering is deferred"];
-        Return[$Failed]];
       {normShapes @ Extract[hr, {1, 1}],
        normShapes @ ReleaseHold @ Extract[hr, {1, 2}, Hold]}]];
 (* a structurally-malformed desc (not lhs :> rhs): no canonHeld ran, so clear any stale

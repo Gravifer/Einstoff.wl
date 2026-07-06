@@ -138,15 +138,22 @@ VerificationTest[
   TestID -> "reduce-reject-repeated-input-axis"
 ];
 
-(* Named axis-sequences resolve shapes but runtime data lowering is deferred. *)
+(* Named axis-sequences lower as carried/vmapped runs around a targeted reduction. *)
 VerificationTest[
-  Quiet[
-    Einstoff[ArrayReduce][Total][
-      {{a__, Slot["b"]}} :> {{a}},
-      {ArrayReshape[Range[24], {2, 3, 4}]}],
-    {Einstoff::unsupp}],
-  $Failed,
-  TestID -> "reduce-reject-named-axis-sequence"
+  Einstoff[ArrayReduce][Total][
+    {{a__, Slot["b"]}} :> {{a..}},
+    {ArrayReshape[Range[24], {2, 3, 4}]}],
+  Total[ArrayReshape[Range[24], {2, 3, 4}], {3}],
+  TestID -> "reduce-named-axis-sequence-carry"
+];
+
+VerificationTest[
+  Einstoff[ArrayReduce][Total][
+    {{b_, grp : (CircleTimes[s_, Highlighted["ds"]]).., c_}} :> {{b, s.., c}},
+    {ArrayReshape[Range[480], {2, 6, 8, 5}]},
+    {"ds" -> 2}],
+  Total[Total[ArrayReshape[Range[480], {2, 3, 2, 4, 2, 5}], {5}], {3}],
+  TestID -> "reduce-structured-named-axis-sequence"
 ];
 
 (* 11. A new output axis is repetition (SPEC 5.5); without a binding it is

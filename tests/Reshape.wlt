@@ -83,14 +83,12 @@ VerificationTest[
   TestID -> "lower-reject-drop-axis"
 ];
 
-(* Named axis-sequences resolve shapes but runtime data lowering is deferred. *)
+(* Named axis-sequences lower as concrete carried axis runs. *)
 VerificationTest[
-  Quiet[
-    Einstoff[ArrayReshape][
-      {{a__}} :> {{a}}, {ArrayReshape[Range[6], {2, 3}]}],
-    {Einstoff::unsupp}],
-  $Failed,
-  TestID -> "lower-reject-named-axis-sequence"
+  Einstoff[ArrayReshape][
+    {{a__}} :> {{a..}}, {ArrayReshape[Range[24], {2, 3, 4}]}],
+  ArrayReshape[Range[24], {2, 3, 4}],
+  TestID -> "lower-named-axis-sequence-carry"
 ];
 
 (* 9. Unsatisfiable desc (rank mismatch) returns $Failed. *)
@@ -171,15 +169,12 @@ VerificationTest[
   TestID -> "repeat-merge-leading"
 ];
 
-(* Named axis-sequences resolve shapes but runtime data lowering is deferred, including
-   the permissive Massage entrance. *)
+(* Named axis-sequences can be reordered as a captured run. *)
 VerificationTest[
-  Quiet[
-    Einstoff["Massage"][{{a__}} :> {{a}},
-      {ArrayReshape[Range[6], {2, 3}]}],
-    {Einstoff::unsupp}],
-  $Failed,
-  TestID -> "massage-reject-named-axis-sequence"
+  Einstoff["Massage"][{{a_, b__}} :> {{b.., a}},
+    {ArrayReshape[Range[24], {2, 3, 4}]}],
+  Transpose[ArrayReshape[Range[24], {2, 3, 4}], {3, 1, 2}],
+  TestID -> "massage-named-axis-sequence-reorder"
 ];
 
 (* 18-20. An output axis must be a positive integer (Massage sizes via EinstoffMatch,
