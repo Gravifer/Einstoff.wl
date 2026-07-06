@@ -22,11 +22,7 @@ boundaries.
   appropriate.
 - When changing design boundaries or deferred items, update `.agents/SPEC.md`.
 
-Coding agents may be credited with a commit trailer:
-
-```text
-Co-Authored-By: Codex GPT 5.5 <noreply@openai.com>
-```
+Coding agents may be credited with a commit trailer.
 
 ## Notebooks
 
@@ -65,9 +61,3 @@ when the Wolfram-only suite passes.
 Keep local scratch work out of commits unless it is part of the requested change. In
 particular, do not commit exploratory notebook churn, virtual environments, caches, or
 temporary Wolfram/Python artifacts.
-
-## Forge Neutrality
-
-The repository is intended to be mirrored across GitHub, Codeberg, and GitLab. Keep
-core contribution instructions in forge-neutral files where possible; forge-specific
-issue and merge-request templates can be added later.

@@ -61,7 +61,7 @@ Einstoff[ArrayReduce][Total][
 - `.agents/agents.md`, `.agents/SPEC.md`, and `.agents/plans/` are developer and coding
   agent materials.
 
-## Development Setup
+## Getting started
 
 The Wolfram package itself requires Wolfram Language 14.0 or newer.
 
@@ -85,6 +85,8 @@ wolframscript -script scripts/run-tests.wls python -q
 
 The Python tests use `ExternalEvaluate` and ZMQ; on some Windows/sandboxed setups,
 Python session startup can be flaky even when the Wolfram-only suite is healthy.
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for more details.
 
 ## Status
 
