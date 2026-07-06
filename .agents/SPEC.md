@@ -637,14 +637,13 @@ is a mismatch. This both subsumes the old single-unknown analytic logic and lets
 *uniquely resolve systems einx rejects* (e.g. `m (a + b)` with an axis of size 2
 forces `a = b = 1`). On concat the block is just another term aligned by
 `materializeOutput` and `Join`'d; on split the block size is the product over its
-atoms (`Take` slice, then reshape). A targeted direct sum is supported as a
-single physical target axis for `Einstoff[ArrayReduce]`
+atoms (`Take` slice, then reshape). Targeted direct sums
 (`Highlighted[CirclePlus[…]]` / `Framed[CirclePlus[…]]`, and `Slot[CirclePlus[…]]`
-for string-only summands). `Einstoff[Map]` rejects it because mapping over a
-structural concatenation is not a single target-block operation. Structural
-`Join`/`Split` syntax intentionally remains the bare `CirclePlus` form; targeted
-`CirclePlus` is rejected there, matching einx `id`/`rearrange` behavior for
-`[(a + b)]`. The structural direct-sum gap that remains deferred is equal repeated
+for string-only summands) are rejected by `Einstoff[ArrayReduce]` and `Einstoff[Map]`:
+feeding a structural concatenation as one elementary-operation target is semantically
+ambiguous, matching einx's rejection of bracketed concatenation. Structural
+`Join`/`Split` syntax intentionally remains the bare `CirclePlus` form. The structural
+direct-sum gap that remains deferred is equal repeated
 summands such as `b (q + q) -> b q, b q` (the distinct-axis policy rejects this
 today). Historical plan: `.agents/plans/circleplus-direct-sum.md`.
 
@@ -761,8 +760,8 @@ to match: rearrange/reshape, reduce, dot, and repetition (§5.5) all cross-valid
 against einx (and einops where it has a single-call equivalent). Behavior outside
 the implemented lowering — nested name-binding and surface forms without a Python
 equivalent — is explicitly **not** required to agree until that lowering exists.
-Targeted direct sums are an Einstoff extension for `ArrayReduce`; structural
-targeted direct sums are rejected in line with einx `id`/`rearrange`.
+Targeted direct sums are rejected in line with einx: use bare `CirclePlus` for
+structural `Join`/`Split`, not as a single reduce/map target.
 
 ### 10.2 Future goal — `Interpreter` (einx string → Wolfram desc)
 

@@ -84,6 +84,13 @@ EinstoffReduce[reducerSpec_][desc_, tensors_, bindings_List : {},
         "ArrayReduce lowering supports exactly one input and one output tensor"];
       Return[$Failed]];
 
+    If[Cases[lhs, t_ /; bracketWrapperQ[t] && ! FreeQ[t, CirclePlus], {0, Infinity}] =!= {},
+      Message[Einstoff::unsupp,
+        "Einstoff[ArrayReduce] does not reduce over a targeted direct sum \
+(CirclePlus); split structurally with Einstoff[Split], then reduce the resulting \
+tensor(s) explicitly"];
+      Return[$Failed]];
+
     reducer = reduceFunction[reducerSpec];
     If[MissingQ[reducer],
       Message[Einstoff::unsupp,

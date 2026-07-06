@@ -214,24 +214,30 @@ VerificationTest[
 ];
 
 VerificationTest[
-  Einstoff[ArrayReduce][Total][{{a_, Highlighted[CirclePlus["b", c_]]}} :> {{a}},
-    {ArrayReshape[Range[14], {2, 7}]}, {"b" -> 3}],
-  Total[ArrayReshape[Range[14], {2, 7}], {2}],
-  TestID -> "reduce-highlighted-direct-sum"
+  Quiet[
+    Einstoff[ArrayReduce][Total][{{a_, Highlighted[CirclePlus["b", c_]]}} :> {{a}},
+      {ArrayReshape[Range[14], {2, 7}]}, {"b" -> 3}],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "reduce-reject-highlighted-direct-sum"
 ];
 
 VerificationTest[
-  Einstoff[ArrayReduce][Total][{{a_, Framed[CirclePlus["b", c_]]}} :> {{a}},
-    {ArrayReshape[Range[14], {2, 7}]}, {"b" -> 3}],
-  Total[ArrayReshape[Range[14], {2, 7}], {2}],
-  TestID -> "reduce-framed-direct-sum"
+  Quiet[
+    Einstoff[ArrayReduce][Total][{{a_, Framed[CirclePlus["b", c_]]}} :> {{a}},
+      {ArrayReshape[Range[14], {2, 7}]}, {"b" -> 3}],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "reduce-reject-framed-direct-sum"
 ];
 
 VerificationTest[
-  Einstoff[ArrayReduce][Total][{{a_, Slot[CirclePlus["b", "c"]]}} :> {{a}},
-    {ArrayReshape[Range[14], {2, 7}]}, {"b" -> 3, "c" -> 4}],
-  Total[ArrayReshape[Range[14], {2, 7}], {2}],
-  TestID -> "reduce-slot-string-direct-sum"
+  Quiet[
+    Einstoff[ArrayReduce][Total][{{a_, Slot[CirclePlus["b", "c"]]}} :> {{a}},
+      {ArrayReshape[Range[14], {2, 7}]}, {"b" -> 3, "c" -> 4}],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "reduce-reject-slot-string-direct-sum"
 ];
 
 (* 14. Multi-tensor input is rejected. *)

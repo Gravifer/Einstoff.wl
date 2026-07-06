@@ -106,7 +106,7 @@ directSumConcat[desc_, tensors_, bindings_List, traceAction_ : None] := withAxis
       Message[Einstoff::unsupp,
         "structural direct-sum concatenation uses a bare CirclePlus axis, not a \
 targeted direct sum. Use an unwrapped CirclePlus for Einstoff[Join]/[Split]; targeted \
-CirclePlus is only a single physical target axis for ArrayReduce"];
+CirclePlus is rejected as a reduce/map target"];
       Return[$Failed]];
     cpos = Flatten @ Position[out, _CirclePlus, {1}];
     If[cpos === {} || hasCirclePlus[Delete[out, List /@ cpos]],
@@ -127,7 +127,7 @@ supported yet)"];
     If[! AllTrue[Flatten[summandLists], directSumSummandQ],
       Message[Einstoff::unsupp,
         "each direct-sum summand must be an axis name, an integer, or a product \
-of those (targeted direct sums are not supported yet)"];
+of those (targeted direct sums are rejected; use a bare CirclePlus)"];
       Return[$Failed]];
 
     (* k operands, one per summand combination (positional: combo i <- operand i). *)
@@ -225,7 +225,7 @@ directSumSplit[desc_, tensors_, bindings_List, traceAction_ : None] := withAxisS
       Message[Einstoff::unsupp,
         "structural direct-sum splitting uses a bare CirclePlus axis, not a targeted \
 direct sum. Use an unwrapped CirclePlus for Einstoff[Join]/[Split]; targeted CirclePlus \
-is only a single physical target axis for ArrayReduce"];
+is rejected as a reduce/map target"];
       Return[$Failed]];
     cpos = Flatten @ Position[inShape, _CirclePlus, {1}];
     If[cpos === {} || hasCirclePlus[Delete[inShape, List /@ cpos]],
@@ -247,7 +247,7 @@ supported yet)"];
     If[! AllTrue[Flatten[summandLists], directSumSummandQ],
       Message[Einstoff::unsupp,
         "each direct-sum summand must be an axis name, an integer, or a product \
-of those (targeted direct sums are not supported yet)"];
+of those (targeted direct sums are rejected; use a bare CirclePlus)"];
       Return[$Failed]];
 
     (* k outputs, one per summand combination (positional: combo i -> output i). *)
