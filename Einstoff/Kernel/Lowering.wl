@@ -784,7 +784,7 @@ targetDecomposeTerms[terms_List, dims_List, env_] :=
     If[plainSequenceCount[terms] > 1,
       Message[Einstoff::unsupp,
         "multiple plain anonymous sequences (__ / ___) in one shape are ambiguous; \
-only one is supported per shape"];
+support for matching more than one is deferred"];
       Throw[$Failed, einThrowTag]];
     For[i = 1, i <= Length[terms], i++,
       t = terms[[i]];
@@ -846,7 +846,7 @@ expandAnonymousTargetRhs[terms_List, anonAtoms_List] :=
     If[plainSequenceCount[terms] > 1,
       Message[Einstoff::unsupp,
         "multiple plain anonymous sequences (__ / ___) in one shape are ambiguous; \
-only one is supported per shape"];
+support for matching more than one is deferred"];
       Throw[$Failed, einThrowTag]];
     Flatten @ Table[
       Which[
