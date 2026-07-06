@@ -27,8 +27,8 @@
    machinery under a directional guard (Join: CirclePlus only on the RHS; Split: only on
    the LHS).
 
-   Shared helpers (descParts, rearrangeAtoms, atomSize, materializeOutput,
-   hasCirclePlus) live in Lowering.wl. *)
+   Shared shape helpers (descParts, hasCirclePlus) live in ShapeChecker.wl; runtime
+   helpers (rearrangeAtoms, atomSize, materializeOutput) live in Lowering.wl. *)
 
 PackageExported[{EinstoffJoin, EinstoffSplit}]
 

@@ -29,7 +29,8 @@
    An axis appearing in only one operand and neither kept nor shared would be a
    within-operand reduction before contraction — rejected (use ArrayReduce). A
    CirclePlus or variable-arity bracket ellipsis in a contraction shape is also
-   rejected. Shared helpers live in Lowering.wl. *)
+   rejected. Shared shape helpers live in ShapeChecker.wl; atom/materialization helpers
+   live in Lowering.wl. *)
 
 PackageExported[{EinstoffDot, EinstoffInner}]
 

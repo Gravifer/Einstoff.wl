@@ -23,8 +23,8 @@
    An output-only axis is repetition (SPEC 5.5) — reduce, then broadcast it on,
    via the shared materializeOutput (e.g. einx.sum("a [b] -> a c", x, c=3)).
 
-   Shared helpers (descParts, reduceAtoms, rearrangeAtoms, atomSize,
-   materializeOutput) live in Lowering.wl. *)
+   Shared shape helpers (descParts, distinctAxesQ) live in ShapeChecker.wl; atom and
+   materialization helpers live in Lowering.wl. *)
 
 PackageExported[{EinstoffReduce}]
 

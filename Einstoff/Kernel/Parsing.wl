@@ -52,7 +52,7 @@ SetAttributes[EinstoffParse, HoldFirst];
 EinstoffParse[desc_] := withAxisScopeDeCanon @ parseDesc[Hold[desc]];
 
 (* Both desc-boundary canonicalizers (normShapes released, normHeldShapes held) and
-   canonHeld are shared with the lowering hub (Lowering.wl).  parseDesc is the held-RHS
+   canonHeld are shared through ShapeChecker.wl.  parseDesc is the held-RHS
    twin of descParts: it keeps the RHS held so EinstoffParse returns a normalized desc
    whose (fresh-canonicalized) axis symbols are not released before their sizes are
    substituted (evalOutShape releases it later under env).  Same {} -> 1 + CirclePlus-

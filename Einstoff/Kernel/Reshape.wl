@@ -23,8 +23,8 @@
    adds the universal output-axis-uniqueness invariant, which this path does not need —
    the reduce / map / pure-reshape paths that cannot handle a repeated INPUT axis reject it
    themselves (distinctAxesQ), so that policy no longer lives in EinstoffShapes.  Shared
-   helpers (descParts, rearrangeAtoms, atomSize, selfContract, materializeOutput) live in
-   Lowering.wl. *)
+   shape helpers (descParts, distinctAxesQ) live in ShapeChecker.wl; runtime helpers
+   (rearrangeAtoms, atomSize, selfContract, materializeOutput) live in Lowering.wl. *)
 
 PackageExported[{EinstoffMassage, EinstoffReshape, EinstoffContract}]
 

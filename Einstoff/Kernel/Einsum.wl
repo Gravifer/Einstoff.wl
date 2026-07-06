@@ -18,7 +18,8 @@
    contraction subset — Massage rejects it pointing at Einstoff[ArrayReduce].  A future
    cross-tensor backend parallel to the univalent Massage is sketched as EinstoffTandem.
 
-   Shared helpers (descParts, reduceAtoms, hasCirclePlus) live in Lowering.wl. *)
+   Shared shape helpers (descParts, hasCirclePlus) live in ShapeChecker.wl; atom
+   lowering helpers such as reduceAtoms live in Lowering.wl. *)
 
 PackageExported[{EinstoffEinsum}]
 
