@@ -234,6 +234,14 @@ capturedRepeatedTerm[body_, rules_, env_, dim_] :=
 
 seqRule[key_, vals_] := key -> Apply[Sequence, vals];
 
+seqRepeatRule[seq_Association] := {
+  Verbatim[Repeated][sym_Symbol] :>
+    RuleCondition[
+      If[KeyExistsQ[seq, sym], Apply[Sequence, seq[sym]], Repeated[sym]]],
+  Verbatim[RepeatedNull][sym_Symbol] :>
+    RuleCondition[
+      If[KeyExistsQ[seq, sym], Apply[Sequence, seq[sym]], RepeatedNull[sym]]]};
+
 (* ------------------------------------------------------------------ *)
 (* Composite (CircleTimes / CirclePlus) resolution against one dim.    *)
 (* ------------------------------------------------------------------ *)
@@ -554,7 +562,7 @@ einstoffMatchCore[lhsShapes_, inputShapes_, bindingsIn_] :=
    substituting after RHS evaluation would collapse e.g. MapThread[..., {{a}, {b}}]
    into one symbolic element before the captured Sequences were listified. *)
 evalOutShape[h_Hold, env_, seq_ : <||>] :=
-  ReleaseHold[normHeldShapes[h] /. Join[Normal[env],
+  ReleaseHold[(normHeldShapes[h] /. seqRepeatRule[seq]) /. Join[Normal[env],
       Table[seqRule[k, seq[k]], {k, Keys[seq]}]]] /.
     {CircleTimes -> Times, CirclePlus -> Plus,
      Slot -> Sequence, Highlighted -> Sequence, Framed -> Sequence};

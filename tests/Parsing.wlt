@@ -437,6 +437,34 @@ VerificationTest[
   TestID -> "named-axis-sequence-structured-projection"
 ];
 
+(* Inner sequence captures can be projected with RHS postfix syntax.  This is an
+   Einstoff resolver extension: native WL would not use s.. as list splicing. *)
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[
+    {{b_, grp : (CircleTimes[s_, Highlighted["ds"]]).., c_}} :>
+      {{b, s.., c}},
+    {{2, 6, 12, 5}},
+    {"ds" -> 3}],
+  {{2, 2, 4, 5}},
+  TestID -> "named-axis-sequence-rhs-postfix-projection"
+];
+
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[
+    {{a_, z___, b_}} :> {{a, z..., b}},
+    {{2, 3}}],
+  {{2, 3}},
+  TestID -> "named-axis-sequence-rhs-postfix-null-empty"
+];
+
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[
+    {{b_, grp : (CircleTimes[s_, 3]).., c_}} :> {b, s.., c},
+    {{2, 6, 12, 5}}],
+  False,
+  TestID -> "rhs-flat-shape-rejected-even-with-sequence-splice"
+];
+
 (* A named null axis-sequence accepts an empty run and listifies it as an empty Sequence. *)
 VerificationTest[
   out @ Einstoff`EinstoffShapes[
