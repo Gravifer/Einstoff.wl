@@ -586,15 +586,21 @@ left-to-right order is the defined semantics otherwise.
 `Einstoff[Map][f]` is the **kept-target sibling of `Einstoff[ArrayReduce]`**: a
 reduction *drops* the targeted axes (`f`: block -> scalar); a map *keeps* them
 (`f`: block -> same-length block) and vmaps the op over every untargeted axis. It
-covers einx's shape-preserving miscellaneous ops (flip/roll/sort/softmax/
-log_softmax/id), but the generic Wolfram contract is broader: the selected target
-axes are presented to `f` as a rectangular Wolfram subarray/block, preserving nested
-list structure, and `f` must return a block with the same dimensions. Adjacent
-targets (`[a][b]` / `#a #b`) select one target block, not separate passes; raw
-functions therefore follow Wolfram expression semantics (`Reverse`, `Sort`, custom
-maps, etc.) rather than einx's per-op arity restrictions. The axes are kept on the
-RHS (dropping one is a reduction → routed to `ArrayReduce`). `roll`'s shift is a
-parameter, so it is written with an explicit function such as `RotateRight[#, k] &`.
+has a few optional convenience string recipes for einx's shape-preserving
+miscellaneous ops (flip/roll/sort/softmax/log_softmax/id), but these are not a core
+parity surface and should not grow into an einx-style named operation catalog.
+**Not planned:** first-class named elementwise families such as add/subtract/where/
+comparisons/logaddexp/maximum/minimum. einx can promise optimized backend graphs for
+those named ops; Einstoff only promises correctness of the explicit Wolfram function
+the user supplies. The generic Wolfram contract is: the selected target axes are
+presented to `f` as a rectangular Wolfram subarray/block, preserving nested list
+structure, and `f` must return a block with the same dimensions. Adjacent targets
+(`[a][b]` / `#a #b`) select one target block, not separate passes; raw functions
+therefore follow Wolfram expression semantics (`Reverse`, `Sort`, custom maps,
+ResourceFunction calls, etc.) rather than einx's per-op arity restrictions. The axes
+are kept on the RHS (dropping one is a reduction → routed to `ArrayReduce`). `roll`'s
+shift is a parameter, so it is written with an explicit function such as
+`RotateRight[#, k] &`.
 
 The reducer, the map `f` and `(mul, add)` are **curried** into the operator
 (`Einstoff[ArrayReduce][Total][…]`, `Einstoff[Map][f][…]`,
