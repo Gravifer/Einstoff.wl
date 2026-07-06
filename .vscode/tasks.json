@@ -44,6 +44,19 @@
                 "clear": true
             },
             "problemMatcher": []
+        },
+        {
+            "label": "Wolfram: generate test suite notebook",
+            "type": "shell",
+            "command": "wolframscript",
+            "args": ["-script", "scripts/wlt-suite-notebook.wls"],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "problemMatcher": []
         }
     ]
 }

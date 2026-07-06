@@ -1,12 +1,18 @@
 {
     "conventionalCommits.scopes": [
-        "spec",
-        "parse",
         "agents",
-        "lowering",
-        "tests",
         "entrance",
+        "hygiene",
+        "lowering",
         "msg",
-        "map"
-    ]
+        "map",
+        "parse",
+        "ref",
+        "spec",
+        "shape-checking",
+        "targetting",
+        "tests",
+        "trace"
+    ],
+    "workbench.editor.pinnedTabSizing": "shrink"
 }
