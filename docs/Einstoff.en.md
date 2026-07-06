@@ -371,7 +371,17 @@ Out[32]= {1, 2, 1, 2, 3}
 * [`TensorTranspose`](https://reference.wolfram.com/language/ref/TensorTranspose.en.md)
 
 ### Source/Reference Citation
-<!-- N/A -->
+
+```bibtex
+@inproceedings{
+fervers2026its,
+title={It's All Just Vectorization: einx, a Universal Notation for Tensor Operations},
+author={Florian Fervers and Sebastian Bullinger and Christoph Bodensteiner and Michael Arens},
+booktitle={The Fourteenth International Conference on Learning Representations},
+year={2026},
+url={https://openreview.net/forum?id=QqvQ3iAdpC}
+}
+```
 
 ### Links
 
