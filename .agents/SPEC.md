@@ -710,12 +710,14 @@ role under the same metaphor (potential TODO). **Remaining feature-roadmap work:
 combiner generalization (`ArrayContract[…, add]` / `Tr[…, add]`), diagonal-keep, and mixed
 within+cross multi-operand einsum.
 
-**Long-term TODO (heavily deferred — do not pursue now) — CI policy for the Python
-cross-validation suite.** When CI exists: the `tests/python/*.wlt` einx/einops
-cross-tests must *not* be required status checks (opt-in; need a Python venv); and
-when run they should be auto-retried up to **3×**, a pass on **any** attempt
-counting as a pass — to absorb the intermittent ZMQ `0xC0000005` startup segfault
-(the cross-validation logic is deterministic; only session startup is flaky).
+**Validation policy (settled, not a deferred CI project).** Contributors are expected
+to run the default Wolfram-only suite locally before submitting a PR/MR. Public hosted
+CI is not a near-term goal because `wolframscript` requires a ready Wolfram system and
+the public-runner story is mostly license / installer ceremony for little gain. The
+Python cross-validation suite remains opt-in (`run-tests.wls python`), useful for
+maintainers and larger lowering changes, but not required status. If Python/ZMQ session
+startup flakes on Windows (`0xC0000005` has been observed), retrying locally is fine;
+the cross-validation logic is deterministic once the session starts.
 
 ## 10. Testing & validation
 
