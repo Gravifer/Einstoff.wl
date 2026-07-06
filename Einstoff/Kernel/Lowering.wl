@@ -65,7 +65,8 @@ PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
   normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
   distinctAxesQ, bracketWrapperQ, reduceAtoms, targetDecomposeTerms,
-  plainSequenceCount, expandAnonymousTargetRhs, materializeOutput, selfContract,
+  plainSequenceCount, anonymousSequence, anonymousCaptureAtomList,
+  expandAnonymousTargetRhs, materializeOutput, selfContract,
   materializeOutputTrace, materializeOutputExprHeld, heldReshape, heldArrayReduce,
   heldTranspose, heldValue, heldTake, heldTakeValue, heldMap, heldMapAt, heldApply,
   heldMapThreadDot,
@@ -764,6 +765,16 @@ anonymousTargetAtom[size_, env_] :=
   Module[{u = Unique["target$", {Temporary}]},
     {u, Append[env, u -> size]}];
 
+(* Package-private payload for one captured anonymous sequence run.  Keep the run grouped until
+   the RHS occurrence that consumes it is expanded; do not use active Sequence or public
+   Inactive[Sequence], since this is an internal correspondence token. *)
+anonymousCaptureAtomList[captures_List] :=
+  Join @@ Table[
+    Replace[c, {
+      anonymousSequence[xs___] :> {xs},
+      other_ :> {other}}],
+    {c, captures}];
+
 targetDecomposeTerm[t_, d_, env_, br_] :=
   Module[{atoms, env2 = env, atom},
     If[br && IntegerQ[t],
@@ -780,7 +791,7 @@ targetDecomposeTerm[t_, d_, env_, br_] :=
 
 targetDecomposeTerms[terms_List, dims_List, env_] :=
   Module[{tagged = {}, anonymous = {}, env2 = env, pos = 1, i, t,
-          restTerms, minRest, k, atom, parts, td, anon},
+          restTerms, minRest, k, atom, group, parts, td, anon},
     If[plainSequenceCount[terms] > 1,
       Message[Einstoff::unsupp,
         "multiple plain anonymous sequences (__ / ___) in one shape are ambiguous; \
@@ -794,34 +805,40 @@ support for matching more than one is deferred"];
           minRest = Total[termDimCount /@ restTerms];
           k = Length[dims] - pos + 1 - minRest;
           If[k < targetSequenceMin[First[t]], Throw[$Failed, einThrowTag]];
+          group = {};
           Do[
             {atom, env2} = anonymousTargetAtom[dims[[pos]], env2];
             AppendTo[tagged, {atom, True}];
-            AppendTo[anonymous, atom];
+            AppendTo[group, atom];
             pos++,
-            {k}],
+            {k}];
+          AppendTo[anonymous, anonymousSequence @@ group],
         Head[t] === SlotSequence,
           restTerms = Drop[terms, i];
           minRest = Total[termDimCount /@ restTerms];
           k = Length[dims] - pos + 1 - minRest;
           If[k < targetSequenceMin[t], Throw[$Failed, einThrowTag]];
+          group = {};
           Do[
             {atom, env2} = anonymousTargetAtom[dims[[pos]], env2];
             AppendTo[tagged, {atom, True}];
-            AppendTo[anonymous, atom];
+            AppendTo[group, atom];
             pos++,
-            {k}],
+            {k}];
+          AppendTo[anonymous, anonymousSequence @@ group],
         targetSequenceQ[t],
           restTerms = Drop[terms, i];
           minRest = Total[termDimCount /@ restTerms];
           k = Length[dims] - pos + 1 - minRest;
           If[k < targetSequenceMin[t], Throw[$Failed, einThrowTag]];
+          group = {};
           Do[
             {atom, env2} = anonymousTargetAtom[dims[[pos]], env2];
             AppendTo[tagged, {atom, False}];
-            AppendTo[anonymous, atom];
+            AppendTo[group, atom];
             pos++,
-            {k}],
+            {k}];
+          AppendTo[anonymous, anonymousSequence @@ group],
         bracketWrapperQ[t],
           parts = List @@ t;
           If[Length[parts] === 1,
@@ -851,11 +868,11 @@ support for matching more than one is deferred"];
     Flatten @ Table[
       Which[
         bracketWrapperQ[t] && Length[t] === 1 && targetSequenceQ[First[t]],
-          With[{a = q}, q = {}; a],
+          With[{a = anonymousCaptureAtomList[q]}, q = {}; a],
         Head[t] === SlotSequence,
-          With[{a = q}, q = {}; a],
+          With[{a = anonymousCaptureAtomList[q]}, q = {}; a],
         targetSequenceQ[t],
-          With[{a = q}, q = {}; a],
+          With[{a = anonymousCaptureAtomList[q]}, q = {}; a],
         bracketWrapperQ[t] && Length[t] === 1 && IntegerQ[First[t]] && q =!= {},
           With[{a = First[q]}, q = Rest[q]; a],
         True, t],

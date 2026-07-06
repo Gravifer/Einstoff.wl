@@ -135,7 +135,9 @@ plain sequence in the input shape"];
     (* Reduced atoms = LHS atoms absent on RHS (1-indexed positions).  RHS-only
        atoms are not reduced — they are repetition axes, materialized below. *)
     reducedPos = Select[Range@Length[lhsAtoms], ! MemberQ[rhsAtoms, lhsAtoms[[#]]] &];
-    plainAnonAtoms = Intersection[Pick[lhsAtoms, lhsBr, False], decomp["AnonymousTargetAtoms"]];
+    plainAnonAtoms = Intersection[
+      Pick[lhsAtoms, lhsBr, False],
+      anonymousCaptureAtomList[decomp["AnonymousTargetAtoms"]]];
     If[AnyTrue[plainAnonAtoms, MemberQ[lhsAtoms[[reducedPos]], #] &],
       Message[Einstoff::unsupp,
         "a plain anonymous sequence (__ or ___) is vmapped/carried, not a reduction \
