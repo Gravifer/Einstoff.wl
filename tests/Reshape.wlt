@@ -280,7 +280,38 @@ VerificationTest[
   TestID -> "unit-empty-term-match"
 ];
 
-(* 26b-c. The raw public EinstoffMatch accepts a string-tier axis (SPEC §5.6): "a" is
+(* 26b. Plain anonymous sequences are carried/vmapped by reshape lowering. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[24], {2, 3, 4}]},
+    Einstoff[ArrayReshape][{{a_, ___, c_}} :> {{a, ___, c}}, {x}]],
+  ArrayReshape[Range[24], {2, 3, 4}],
+  TestID -> "reshape-blanknullsequence-carry"
+];
+
+VerificationTest[
+  With[{x = ArrayReshape[Range[24], {2, 3, 4}]},
+    Einstoff[ArrayReshape][{{a_, ___, c_}} :> {{c, ___, a}}, {x}]],
+  Transpose[ArrayReshape[Range[24], {2, 3, 4}], {3, 2, 1}],
+  TestID -> "reshape-blanknullsequence-permute"
+];
+
+VerificationTest[
+  With[{x = ArrayReshape[Range[24], {2, 3, 4}]},
+    Einstoff[ArrayReshape][{{a_, __, c_}} :> {{a, __, c}}, {x}]],
+  ArrayReshape[Range[24], {2, 3, 4}],
+  TestID -> "reshape-blanksequence-carry-nonempty"
+];
+
+VerificationTest[
+  Quiet[
+    Einstoff[ArrayReshape][{{a_, __, c_}} :> {{a, __, c}},
+      {ArrayReshape[Range[6], {2, 3}]}],
+    {Einstoff::unsat}],
+  $Failed,
+  TestID -> "reshape-blanksequence-reject-empty"
+];
+
+(* 26c-d. The raw public EinstoffMatch accepts a string-tier axis (SPEC §5.6): "a" is
    the axis named `a`, unified like a bare symbol — consistent with EinstoffShapes, whose
    desc parse canonicalizes strings before matching. *)
 VerificationTest[

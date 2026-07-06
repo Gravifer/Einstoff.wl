@@ -238,8 +238,8 @@ matchTerms[terms_, dims_, env_] :=
           (Sow["invalid axis name(s) " <> ToString[bad, InputForm] <> " in a target"]; {}),
           matchTerms[Join[Replace[parts, s_String :> axisSymbol[s], {1}], rest], dims, env]]]]];
     (* SlotSequence (##, the anonymous variadic target [...]) is an ellipsis of
-       targeted axes — treat like ___ for shape matching (lowering is deferred,
-       like Slot[___]). *)
+       targeted axes — treat like ___ for shape matching. Lowering later expands
+       the captured concrete axes into anonymous internal atoms. *)
     If[Head[t] === SlotSequence,
       Return[matchTerms[Join[{BlankNullSequence[]}, rest], dims, env]]];
     (* Variable-length anonymous sequences (may consume zero dims). *)

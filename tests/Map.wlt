@@ -169,6 +169,13 @@ VerificationTest[
   TestID -> "map-slotsequence-block"
 ];
 
+VerificationTest[
+  With[{z = ArrayReshape[Range[24], {2, 3, 4}]},
+    Einstoff[Map][Reverse][{{a_, ___, Slot["c"]}} :> {{___, a, Slot["c"]}}, {z}]],
+  Transpose[Map[Reverse, ArrayReshape[Range[24], {2, 3, 4}], {2}], {2, 1, 3}],
+  TestID -> "map-blanknullsequence-carry-permute"
+];
+
 (* 7c. A targeted literal is an anonymous target axis with a concrete size, and can be
    kept by the same target wrapper. *)
 VerificationTest[

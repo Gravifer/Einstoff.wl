@@ -653,6 +653,10 @@ canonical out-facing form used throughout the tests; the legacy `Slot[name_]`/`S
 symbol forms are still tolerated (they unify identically). It subsumes the §7.2
 integer-slot aliasing hazard for axes (named axes never use an integer `Slot`).
 `Einstoff[Map][f]`, the kept-bracket vmap, is also implemented (see above).
+Plain anonymous sequences (`__` / `___`) lower as non-targeted carried/vmapped
+axis runs when kept on the output; targeted variadic runs (`##`,
+`Highlighted[__]`, `Highlighted[___]`, etc.) remain the spelling for feeding a
+captured run to `ArrayReduce` / `Map`.
 
 **Other deferred lowering items** (rejected loudly today, not mis-compiled):
 named-ellipsis / `Repeated[...]` re-walk (§5.3); within-operand reduction before

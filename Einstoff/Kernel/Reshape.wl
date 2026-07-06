@@ -80,8 +80,8 @@ EinstoffContract[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :
 (* desc is NOT held (uniform convention): Pattern holds each binding `name_` and `:>`
    holds the RHS, so only a bare reference to a globally bound symbol is substituted. *)
 massageCore[desc_, tensors_, bindings_List, policy_, traceAction_] := withAxisScope @
-  Module[{parts, lhs, rhs, m, env, lhsAtoms, rhsAtoms, sc, xc, atomsc, result,
-          outOnly, repeated, contracted},
+  Module[{parts, lhs, rhs, m, env, decomp, rhsTerms, lhsAtoms, rhsAtoms, sc,
+          xc, atomsc, result, outOnly, repeated, contracted},
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
@@ -115,8 +115,13 @@ massageCore[desc_, tensors_, bindings_List, policy_, traceAction_] := withAxisSc
       Message[Einstoff::unsat, m["reason"]]; Return[$Failed]];
     env = m["env"];
 
-    lhsAtoms = einCatch[Join @@ (rearrangeAtoms /@ First[lhs])];
-    rhsAtoms = einCatch[Join @@ (rearrangeAtoms /@ First[rhs])];
+    decomp = einCatch[targetDecomposeTerms[First[lhs], Dimensions[First[tensors]], env]];
+    If[decomp === $Failed,
+      Message[Einstoff::unsat, "an input axis size is unbound or inconsistent"];
+      Return[$Failed]];
+    lhsAtoms = decomp["Tagged"][[All, 1]]; env = decomp["Env"];
+    rhsTerms = expandAnonymousTargetRhs[First[rhs], decomp["AnonymousTargetAtoms"]];
+    rhsAtoms = einCatch[Join @@ (rearrangeAtoms /@ rhsTerms)];
     If[lhsAtoms === $Failed || rhsAtoms === $Failed, Return[$Failed]];
     (* An axis name may not repeat on the output (no einsum spelling for it). *)
     If[! DuplicateFreeQ[DeleteCases[rhsAtoms, _Integer]],
@@ -170,7 +175,7 @@ rearrange/contract (a size-1 unit axis is squeezed; a literal size > 1 axis has 
 carryable identity; name it); use Einstoff[ArrayReduce]"];
       Return[$Failed]];
 
-    With[{xc0 = xc, atomsc0 = atomsc, rhs0 = First[rhs], env0 = env},
+    With[{xc0 = xc, atomsc0 = atomsc, rhs0 = rhsTerms, env0 = env},
       result = einCatch[materializeOutputTrace[xc0, atomsc0, rhs0, env0, traceAction]]];
     If[result === $Failed,
       Message[Einstoff::unsat,

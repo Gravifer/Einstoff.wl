@@ -656,7 +656,7 @@ rearrangeAtoms[t_ /; bracketWrapperQ[t]] :=
 rearrangeAtoms[other_] := (
   Message[Einstoff::unsupp,
     "unsupported term: " <> ToString[other, InputForm] <>
-      " (direct sums and ellipses are not in the supported subset yet)"];
+      " (direct sums and unexpanded ellipses are not in the supported subset yet)"];
   Throw[$Failed, einThrowTag]);
 
 atomSize[n_Integer, _] := n;
@@ -740,8 +740,8 @@ reduceAtoms[t_, br_ : False] :=
     True,
       (Message[Einstoff::unsupp,
         "unsupported term: " <> ToString[t, InputForm] <>
-          " (direct sums and variable-arity bracket ellipses are not in the \
-supported subset yet)"];
+          " (direct sums and unexpanded variable-arity ellipses are not in the \
+supported subset here)"];
        Throw[$Failed, einThrowTag])];
 
 targetSequenceQ[t_] :=
@@ -803,6 +803,17 @@ targetDecomposeTerms[terms_List, dims_List, env_] :=
             AppendTo[anonymous, atom];
             pos++,
             {k}],
+        targetSequenceQ[t],
+          restTerms = Drop[terms, i];
+          minRest = Total[termDimCount /@ restTerms];
+          k = Length[dims] - pos + 1 - minRest;
+          If[k < targetSequenceMin[t], Throw[$Failed, einThrowTag]];
+          Do[
+            {atom, env2} = anonymousTargetAtom[dims[[pos]], env2];
+            AppendTo[tagged, {atom, False}];
+            AppendTo[anonymous, atom];
+            pos++,
+            {k}],
         bracketWrapperQ[t],
           parts = List @@ t;
           If[Length[parts] === 1,
@@ -829,6 +840,8 @@ expandAnonymousTargetRhs[terms_List, anonAtoms_List] :=
         bracketWrapperQ[t] && Length[t] === 1 && targetSequenceQ[First[t]],
           With[{a = q}, q = {}; a],
         Head[t] === SlotSequence,
+          With[{a = q}, q = {}; a],
+        targetSequenceQ[t],
           With[{a = q}, q = {}; a],
         bracketWrapperQ[t] && Length[t] === 1 && IntegerQ[First[t]] && q =!= {},
           With[{a = First[q]}, q = Rest[q]; a],

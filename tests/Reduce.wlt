@@ -166,12 +166,26 @@ VerificationTest[
 ];
 
 VerificationTest[
+  Einstoff[ArrayReduce][Total][{{a_, ___, Slot["c"]}} :> {{a, ___}},
+    {ArrayReshape[Range[24], {2, 3, 4}]}],
+  Total[ArrayReshape[Range[24], {2, 3, 4}], {3}],
+  TestID -> "reduce-blanknullsequence-carry"
+];
+
+VerificationTest[
+  Einstoff[ArrayReduce][Total][{{a_, __, Slot["c"]}} :> {{a, __}},
+    {ArrayReshape[Range[24], {2, 3, 4}]}],
+  Total[ArrayReshape[Range[24], {2, 3, 4}], {3}],
+  TestID -> "reduce-blanksequence-carry-nonempty"
+];
+
+VerificationTest[
   Quiet[
     Einstoff[ArrayReduce][Total][{{a_, ___, c_}} :> {{a, c}},
       {ArrayReshape[Range[24], {2, 3, 4}]}],
     {Einstoff::unsupp, Einstoff::unsat}],
   $Failed,
-  TestID -> "reduce-reject-raw-blanknullsequence"
+  TestID -> "reduce-reject-dropped-plain-blanknullsequence"
 ];
 
 VerificationTest[

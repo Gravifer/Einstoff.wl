@@ -69,9 +69,9 @@ reduceFunction[f_] := f;
    [desc, tensors, bindings]. A subvalue of EinstoffReduce. *)
 EinstoffReduce[reducerSpec_][desc_, tensors_, bindings_List : {},
     opts : OptionsPattern[EinstoffReduce]] := withAxisScope @
-  Module[{parts, lhs, rhs, inShapes, shp, env, x, reducer, decomp,
-          lhsTagged, lhsAtoms, lhsBr, rhsAtoms, reducedPos, keptOrder,
-          decompDims, xr, xred, result, traceAction},
+  Module[{parts, lhs, rhs, inShapes, shp, m, env, x, reducer, decomp,
+          rhsTerms, lhsTagged, lhsAtoms, lhsBr, rhsAtoms, reducedPos,
+          plainAnonAtoms, keptOrder, decompDims, xr, xred, result, traceAction},
     traceAction = OptionValue[EinstoffReduce, {opts}, TraceAction];
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
@@ -102,10 +102,17 @@ Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
       Return[$Failed]];
 
     inShapes = Dimensions /@ tensors;
-    shp = EinstoffShapes[desc, inShapes, bindings];
-    If[! TrueQ[shp["Satisfiable"]],
-      Message[Einstoff::unsat, shp["Reason"]]; Return[$Failed]];
-    env = shp["Bindings"];
+    shp = If[FreeQ[First[rhs], Verbatim[BlankSequence[]] | Verbatim[BlankNullSequence[]]],
+      EinstoffShapes[desc, inShapes, bindings],
+      Missing["SequenceRHS"]];
+    If[AssociationQ[shp],
+      If[! TrueQ[shp["Satisfiable"]],
+        Message[Einstoff::unsat, shp["Reason"]]; Return[$Failed]];
+      env = shp["Bindings"],
+      m = EinstoffMatch[lhs, inShapes, bindings];
+      If[! TrueQ[m["ok"]],
+        Message[Einstoff::unsat, m["reason"]]; Return[$Failed]];
+      env = m["env"]];
 
     (* Decompose: LHS bracket-aware (tagged), RHS plain (reuse rearrangeAtoms). *)
     decomp = einCatch[targetDecomposeTerms[First[lhs], First[inShapes], env]];
@@ -113,14 +120,21 @@ Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
       Message[Einstoff::unsat, "an input axis size is unbound or inconsistent"];
       Return[$Failed]];
     lhsTagged = decomp["Tagged"]; env = decomp["Env"];
+    rhsTerms = expandAnonymousTargetRhs[First[rhs], decomp["AnonymousTargetAtoms"]];
     If[lhsTagged === $Failed, Return[$Failed]];
-    rhsAtoms = einCatch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
+    rhsAtoms = einCatch[Join @@ Table[rearrangeAtoms[t], {t, rhsTerms}]];
     If[rhsAtoms === $Failed, Return[$Failed]];
     lhsAtoms = lhsTagged[[All, 1]]; lhsBr = lhsTagged[[All, 2]];
 
     (* Reduced atoms = LHS atoms absent on RHS (1-indexed positions).  RHS-only
        atoms are not reduced — they are repetition axes, materialized below. *)
     reducedPos = Select[Range@Length[lhsAtoms], ! MemberQ[rhsAtoms, lhsAtoms[[#]]] &];
+    plainAnonAtoms = Intersection[Pick[lhsAtoms, lhsBr, False], decomp["AnonymousTargetAtoms"]];
+    If[AnyTrue[plainAnonAtoms, MemberQ[lhsAtoms[[reducedPos]], #] &],
+      Message[Einstoff::unsupp,
+        "a plain anonymous sequence (__ or ___) is vmapped/carried, not a reduction \
+target; keep it on the output or use a targeted sequence (## / Highlighted[___])"];
+      Return[$Failed]];
 
     (* A targeted axis kept on the RHS is the feed-to-elementary-op path, not a
        reduction (SPEC 5.2) — reject rather than silently reduce/keep wrong. *)
@@ -141,7 +155,7 @@ elementary op (softmax/flip/sort/…) is the Einstoff[Map][f] path, not reductio
     If[traceActionEnabledQ[traceAction],
       With[{x0 = x, decompDims0 = decompDims, reducer0 = reducer,
             reducedPos0 = reducedPos, keptOrder0 = keptOrder,
-            rhs0 = First[rhs], env0 = env},
+            rhs0 = rhsTerms, env0 = env},
         result = einCatch @ traceReturnHeld[
           materializeOutputExprHeld[
             If[reducedPos0 === {},
@@ -154,7 +168,7 @@ elementary op (softmax/flip/sort/…) is the Einstoff[Map][f] path, not reductio
       xred = If[reducedPos === {}, xr, ArrayReduce[reducer, xr, reducedPos]];
       (* Surviving atoms, in their LHS-relative order (= xred's axis order); then
          materialize repeats, permute to RHS order, and recompose. *)
-      With[{xred0 = xred, keptOrder0 = keptOrder, rhs0 = First[rhs], env0 = env},
+      With[{xred0 = xred, keptOrder0 = keptOrder, rhs0 = rhsTerms, env0 = env},
         result = einCatch[
           materializeOutputTrace[xred0, keptOrder0, rhs0, env0, traceAction]]]];
     If[result === $Failed,
