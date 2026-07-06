@@ -107,6 +107,8 @@ rawSlotAxisNames[expr_] := DeleteDuplicates @ Flatten @ Cases[expr,
    are all the axis `name`; integer immediates and the anonymous ellipses
    (_/__/___/##) are not names.  Composites/targets recurse into their parts. *)
 termAxisNames[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]]] := {s};
+termAxisNames[Verbatim[Pattern][s_Symbol, Verbatim[BlankSequence[]]]] := {s};
+termAxisNames[Verbatim[Pattern][s_Symbol, Verbatim[BlankNullSequence[]]]] := {s};
 termAxisNames[s_Symbol] := {s};
 (* A string axis "a" is the axis `a`.  Route through axisSymbol (valueless when the name
    is shadowed) and validate first, so a raw shape that reaches the uniqueness check
@@ -146,7 +148,7 @@ unify[n_, d_, env_] :=
     Append[env, n -> d]];
 
 (* ------------------------------------------------------------------ *)
-(* Matcher state.  Scalar axis sizes stay in "Env"; named-ellipsis     *)
+(* Matcher state.  Scalar axis sizes stay in "Env"; named axis-sequence *)
 (* captures stay private in "Seq" and are used only for RHS evaluation. *)
 (* ------------------------------------------------------------------ *)
 
@@ -156,7 +158,7 @@ unifyState[n_, d_, state_] :=
   Module[{e2},
     If[KeyExistsQ[state["Seq"], n],
       Sow["axis " <> axisDisplayName[n] <>
-        " is list-valued from a named ellipsis and cannot also be a scalar axis"];
+        " is list-valued from a named axis-sequence and cannot also be a scalar axis"];
       Return[$Failed]];
     e2 = unify[n, d, state["Env"]];
     If[e2 === $Failed, $Failed, Append[state, "Env" -> e2]]];
@@ -175,10 +177,10 @@ addSequenceCapture[state_, key_, vals_] :=
   Which[
     KeyExistsQ[state["Env"], key],
       (Sow["axis " <> axisDisplayName[key] <>
-        " is both a scalar axis and a named-ellipsis capture"]; $Failed),
+        " is both a scalar axis and a named axis-sequence capture"]; $Failed),
     KeyExistsQ[state["Seq"], key],
       (Sow["axis " <> axisDisplayName[key] <>
-        " is captured by more than one named ellipsis"]; $Failed),
+        " is captured by more than one named axis-sequence"]; $Failed),
     True,
       Append[state, "Seq" -> Append[state["Seq"], key -> vals]]];
 
@@ -186,6 +188,10 @@ repeatedSpec[Verbatim[Pattern][s_Symbol, Verbatim[Repeated][body_]]] :=
   <|"Outer" -> s, "Body" -> body, "Min" -> 1, "Named" -> True|>;
 repeatedSpec[Verbatim[Pattern][s_Symbol, Verbatim[RepeatedNull][body_]]] :=
   <|"Outer" -> s, "Body" -> body, "Min" -> 0, "Named" -> True|>;
+repeatedSpec[Verbatim[Pattern][s_Symbol, Verbatim[BlankSequence[]]]] :=
+  <|"Outer" -> s, "Body" -> Blank[], "Min" -> 1, "Named" -> True|>;
+repeatedSpec[Verbatim[Pattern][s_Symbol, Verbatim[BlankNullSequence[]]]] :=
+  <|"Outer" -> s, "Body" -> Blank[], "Min" -> 0, "Named" -> True|>;
 repeatedSpec[Verbatim[Repeated][body_]] :=
   <|"Outer" -> None, "Body" -> body, "Min" -> 1, "Named" -> False|>;
 repeatedSpec[Verbatim[RepeatedNull][body_]] :=
@@ -301,18 +307,18 @@ matchRepeated[spec_Association, rest_, dims_, state_] :=
           states, j, nextStates, st, rules, fresh, renamed, matched, vals,
           cap, seqKeys, final, captureQ},
     If[unsupportedRepeatedBodyQ[body],
-      Sow["nested Repeated/RepeatedNull or PatternSequence inside a named ellipsis \
+      Sow["nested Repeated/RepeatedNull or PatternSequence inside a named axis-sequence \
 is not supported"];
       Return[{}]];
     inner = innerBinders[body];
     If[spec["Named"] && MemberQ[inner, outer],
-      Sow["named ellipsis outer capture " <> axisDisplayName[outer] <>
+      Sow["named axis-sequence outer capture " <> axisDisplayName[outer] <>
         " collides with an inner binder of the same name"];
       Return[{}]];
     captureQ = spec["Named"] || inner =!= {};
     Do[
       If[captureQ && ! stateRepeatedLengthOK[state, k],
-        Sow["named ellipsis captures have different lengths"];
+        Sow["named axis-sequence captures have different lengths"];
         Continue[]];
       st0 = If[captureQ, stateWithRepeatedLength[state, k], state];
       states = {{st0, Table[{}, {Length[inner]}], {}}};
@@ -343,7 +349,7 @@ is not supported"];
         seqKeys = inner;
         If[spec["Named"], seqKeys = Join[{outer}, seqKeys]];
         If[! DuplicateFreeQ[seqKeys],
-          Sow["named ellipsis sequence binders must be distinct"];
+          Sow["named axis-sequence binders must be distinct"];
           Continue[]];
         If[spec["Named"],
           final = addSequenceCapture[final, outer, item[[3]]]];

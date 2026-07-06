@@ -49,8 +49,8 @@ matching do double duty as both parser and shape matcher.
 | Anonymous dimension | `_` | `_` | `Blank[]` |
 | Ellipsis (anonymous) | `...` | `___` | `BlankNullSequence[]` |
 | Ellipsis (anonymous, ≥1) | — | `__` | `BlankSequence[]` |
-| Named ellipsis (capture the whole repeated group) | `a...` | `a : pattern..` | `Pattern[a, Repeated[pattern]]` (or `RepeatedNull`) |
-| Named ellipsis (inner mvar — destructuring template, see §5.3) | inner names in `(pattern)...` | names inside `Repeated[...]` | — (provisional) |
+| Named axis-sequence (capture repeated axes) | `a...` | `a__` / `a___`; `a : pattern..` for structured terms | `Pattern[a, BlankSequence[]]` / `Pattern[a, BlankNullSequence[]]`; `Pattern[a, Repeated[pattern]]` for structured terms |
+| Named axis-sequence inner mvar (destructuring template, see §5.3) | inner names in `(pattern)...` | names inside `term..` / `term...` | — (provisional) |
 | Product / axis composition | `(a b)` | `a ⊗ b` | `CircleTimes` |
 | Direct sum / concatenation | `(a + b)` | `a ⊕ b` | `CirclePlus` |
 | Targeted string axis | `[a]` | `#a`, highlighted/framed `"a"` | `Slot["a"]`, `Highlighted["a"]`, or `Framed["a"]` — targeted string spelling; kept with the same target head on the RHS when the targeted axis is kept |
@@ -70,8 +70,9 @@ A *shape* is a `List` of dimension terms. A dimension term is one of:
 - a `String` `"a"` (a hygienic named axis — must be a valid identifier; §5.6)
 - an integer
 - `_`, `__`, `___`
-- `name : Repeated[term]` (named ellipsis) or bare `Repeated[term]` /
-  `RepeatedNull[term]` (anonymous-name ellipsis — structural only)
+- `name__` / `name___` (named axis-sequence), `name : term..` /
+  `name : term...` (structured named axis-sequence), or bare `term..` /
+  `term...` (anonymous structural sequence)
 - `CircleTimes[term, term, ...]` (product)
 - `CirclePlus[term, term, ...]` (direct sum)
 - `Slot[term, ...]`, `Highlighted[term, ...]`, or `Framed[term, ...]` wrapping any
@@ -98,7 +99,7 @@ the LHS matches and binds e.g. `a=4, b=8, c=2`, evaluating a trivial RHS
 like `{c, a, b}` is just substitution, nothing computational happens. The
 distinction only bites once an operation's RHS needs to *do* something with
 the bindings beyond rearrange them (§7.1) — but since that need is common
-enough across the grammar (any named-ellipsis combination), `:>` is used
+enough across the grammar (any named axis-sequence combination), `:>` is used
 uniformly rather than switched per-operation.
 
 Two sugars are allowed at the *call-site* (front-end), not in the core
@@ -151,15 +152,16 @@ names alone.
 ### 5.3 Named ellipsis: where the name lives matters
 
 **Shape resolver implemented; data lowering deferred.** `EinstoffShapes` and
-`EinstoffMatch` understand `Repeated[...]` / `RepeatedNull[...]` ellipses and re-walk
-their captures manually. Runtime lowerers reject raw descs containing `Repeated`
-today, because operation-specific lowering for data arrays is not implemented yet.
+`EinstoffMatch` understand named axis-sequences (`a__` / `a___`, and structured
+`grp : term..` / `grp : term...`) and re-walk their captures manually. Runtime
+lowerers reject raw descs containing named axis-sequences today, because
+operation-specific lowering for data arrays is not implemented yet.
 
 Two roles a name can play inside an ellipsis:
 
-- **Outer mvar** (`name : Repeated[pattern]`) — binds the *entire captured
+- **Outer mvar** (`name__`, `name___`, or `name : pattern..`) — binds the *entire captured
   `Sequence`*; `{name}` listifies it.
-- **Inner mvar** (a named sub-pattern inside `Repeated[...]`,
+- **Inner mvar** (a named sub-pattern inside a structured `term..`,
   e.g. `grp:(a:(_Integer|_Symbol))...`) — a destructuring template. The shape
   resolver re-walks `{grp}` element-by-element applying the inner pattern, producing a
   per-repetition binding list `{a} = {a<sub>1</sub>, a<sub>2</sub>, ...}`.
@@ -168,10 +170,10 @@ Cross-group consistency (e.g. `Length[{a}] == Length[{b}]` before a
 `MapThread`) should be enforced by the engine during the manual binding phase, not
 pushed into individual `RuleDelayed` RHS bodies.
 
-**Provisional:** WL's stock `Repeated[x_]` semantics enforce that all
+**Provisional:** WL's stock implementation of repeated patterns enforces that all
 repetitions unify to the same value. The resolver ignores that constraint and
-re-drives matching manually. Safe while no compilation target delegates
-`Repeated[x_]` back to native WL pattern matching; revisit if one does.
+re-drives matching manually. Safe while no compilation target delegates axis-sequence
+matching back to native WL pattern matching; revisit if one does.
 
 ### 5.4 Size resolution
 
@@ -360,7 +362,7 @@ after that for brevity.
 7. **Named ellipsis, cross-tensor zip (Kronecker product)** —
    `einx.multiply("a..., b... -> (a b)...", x, y)`
    ```
-   {{a : Repeated[_]}, {b : Repeated[_]}} :> {MapThread[CircleTimes, {{a}, {b}}]}
+   {{a__}, {b__}} :> {MapThread[CircleTimes, {{a}, {b}}]}
    ```
    Resolved by `RuleDelayed` (§7.1): `{a}`/`{b}` listify the captured
    `Sequence`s, `MapThread` zips them. Cross-group length consistency
@@ -370,7 +372,7 @@ after that for brevity.
 8. **Named ellipsis with internal structure (pooling)** —
    `einx.sum("b (s [ds])... c", x, ds=(2, 2))`
    ```
-   {{b_, grp : Repeated[CircleTimes[s_, Slot[ds_]]], c_}} :> {Join[{b}, Map[First, {grp}], {c}]}
+   {{b_, grp : (CircleTimes[s_, Slot[ds_]]).., c_}} :> {Join[{b}, Map[First, {grp}], {c}]}
    ```
    `First` on each captured `CircleTimes[s_i, Slot[ds_i]]` reads off `s_i`
    positionally — plain `First`, no replacement rule needed, since
@@ -557,7 +559,7 @@ the tagged-throw isolation, and the dead `directSumSplit` locals.
   by `RuleDelayed` (§4.2); single-tensor and one-sided forms are front-end
   sugar only.
 - `Slot[...]` nests without issue inside `CircleTimes` and `CirclePlus`.
-- The named-ellipsis design does not need a separate output-derivation interface:
+- The named axis-sequence design does not need a separate output-derivation interface:
   the shape resolver evaluates `RuleDelayed` RHS code after substituting captured
   sequences, so ordinary WL helpers can project them.
 
@@ -662,7 +664,7 @@ needs a real matching policy beyond `Longest` / `Shortest`. Targeted variadic ru
 captured run to `ArrayReduce` / `Map`.
 
 **Other deferred lowering items** (rejected loudly today, not mis-compiled):
-named-ellipsis / `Repeated[...]` data lowering (§5.3); within-operand reduction
+named axis-sequence data lowering (§5.3); within-operand reduction
 before contraction in `Einstoff[Dot]`.
 
 **Within-tensor contraction — pairwise core implemented.** A name repeated in one

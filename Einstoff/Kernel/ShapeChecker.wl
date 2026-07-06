@@ -548,14 +548,16 @@ normHeldShapes[hshapes_Hold] :=
 containsRepeatedTermQ[expr_] := ! FreeQ[HoldComplete[expr],
   Verbatim[Repeated][_] | Verbatim[RepeatedNull][_] |
     Verbatim[Pattern][_, Verbatim[Repeated][_]] |
-    Verbatim[Pattern][_, Verbatim[RepeatedNull][_]]];
+    Verbatim[Pattern][_, Verbatim[RepeatedNull][_]] |
+    Verbatim[Pattern][_, Verbatim[BlankSequence[]]] |
+    Verbatim[Pattern][_, Verbatim[BlankNullSequence[]]]];
 
 descParts[h : Hold[_Rule | _RuleDelayed]] :=
   Module[{hr = canonHeld[h]},
     If[hr === $Failed, $Failed,
       If[containsRepeatedTermQ[hr],
         Message[Einstoff::unsupp,
-          "named ellipsis (Repeated/RepeatedNull) is supported only for shape \
+          "named axis-sequences are supported only for shape \
 resolution for now; data lowering is deferred"];
         Return[$Failed]];
       {normShapes @ Extract[hr, {1, 1}],

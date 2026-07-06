@@ -397,100 +397,101 @@ VerificationTest[
   TestID -> "bindings-reject-duplicate-key-reason"
 ];
 
-(* ===================== named ellipsis resolver (§5.3) ============== *)
+(* ===================== named axis-sequence resolver (§5.3) ============== *)
 
-(* Cross-tensor named ellipses: RHS code listifies the captured Sequences and zips them. *)
+(* Cross-tensor named axis-sequences: RHS code listifies the captured Sequences and zips them. *)
 VerificationTest[
   out @ Einstoff`EinstoffShapes[
-    {{a : Repeated[_]}, {b : Repeated[_]}} :>
+    {{a__}, {b__}} :>
       {MapThread[CircleTimes, {{a}, {b}}]},
     {{2, 3}, {5, 7}}],
   {{10, 21}},
-  TestID -> "named-ellipsis-cross-tensor-zip"
+  TestID -> "named-axis-sequence-cross-tensor-zip"
 ];
 
 (* Inner binders are re-walked per repetition; they do NOT unify to one value. *)
 VerificationTest[
   out @ Einstoff`EinstoffShapes[
-    {{grp : Repeated[s_]}} :> {{s}},
+    {{s__}} :> {{s}},
     {{2, 3, 4}}],
   {{2, 3, 4}},
-  TestID -> "named-ellipsis-inner-binders-vary"
+  TestID -> "named-axis-sequence-inner-binders-vary"
 ];
 
 VerificationTest[
   KeyExistsQ[
-    Einstoff`EinstoffMatch[{{grp : Repeated[s_]}}, {{2, 3, 4}}],
+    Einstoff`EinstoffMatch[{{s__}}, {{2, 3, 4}}],
     "seq"],
   False,
-  TestID -> "named-ellipsis-match-keeps-seq-private"
+  TestID -> "named-axis-sequence-match-keeps-seq-private"
 ];
 
 (* Structured projection keeps the captured term structure; targeted string uses Highlighted. *)
 VerificationTest[
   out @ Einstoff`EinstoffShapes[
-    {{b_, grp : Repeated[CircleTimes[s_, Highlighted["ds"]]], c_}} :>
+    {{b_, grp : (CircleTimes[s_, Highlighted["ds"]]).., c_}} :>
       {Join[{b}, Map[First, {grp}], {c}]},
     {{2, 6, 12, 5}},
     {"ds" -> 3}],
   {{2, 2, 4, 5}},
-  TestID -> "named-ellipsis-structured-projection"
+  TestID -> "named-axis-sequence-structured-projection"
 ];
 
-(* RepeatedNull accepts an empty run and listifies it as an empty Sequence. *)
+(* A named null axis-sequence accepts an empty run and listifies it as an empty Sequence. *)
 VerificationTest[
   out @ Einstoff`EinstoffShapes[
-    {{a_, z : RepeatedNull[_], b_}} :> {Join[{a}, {z}, {b}]},
+    {{a_, z___, b_}} :> {Join[{a}, {z}, {b}]},
     {{2, 3}}],
   {{2, 3}},
-  TestID -> "named-ellipsis-null-empty"
+  TestID -> "named-axis-sequence-null-empty"
 ];
 
-(* Captured named ellipses must have the same length in this v1 policy. *)
+(* Captured named axis-sequences must have the same length in this v1 policy. *)
 VerificationTest[
   sat @ Einstoff`EinstoffShapes[
-    {{a : Repeated[_]}, {b : Repeated[_]}} :>
+    {{a__}, {b__}} :>
       {MapThread[CircleTimes, {{a}, {b}}]},
     {{2, 3}, {5, 7, 11}}],
   False,
-  TestID -> "named-ellipsis-reject-length-mismatch"
+  TestID -> "named-axis-sequence-reject-length-mismatch"
 ];
 
 VerificationTest[
   StringContainsQ[
     Einstoff`EinstoffShapes[
-      {{a : Repeated[_]}, {b : Repeated[_]}} :>
+      {{a__}, {b__}} :>
         {MapThread[CircleTimes, {{a}, {b}}]},
       {{2, 3}, {5, 7, 11}}]["Reason"],
     "different lengths"],
   True,
-  TestID -> "named-ellipsis-reject-length-mismatch-reason"
+  TestID -> "named-axis-sequence-reject-length-mismatch-reason"
 ];
 
 (* Nested Repeated and PatternSequence are intentionally outside the v1 matcher. *)
 VerificationTest[
   sat @ Einstoff`EinstoffShapes[
-    {{grp : Repeated[Repeated[_]]}} :> {{grp}},
+    {{grp : ((_)..)..}} :> {{grp}},
     {{2, 3}}],
   False,
-  TestID -> "named-ellipsis-reject-nested-repeated"
+  TestID -> "named-axis-sequence-reject-nested-repeated"
 ];
 
 VerificationTest[
   sat @ Einstoff`EinstoffShapes[
-    {{grp : Repeated[PatternSequence[_, _]]}} :> {{grp}},
+    {{grp : (PatternSequence[_, _])..}} :> {{grp}},
     {{2, 3}}],
   False,
-  TestID -> "named-ellipsis-reject-patternsequence"
+  TestID -> "named-axis-sequence-reject-patternsequence"
 ];
 
 (* Inner binders are list-valued; do not also use them as ordinary scalar axes. *)
 VerificationTest[
   sat @ Einstoff`EinstoffShapes[
-    {{s_, grp : Repeated[s_]}} :> {{s}},
-    {{2, 3}}],
+    {{s_}, {grp : (CircleTimes[s_, 3])..}} :> {{s}},
+    {{2}, {6}}],
   False,
-  TestID -> "named-ellipsis-reject-inner-scalar-collision"
+  TestID -> "named-axis-sequence-reject-inner-scalar-collision"
 ];
 
 EndTestSection[];
+

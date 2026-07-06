@@ -83,14 +83,14 @@ VerificationTest[
   TestID -> "lower-reject-drop-axis"
 ];
 
-(* Named ellipsis resolves shapes but runtime data lowering is deferred. *)
+(* Named axis-sequences resolve shapes but runtime data lowering is deferred. *)
 VerificationTest[
   Quiet[
     Einstoff[ArrayReshape][
-      {{a : Repeated[_]}} :> {{a}}, {ArrayReshape[Range[6], {2, 3}]}],
+      {{a__}} :> {{a}}, {ArrayReshape[Range[6], {2, 3}]}],
     {Einstoff::unsupp}],
   $Failed,
-  TestID -> "lower-reject-named-ellipsis"
+  TestID -> "lower-reject-named-axis-sequence"
 ];
 
 (* 9. Unsatisfiable desc (rank mismatch) returns $Failed. *)
@@ -171,15 +171,15 @@ VerificationTest[
   TestID -> "repeat-merge-leading"
 ];
 
-(* Named ellipsis resolves shapes but runtime data lowering is deferred, including
+(* Named axis-sequences resolve shapes but runtime data lowering is deferred, including
    the permissive Massage entrance. *)
 VerificationTest[
   Quiet[
-    Einstoff["Massage"][{{a : Repeated[_]}} :> {{a}},
+    Einstoff["Massage"][{{a__}} :> {{a}},
       {ArrayReshape[Range[6], {2, 3}]}],
     {Einstoff::unsupp}],
   $Failed,
-  TestID -> "massage-reject-named-ellipsis"
+  TestID -> "massage-reject-named-axis-sequence"
 ];
 
 (* 18-20. An output axis must be a positive integer (Massage sizes via EinstoffMatch,
