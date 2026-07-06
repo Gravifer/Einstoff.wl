@@ -719,6 +719,12 @@ maintainers and larger lowering changes, but not required status. If Python/ZMQ 
 startup flakes on Windows (`0xC0000005` has been observed), retrying locally is fine;
 the cross-validation logic is deterministic once the session starts.
 
+**Deferred post-publication CI/CD integration.** After the project is published as a
+public repo, setting up Wolfram/PacletCICD-style automation may be opened as a
+help-wanted issue. This is intentionally separate from the settled local-validation
+policy above: do not spend near-term implementation effort on CI/CD plumbing before
+publication.
+
 ## 10. Testing & validation
 
 ### 10.1 Cross-validation against einx / einops
