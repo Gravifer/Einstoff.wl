@@ -10,6 +10,7 @@ an unreleased development tree.
 
 ## What It Does
 
+Inspired by [einx](https://github.com/fferflo/einx),
 Einstoff covers a growing subset of ein-style array notation:
 
 - `Einstoff[ArrayReshape]` for bijective rearrange/reshape operations.
