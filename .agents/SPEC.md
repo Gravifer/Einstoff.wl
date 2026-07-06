@@ -150,18 +150,18 @@ names alone.
 
 ### 5.3 Named ellipsis: where the name lives matters
 
-**Deferred.** The grammar reserves `Repeated[...]` / named ellipsis forms, but the
-current matcher/lowerers do not implement them; raw descs containing `Repeated` are
-rejected today. The text below records the intended semantics for that future path.
+**Shape resolver implemented; data lowering deferred.** `EinstoffShapes` and
+`EinstoffMatch` understand `Repeated[...]` / `RepeatedNull[...]` ellipses and re-walk
+their captures manually. Runtime lowerers reject raw descs containing `Repeated`
+today, because operation-specific lowering for data arrays is not implemented yet.
 
 Two roles a name can play inside an ellipsis:
 
 - **Outer mvar** (`name : Repeated[pattern]`) — binds the *entire captured
   `Sequence`*; `{name}` listifies it.
 - **Inner mvar** (a named sub-pattern inside `Repeated[...]`,
-  e.g. `grp:(a:(_Integer|_Symbol))...`) — a destructuring template. After
-  `grp` captures the sequence via WL matching, the future engine should **re-walk**
-  `{grp}` element-by-element applying the inner pattern, producing a
+  e.g. `grp:(a:(_Integer|_Symbol))...`) — a destructuring template. The shape
+  resolver re-walks `{grp}` element-by-element applying the inner pattern, producing a
   per-repetition binding list `{a} = {a<sub>1</sub>, a<sub>2</sub>, ...}`.
 
 Cross-group consistency (e.g. `Length[{a}] == Length[{b}]` before a
@@ -169,17 +169,17 @@ Cross-group consistency (e.g. `Length[{a}] == Length[{b}]` before a
 pushed into individual `RuleDelayed` RHS bodies.
 
 **Provisional:** WL's stock `Repeated[x_]` semantics enforce that all
-repetitions unify to the same value. The planned engine should ignore that constraint
-and re-drive matching manually. Safe while no compilation target delegates
+repetitions unify to the same value. The resolver ignores that constraint and
+re-drives matching manually. Safe while no compilation target delegates
 `Repeated[x_]` back to native WL pattern matching; revisit if one does.
 
 ### 5.4 Size resolution
 
-For the deferred named-ellipsis path, outer mvars would map to scalar integers in
-`sizeRules` as usual (cf. einx's scalar axis sizes). Inner mvars (§5.3) would be
-list-valued — `a -> {s1, s2, ...}`, one entry per repetition — as a natural product
-of the engine's re-walk. No pre-classification of "is this name under a `Repeated`?"
-should be needed before reading `sizeRules`.
+For named ellipses, scalar axis bindings remain ordinary positive integers in the
+public `Bindings` association. Outer and inner ellipsis captures are private resolver
+state used to evaluate the `RuleDelayed` RHS: outer mvars listify the captured
+structural terms, and inner mvars listify the per-repetition sizes. The public
+shape API does not expose those list-valued captures as stable bindings.
 
 ### 5.5 Repetition as uniform vectorization
 
@@ -558,8 +558,8 @@ the tagged-throw isolation, and the dead `directSumSplit` locals.
   sugar only.
 - `Slot[...]` nests without issue inside `CircleTimes` and `CirclePlus`.
 - The named-ellipsis design does not need a separate output-derivation interface:
-  once the deferred matcher/lowering exists, `RuleDelayed` RHS code can project the
-  captured sequences.
+  the shape resolver evaluates `RuleDelayed` RHS code after substituting captured
+  sequences, so ordinary WL helpers can project them.
 
 ## 9. Status & next steps
 
@@ -662,8 +662,8 @@ needs a real matching policy beyond `Longest` / `Shortest`. Targeted variadic ru
 captured run to `ArrayReduce` / `Map`.
 
 **Other deferred lowering items** (rejected loudly today, not mis-compiled):
-named-ellipsis / `Repeated[...]` re-walk (§5.3); within-operand reduction before
-contraction in `Einstoff[Dot]`.
+named-ellipsis / `Repeated[...]` data lowering (§5.3); within-operand reduction
+before contraction in `Einstoff[Dot]`.
 
 **Within-tensor contraction — pairwise core implemented.** A name repeated in one
 operand and dropped on the output is summed over its coincident slots (GR-style traces,

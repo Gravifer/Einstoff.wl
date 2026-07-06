@@ -397,4 +397,100 @@ VerificationTest[
   TestID -> "bindings-reject-duplicate-key-reason"
 ];
 
+(* ===================== named ellipsis resolver (§5.3) ============== *)
+
+(* Cross-tensor named ellipses: RHS code listifies the captured Sequences and zips them. *)
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[
+    {{a : Repeated[_]}, {b : Repeated[_]}} :>
+      {MapThread[CircleTimes, {{a}, {b}}]},
+    {{2, 3}, {5, 7}}],
+  {{10, 21}},
+  TestID -> "named-ellipsis-cross-tensor-zip"
+];
+
+(* Inner binders are re-walked per repetition; they do NOT unify to one value. *)
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[
+    {{grp : Repeated[s_]}} :> {{s}},
+    {{2, 3, 4}}],
+  {{2, 3, 4}},
+  TestID -> "named-ellipsis-inner-binders-vary"
+];
+
+VerificationTest[
+  KeyExistsQ[
+    Einstoff`EinstoffMatch[{{grp : Repeated[s_]}}, {{2, 3, 4}}],
+    "seq"],
+  False,
+  TestID -> "named-ellipsis-match-keeps-seq-private"
+];
+
+(* Structured projection keeps the captured term structure; targeted string uses Highlighted. *)
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[
+    {{b_, grp : Repeated[CircleTimes[s_, Highlighted["ds"]]], c_}} :>
+      {Join[{b}, Map[First, {grp}], {c}]},
+    {{2, 6, 12, 5}},
+    {"ds" -> 3}],
+  {{2, 2, 4, 5}},
+  TestID -> "named-ellipsis-structured-projection"
+];
+
+(* RepeatedNull accepts an empty run and listifies it as an empty Sequence. *)
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[
+    {{a_, z : RepeatedNull[_], b_}} :> {Join[{a}, {z}, {b}]},
+    {{2, 3}}],
+  {{2, 3}},
+  TestID -> "named-ellipsis-null-empty"
+];
+
+(* Captured named ellipses must have the same length in this v1 policy. *)
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[
+    {{a : Repeated[_]}, {b : Repeated[_]}} :>
+      {MapThread[CircleTimes, {{a}, {b}}]},
+    {{2, 3}, {5, 7, 11}}],
+  False,
+  TestID -> "named-ellipsis-reject-length-mismatch"
+];
+
+VerificationTest[
+  StringContainsQ[
+    Einstoff`EinstoffShapes[
+      {{a : Repeated[_]}, {b : Repeated[_]}} :>
+        {MapThread[CircleTimes, {{a}, {b}}]},
+      {{2, 3}, {5, 7, 11}}]["Reason"],
+    "different lengths"],
+  True,
+  TestID -> "named-ellipsis-reject-length-mismatch-reason"
+];
+
+(* Nested Repeated and PatternSequence are intentionally outside the v1 matcher. *)
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[
+    {{grp : Repeated[Repeated[_]]}} :> {{grp}},
+    {{2, 3}}],
+  False,
+  TestID -> "named-ellipsis-reject-nested-repeated"
+];
+
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[
+    {{grp : Repeated[PatternSequence[_, _]]}} :> {{grp}},
+    {{2, 3}}],
+  False,
+  TestID -> "named-ellipsis-reject-patternsequence"
+];
+
+(* Inner binders are list-valued; do not also use them as ordinary scalar axes. *)
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[
+    {{s_, grp : Repeated[s_]}} :> {{s}},
+    {{2, 3}}],
+  False,
+  TestID -> "named-ellipsis-reject-inner-scalar-collision"
+];
+
 EndTestSection[];

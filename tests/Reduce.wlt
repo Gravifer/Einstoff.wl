@@ -138,6 +138,17 @@ VerificationTest[
   TestID -> "reduce-reject-repeated-input-axis"
 ];
 
+(* Named ellipsis resolves shapes but runtime data lowering is deferred. *)
+VerificationTest[
+  Quiet[
+    Einstoff[ArrayReduce][Total][
+      {{a : Repeated[_], Slot["b"]}} :> {{a}},
+      {ArrayReshape[Range[24], {2, 3, 4}]}],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "reduce-reject-named-ellipsis"
+];
+
 (* 11. A new output axis is repetition (SPEC 5.5); without a binding it is
    unsatisfiable and rejected. *)
 VerificationTest[

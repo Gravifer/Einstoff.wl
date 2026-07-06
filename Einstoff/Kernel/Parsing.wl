@@ -11,10 +11,10 @@
    touched and nothing is lowered to Transpose/ArrayReshape/etc.
 
    Scope (regular grammar subset): bare symbols (reference), `name_`
-   (blank), integer immediates, `_`/`__`/`___`, `CircleTimes` (product),
+   (blank), integer immediates, `_`/`__`/`___`, named `Repeated` /
+   `RepeatedNull` ellipses for shape resolution, `CircleTimes` (product),
    `CirclePlus` (direct sum), targeted wrappers, and multi-tensor shared
-   axes. Named-ellipsis re-walk (`Repeated` inner/outer mvars) is out of
-   scope for now.
+   axes. Named ellipses are resolver-only for now; lowerers reject them.
 
    Structured Package Format: public symbols are declared with
    PackageExported (they land in the `Einstoff`` context); every helper below
@@ -113,7 +113,10 @@ termAxisNames[s_Symbol] := {s};
    neither crashes on Symbol::symname nor mis-tallies a shadowed global's value.  An
    invalid string is not an axis name, so it contributes nothing. *)
 termAxisNames[s_String] := If[validAxisNameQ[s], {axisSymbol[s]}, {}];
-termAxisNames[(CircleTimes | CirclePlus | Slot | Highlighted | Framed)[xs___]] :=
+termAxisNames[Verbatim[Pattern][s_Symbol, Verbatim[Repeated][_]]] := {s};
+termAxisNames[Verbatim[Pattern][s_Symbol, Verbatim[RepeatedNull][_]]] := {s};
+termAxisNames[(CircleTimes | CirclePlus | Slot | Highlighted | Framed |
+    Repeated | RepeatedNull)[xs___]] :=
   Join @@ (termAxisNames /@ {xs});
 termAxisNames[_] := {};
 
@@ -141,6 +144,89 @@ unify[n_, d_, env_] :=
       (Sow["axis " <> axisDisplayName[n] <> ": expected " <> ToString[env[n]] <>
            " but tensor dimension is " <> ToString[d]]; $Failed)],
     Append[env, n -> d]];
+
+(* ------------------------------------------------------------------ *)
+(* Matcher state.  Scalar axis sizes stay in "Env"; named-ellipsis     *)
+(* captures stay private in "Seq" and are used only for RHS evaluation. *)
+(* ------------------------------------------------------------------ *)
+
+matchState[env_] := <|"Env" -> env, "Seq" -> <||>, "RepeatedLength" -> Missing["Unset"]|>;
+
+unifyState[n_, d_, state_] :=
+  Module[{e2},
+    If[KeyExistsQ[state["Seq"], n],
+      Sow["axis " <> axisDisplayName[n] <>
+        " is list-valued from a named ellipsis and cannot also be a scalar axis"];
+      Return[$Failed]];
+    e2 = unify[n, d, state["Env"]];
+    If[e2 === $Failed, $Failed, Append[state, "Env" -> e2]]];
+
+stateRepeatedLengthOK[state_, k_] :=
+  MissingQ[state["RepeatedLength"]] || state["RepeatedLength"] === k;
+
+stateWithRepeatedLength[state_, k_] :=
+  If[MissingQ[state["RepeatedLength"]],
+    Append[state, "RepeatedLength" -> k],
+    state];
+
+stateDropScalarKeys[state_, keys_] := Append[state, "Env" -> KeyDrop[state["Env"], keys]];
+
+addSequenceCapture[state_, key_, vals_] :=
+  Which[
+    KeyExistsQ[state["Env"], key],
+      (Sow["axis " <> axisDisplayName[key] <>
+        " is both a scalar axis and a named-ellipsis capture"]; $Failed),
+    KeyExistsQ[state["Seq"], key],
+      (Sow["axis " <> axisDisplayName[key] <>
+        " is captured by more than one named ellipsis"]; $Failed),
+    True,
+      Append[state, "Seq" -> Append[state["Seq"], key -> vals]]];
+
+repeatedSpec[Verbatim[Pattern][s_Symbol, Verbatim[Repeated][body_]]] :=
+  <|"Outer" -> s, "Body" -> body, "Min" -> 1, "Named" -> True|>;
+repeatedSpec[Verbatim[Pattern][s_Symbol, Verbatim[RepeatedNull][body_]]] :=
+  <|"Outer" -> s, "Body" -> body, "Min" -> 0, "Named" -> True|>;
+repeatedSpec[Verbatim[Repeated][body_]] :=
+  <|"Outer" -> None, "Body" -> body, "Min" -> 1, "Named" -> False|>;
+repeatedSpec[Verbatim[RepeatedNull][body_]] :=
+  <|"Outer" -> None, "Body" -> body, "Min" -> 0, "Named" -> False|>;
+repeatedSpec[_] := None;
+
+innerBinders[body_] := DeleteDuplicates @ Cases[body,
+  Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> s, {0, Infinity}];
+
+unsupportedRepeatedBodyQ[body_] :=
+  ! FreeQ[HoldComplete[body],
+    Verbatim[Repeated][_] | Verbatim[RepeatedNull][_] |
+      Verbatim[PatternSequence][___]];
+
+renameRepeatedBody[body_, rules_] :=
+  body /. Join[
+    Table[
+      With[{old = First[r], new = Last[r]},
+        Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] /; s === old :>
+          Pattern[new, Blank[]]],
+      {r, rules}],
+    Table[
+      With[{old = First[r], new = Last[r]},
+        s_Symbol /; s === old :> new],
+      {r, rules}]];
+
+instantiateRepeatedBody[expr_, env_] := expr /. {
+  Verbatim[Pattern][sym_Symbol, Verbatim[Blank[]]] :>
+    With[{n = sym}, Lookup[env, n, n]],
+  str_String /; validAxisNameQ[str] && KeyExistsQ[env, axisSymbol[str]] :>
+    With[{n = axisSymbol[str]}, env[n]],
+  sym_Symbol /; KeyExistsQ[env, sym] :> With[{n = sym}, env[n]]};
+
+capturedRepeatedTerm[body_, rules_, env_] :=
+  instantiateRepeatedBody[renameRepeatedBody[body, rules], env];
+
+capturedRepeatedTerm[body_, rules_, env_, dim_] :=
+  Replace[capturedRepeatedTerm[body, rules, env],
+    Verbatim[Blank[]] :> dim];
+
+seqRule[key_, vals_] := key -> Apply[Sequence, vals];
 
 (* ------------------------------------------------------------------ *)
 (* Composite (CircleTimes / CirclePlus) resolution against one dim.    *)
@@ -179,11 +265,11 @@ factorToExpr[f_, env_] :=
    solution binds the named axes; multiple solutions are underdetermined; none is a
    mismatch. This subsumes the former single-unknown analytic logic and also
    handles product summands and any system the integers pin down uniquely. *)
-solveComposite[op_, factors_, d_, env_, rest_, drest_] :=
+solveComposite[op_, factors_, d_, state_, rest_, drest_] :=
   Module[{parsed, exprs, named, anon, allVars, eqn, sols, sol, e2},
     (* Table, not `&/@`: a factor can be Slot[...], which an anonymous Function
        would capture as its own argument slot (SPEC 7.2). *)
-    parsed = Table[factorToExpr[f, env], {f, factors}];
+    parsed = Table[factorToExpr[f, state["Env"]], {f, factors}];
     If[MemberQ[parsed, $opaque],
       Sow["unsupported factor inside " <> ToString[op] <> " composition"];
       Return[{}]];
@@ -193,7 +279,7 @@ solveComposite[op_, factors_, d_, env_, rest_, drest_] :=
     allVars = Join[named, anon];
     eqn = (op @@ exprs) == d;
     If[allVars === {},
-      Return[If[TrueQ[eqn], matchTerms[rest, drest, env],
+      Return[If[TrueQ[eqn], matchTerms[rest, drest, state],
         (Sow[ToString[op] <> " composition " <> ToString[op @@ exprs] <>
              " != tensor dimension " <> ToString[d]]; {})]]];
     sols = Quiet @ Solve[eqn && And @@ (# >= 1 & /@ allVars), allVars, Integers];
@@ -206,9 +292,71 @@ dimension " <> ToString[d]]; {}),
 positive-integer solutions; supply more bindings)"]; {}),
       True,
         (sol = First[sols];
-         e2 = env;
-         Do[e2 = unify[v, v /. sol, e2], {v, named}];
+         e2 = state;
+         Do[e2 = unifyState[v, v /. sol, e2], {v, named}];
          If[e2 === $Failed, {}, matchTerms[rest, drest, e2]])]];
+
+matchRepeated[spec_Association, rest_, dims_, state_] :=
+  Module[{body = spec["Body"], inner, outer = spec["Outer"], out = {}, k, st0,
+          states, j, nextStates, st, rules, fresh, renamed, matched, vals,
+          cap, seqKeys, final, captureQ},
+    If[unsupportedRepeatedBodyQ[body],
+      Sow["nested Repeated/RepeatedNull or PatternSequence inside a named ellipsis \
+is not supported"];
+      Return[{}]];
+    inner = innerBinders[body];
+    If[spec["Named"] && MemberQ[inner, outer],
+      Sow["named ellipsis outer capture " <> axisDisplayName[outer] <>
+        " collides with an inner binder of the same name"];
+      Return[{}]];
+    captureQ = spec["Named"] || inner =!= {};
+    Do[
+      If[captureQ && ! stateRepeatedLengthOK[state, k],
+        Sow["named ellipsis captures have different lengths"];
+        Continue[]];
+      st0 = If[captureQ, stateWithRepeatedLength[state, k], state];
+      states = {{st0, Table[{}, {Length[inner]}], {}}};
+      Do[
+        nextStates = {};
+        Do[
+          st = item[[1]];
+          rules = Table[old -> Unique[SymbolName[old] <> "$rep$", {Temporary}],
+            {old, inner}];
+          fresh = Last /@ rules;
+          renamed = renameRepeatedBody[body, rules];
+          matched = matchTerms[{renamed}, {dims[[j]]}, st];
+          Do[
+            vals = Lookup[mstate["Env"], #] & /@ fresh;
+            If[AllTrue[vals, IntegerQ],
+              cap = capturedRepeatedTerm[body, rules, mstate["Env"], dims[[j]]];
+              AppendTo[nextStates,
+                {stateDropScalarKeys[mstate, fresh],
+                 MapThread[Append, {item[[2]], vals}],
+                 Append[item[[3]], cap]}]],
+            {mstate, matched}],
+          {item, states}];
+        states = nextStates;
+        If[states === {}, Break[]],
+        {j, 1, k}];
+      Do[
+        final = item[[1]];
+        seqKeys = inner;
+        If[spec["Named"], seqKeys = Join[{outer}, seqKeys]];
+        If[! DuplicateFreeQ[seqKeys],
+          Sow["named ellipsis sequence binders must be distinct"];
+          Continue[]];
+        If[spec["Named"],
+          final = addSequenceCapture[final, outer, item[[3]]]];
+        If[final =!= $Failed,
+          Do[
+            final = addSequenceCapture[final, inner[[i]], item[[2, i]]];
+            If[final === $Failed, Break[]],
+            {i, Length[inner]}]];
+        If[final =!= $Failed,
+          out = Join[out, matchTerms[rest, Drop[dims, k], final]]],
+        {item, states}],
+      {k, spec["Min"], Length[dims]}];
+    out];
 
 (* ------------------------------------------------------------------ *)
 (* Core backtracking matcher: a list of dimension terms against a list *)
@@ -216,16 +364,18 @@ positive-integer solutions; supply more bindings)"]; {}),
 (* consistent env associations ({} = no match).                        *)
 (* ------------------------------------------------------------------ *)
 
-matchTerms[terms_, dims_, env_] :=
-  Module[{t, rest, d, drest},
-    If[terms === {}, Return[If[dims === {}, {env}, {}]]];
+matchTerms[terms_, dims_, state_] :=
+  Module[{t, rest, d, drest, spec},
+    If[terms === {}, Return[If[dims === {}, {state}, {}]]];
     t = First[terms]; rest = Rest[terms];
     (* {} is an in-shape unit-axis term, equivalent to the literal 1 (einx "2 () 3");
        it consumes one tensor dimension, which must be 1.  NB the operator/EinstoffShapes
        paths normalize {} -> 1 up front (descParts/parseDesc via normUnitTerms), so this
        case — and the mirroring {} cases in rearrangeAtoms/reduceAtoms/factorToExpr —
        exist for the *public* EinstoffMatch entry, which takes raw shape lists. *)
-    If[t === {}, Return[matchTerms[Join[{1}, rest], dims, env]]];
+    If[t === {}, Return[matchTerms[Join[{1}, rest], dims, state]]];
+    spec = repeatedSpec[t];
+    If[AssociationQ[spec], Return[matchRepeated[spec, rest, dims, state]]];
     (* Target wrappers are transparent to shape matching: splice their contents into the
        stream and remember targetedness only in lowering. Slot["name"] is targeted string;
        Highlighted/Framed preserve the blank/bare spelling of their contents.
@@ -236,40 +386,40 @@ matchTerms[terms_, dims_, env_] :=
         bad = Select[Cases[parts, _String], ! validAxisNameQ[#] &];
         Return[If[bad =!= {},
           (Sow["invalid axis name(s) " <> ToString[bad, InputForm] <> " in a target"]; {}),
-          matchTerms[Join[Replace[parts, s_String :> axisSymbol[s], {1}], rest], dims, env]]]]];
+          matchTerms[Join[Replace[parts, s_String :> axisSymbol[s], {1}], rest], dims, state]]]]];
     (* SlotSequence (##, the anonymous variadic target [...]) is an ellipsis of
        targeted axes — treat like ___ for shape matching. Lowering later expands
        the captured concrete axes into anonymous internal atoms. *)
     If[Head[t] === SlotSequence,
-      Return[matchTerms[Join[{BlankNullSequence[]}, rest], dims, env]]];
+      Return[matchTerms[Join[{BlankNullSequence[]}, rest], dims, state]]];
     (* Variable-length anonymous sequences (may consume zero dims). *)
     If[MatchQ[t, Verbatim[BlankNullSequence[]]],
-      Return[Join @@ Table[matchTerms[rest, Drop[dims, k], env],
+      Return[Join @@ Table[matchTerms[rest, Drop[dims, k], state],
                            {k, 0, Length[dims]}]]];
     If[MatchQ[t, Verbatim[BlankSequence[]]],
       Return[
         If[Length[dims] < 1, {},
-          Join @@ Table[matchTerms[rest, Drop[dims, k], env],
+          Join @@ Table[matchTerms[rest, Drop[dims, k], state],
                         {k, 1, Length[dims]}]]]];
     (* Everything below consumes exactly one dim. *)
     If[dims === {}, Return[{}]];
     d = First[dims]; drest = Rest[dims];
     Which[
       MatchQ[t, Verbatim[Blank[]]],
-        matchTerms[rest, drest, env],
+        matchTerms[rest, drest, state],
       MatchQ[t, Verbatim[Pattern][_Symbol, Verbatim[Blank][]]],
-        With[{e2 = unify[t[[1]], d, env]},
+        With[{e2 = unifyState[t[[1]], d, state]},
           If[e2 === $Failed, {}, matchTerms[rest, drest, e2]]],
       IntegerQ[t],
-        If[t === d, matchTerms[rest, drest, env],
+        If[t === d, matchTerms[rest, drest, state],
           (Sow["immediate " <> ToString[t] <> " != tensor dimension " <>
                ToString[d]]; {})],
       Head[t] === CircleTimes,
-        solveComposite[Times, List @@ t, d, env, rest, drest],
+        solveComposite[Times, List @@ t, d, state, rest, drest],
       Head[t] === CirclePlus,
-        solveComposite[Plus, List @@ t, d, env, rest, drest],
+        solveComposite[Plus, List @@ t, d, state, rest, drest],
       Head[t] === Symbol,
-        With[{e2 = unify[t, d, env]},
+        With[{e2 = unifyState[t, d, state]},
           If[e2 === $Failed, {}, matchTerms[rest, drest, e2]]],
       (* A string term "a" is the string-tier axis named `a` (SPEC §5.6): unify it as
          the symbol `a`, exactly as a targeted string #a = Slot["a"] is spliced to
@@ -280,7 +430,7 @@ matchTerms[terms_, dims_, env_] :=
       StringQ[t],
         If[! validAxisNameQ[t],
           (Sow["invalid axis name \"" <> t <> "\" (must be a valid identifier)"]; {}),
-          With[{e2 = unify[axisSymbol[t], d, env]},
+          With[{e2 = unifyState[axisSymbol[t], d, state]},
             If[e2 === $Failed, {}, matchTerms[rest, drest, e2]]]],
       True,
         (Sow["unrecognized dimension term: " <> ToString[t]]; {})]];
@@ -293,7 +443,7 @@ matchTerms[terms_, dims_, env_] :=
    through a `&`/Function body is captured as that function's argument slot
    (SPEC 7.2) — which silently corrupts the match. *)
 matchAll[lhss_, inps_, env_] :=
-  Fold[matchStep, {env}, Transpose[{lhss, inps}]];
+  Fold[matchStep, {matchState[env]}, Transpose[{lhss, inps}]];
 
 matchStep[envs_, pair_] :=
   Module[{acc = {}, e},
@@ -314,7 +464,8 @@ EinstoffMatch[lhsShapes_, inputShapes_, bindingsIn_ : {}] :=
     Block[{$axisFallbackMemo = <||>},
       purgeAxisContext[];
       einAxisCatch[
-        einstoffMatchCore[lhsShapes, inputShapes, bindingsIn],
+        With[{r = einstoffMatchCore[lhsShapes, inputShapes, bindingsIn]},
+          If[AssociationQ[r], KeyDrop[r, "seq"], r]],
         <|"ok" -> False, "reason" -> "the internal Einstoff`Fallback` axis-identity \
 context is compromised (a Protected+Locked generated symbol); cannot resolve"|>]]];
 
@@ -385,19 +536,22 @@ einstoffMatchCore[lhsShapes_, inputShapes_, bindingsIn_] :=
         "reason" -> If[sown === {},
           "no consistent axis binding (shape/rank mismatch)",
           StringRiffle[DeleteDuplicates[Flatten[sown]], "; "]]|>,
-      <|"ok" -> True, "env" -> First[res]|>]];
+      <|"ok" -> True, "env" -> First[res]["Env"], "seq" -> First[res]["Seq"]|>]];
 
 (* ------------------------------------------------------------------ *)
 (* Output-shape derivation: evaluate the held RHS under the bindings.  *)
 (* CircleTimes -> product, CirclePlus -> sum, Slot unwrapped.          *)
 (* ------------------------------------------------------------------ *)
 
-(* Normalize an in-shape {} unit term to 1 *before* CircleTimes -> Times etc., so a {}
-   inside a composite (e.g. (a () )) evaluates correctly; a whole-shape {} stays scalar. *)
-evalOutShape[Hold[rhs_], env_] :=
-  normUnitTerms[rhs] /. Join[Normal[env],
+(* Substitute scalar and sequence captures while the RHS is still held, then release it.
+   This lets RHS helpers such as MapThread/Join observe `{grp}` as the captured run;
+   substituting after RHS evaluation would collapse e.g. MapThread[..., {{a}, {b}}]
+   into one symbolic element before the captured Sequences were listified. *)
+evalOutShape[h_Hold, env_, seq_ : <||>] :=
+  ReleaseHold[normHeldShapes[h] /. Join[Normal[env],
+      Table[seqRule[k, seq[k]], {k, Keys[seq]}]]] /.
     {CircleTimes -> Times, CirclePlus -> Plus,
-     Slot -> Sequence, Highlighted -> Sequence, Framed -> Sequence}];
+     Slot -> Sequence, Highlighted -> Sequence, Framed -> Sequence};
 
 (* ------------------------------------------------------------------ *)
 (* Public: full pipeline.                                             *)
@@ -439,7 +593,7 @@ axes with the same name)",
         "OutputShapes" -> Missing[], "Bindings" -> <||>,
         "Targeted" -> targeted|>]];
     env = m["env"];
-    out = evalOutShape[heldRhs, env];
+    out = evalOutShape[heldRhs, env, Lookup[m, "seq", <||>]];
     If[! MatchQ[out, {___List}] ||
        ! AllTrue[Flatten[out], IntegerQ[#] && # >= 1 &],
       Return[<|"Satisfiable" -> False,
