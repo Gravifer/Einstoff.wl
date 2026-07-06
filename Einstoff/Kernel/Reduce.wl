@@ -120,7 +120,13 @@ Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
       Message[Einstoff::unsat, "an input axis size is unbound or inconsistent"];
       Return[$Failed]];
     lhsTagged = decomp["Tagged"]; env = decomp["Env"];
-    rhsTerms = expandAnonymousTargetRhs[First[rhs], decomp["AnonymousTargetAtoms"]];
+    If[plainSequenceCount[First[rhs]] > 0 && plainSequenceCount[First[lhs]] == 0,
+      Message[Einstoff::unsupp,
+        "a plain anonymous sequence (__ / ___) on the output needs a corresponding \
+plain sequence in the input shape"];
+      Return[$Failed]];
+    rhsTerms = einCatch[expandAnonymousTargetRhs[First[rhs], decomp["AnonymousTargetAtoms"]]];
+    If[rhsTerms === $Failed, Return[$Failed]];
     If[lhsTagged === $Failed, Return[$Failed]];
     rhsAtoms = einCatch[Join @@ Table[rearrangeAtoms[t], {t, rhsTerms}]];
     If[rhsAtoms === $Failed, Return[$Failed]];

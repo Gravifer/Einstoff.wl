@@ -654,7 +654,8 @@ symbol forms are still tolerated (they unify identically). It subsumes the §7.2
 integer-slot aliasing hazard for axes (named axes never use an integer `Slot`).
 `Einstoff[Map][f]`, the kept-bracket vmap, is also implemented (see above).
 Plain anonymous sequences (`__` / `___`) lower as non-targeted carried/vmapped
-axis runs when kept on the output; targeted variadic runs (`##`,
+axis runs when kept on the output, with at most one plain anonymous sequence per
+shape; targeted variadic runs (`##`,
 `Highlighted[__]`, `Highlighted[___]`, etc.) remain the spelling for feeding a
 captured run to `ArrayReduce` / `Map`.
 

@@ -65,7 +65,7 @@ PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
   normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, rearrangeAtoms, atomSize, firstDuplicateAxis,
   distinctAxesQ, bracketWrapperQ, reduceAtoms, targetDecomposeTerms,
-  expandAnonymousTargetRhs, materializeOutput, selfContract,
+  plainSequenceCount, expandAnonymousTargetRhs, materializeOutput, selfContract,
   materializeOutputTrace, materializeOutputExprHeld, heldReshape, heldArrayReduce,
   heldTranspose, heldValue, heldTake, heldTakeValue, heldMap, heldMapAt, heldApply,
   heldMapThreadDot,
@@ -750,6 +750,9 @@ targetSequenceQ[t_] :=
 
 targetSequenceMin[t_] := If[MatchQ[t, Verbatim[BlankSequence[]]], 1, 0];
 
+plainSequenceCount[terms_List] :=
+  Count[terms, Verbatim[BlankSequence[]] | Verbatim[BlankNullSequence[]], {1}];
+
 termDimCount[t_] :=
   Which[
     targetSequenceQ[t], targetSequenceMin[t],
@@ -778,6 +781,11 @@ targetDecomposeTerm[t_, d_, env_, br_] :=
 targetDecomposeTerms[terms_List, dims_List, env_] :=
   Module[{tagged = {}, anonymous = {}, env2 = env, pos = 1, i, t,
           restTerms, minRest, k, atom, parts, td, anon},
+    If[plainSequenceCount[terms] > 1,
+      Message[Einstoff::unsupp,
+        "multiple plain anonymous sequences (__ / ___) in one shape are ambiguous; \
+only one is supported per shape"];
+      Throw[$Failed, einThrowTag]];
     For[i = 1, i <= Length[terms], i++,
       t = terms[[i]];
       Which[
@@ -835,6 +843,11 @@ targetDecomposeTerms[terms_List, dims_List, env_] :=
 
 expandAnonymousTargetRhs[terms_List, anonAtoms_List] :=
   Module[{q = anonAtoms},
+    If[plainSequenceCount[terms] > 1,
+      Message[Einstoff::unsupp,
+        "multiple plain anonymous sequences (__ / ___) in one shape are ambiguous; \
+only one is supported per shape"];
+      Throw[$Failed, einThrowTag]];
     Flatten @ Table[
       Which[
         bracketWrapperQ[t] && Length[t] === 1 && targetSequenceQ[First[t]],

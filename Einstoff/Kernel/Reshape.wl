@@ -120,7 +120,13 @@ massageCore[desc_, tensors_, bindings_List, policy_, traceAction_] := withAxisSc
       Message[Einstoff::unsat, "an input axis size is unbound or inconsistent"];
       Return[$Failed]];
     lhsAtoms = decomp["Tagged"][[All, 1]]; env = decomp["Env"];
-    rhsTerms = expandAnonymousTargetRhs[First[rhs], decomp["AnonymousTargetAtoms"]];
+    If[plainSequenceCount[First[rhs]] > 0 && plainSequenceCount[First[lhs]] == 0,
+      Message[Einstoff::unsupp,
+        "a plain anonymous sequence (__ / ___) on the output needs a corresponding \
+plain sequence in the input shape"];
+      Return[$Failed]];
+    rhsTerms = einCatch[expandAnonymousTargetRhs[First[rhs], decomp["AnonymousTargetAtoms"]]];
+    If[rhsTerms === $Failed, Return[$Failed]];
     rhsAtoms = einCatch[Join @@ (rearrangeAtoms /@ rhsTerms)];
     If[lhsAtoms === $Failed || rhsAtoms === $Failed, Return[$Failed]];
     (* An axis name may not repeat on the output (no einsum spelling for it). *)

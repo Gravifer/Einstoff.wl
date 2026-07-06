@@ -311,6 +311,33 @@ VerificationTest[
   TestID -> "reshape-blanksequence-reject-empty"
 ];
 
+VerificationTest[
+  Quiet[
+    Einstoff[ArrayReshape][{{___, a_, ___}} :> {{___, a, ___}},
+      {ArrayReshape[Range[24], {2, 3, 4}]}],
+    {Einstoff::unsupp, Einstoff::unsat}],
+  $Failed,
+  TestID -> "reshape-reject-multiple-plain-blanknullsequence-lhs"
+];
+
+VerificationTest[
+  Quiet[
+    Einstoff[ArrayReshape][{{___, c_}} :> {{___, c, ___}},
+      {ArrayReshape[Range[24], {2, 3, 4}]}],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "reshape-reject-multiple-plain-blanknullsequence-rhs"
+];
+
+VerificationTest[
+  Quiet[
+    Einstoff[ArrayReshape][{{a_, c_}} :> {{a, ___, c}},
+      {ArrayReshape[Range[6], {2, 3}]}],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "reshape-reject-output-only-plain-blanknullsequence"
+];
+
 (* 26c-d. The raw public EinstoffMatch accepts a string-tier axis (SPEC §5.6): "a" is
    the axis named `a`, unified like a bare symbol — consistent with EinstoffShapes, whose
    desc parse canonicalizes strings before matching. *)
