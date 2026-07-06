@@ -61,9 +61,10 @@ Einstoff[ArrayReduce][Total][
 - `.agents/agents.md`, `.agents/SPEC.md`, and `.agents/plans/` are developer and coding
   agent materials.
 
-## Getting started
+## Getting Started
 
-The Wolfram package itself requires Wolfram Language 14.0 or newer.
+Have your own Wolfram Language system ready. Einstoff currently targets Wolfram
+Language 14.0 or newer, and the test suite runs through `wolframscript`.
 
 Python is used only for the optional cross-validation harness:
 
@@ -71,7 +72,7 @@ Python is used only for the optional cross-validation harness:
 uv sync
 ```
 
-Run the default Wolfram-only suite:
+Run the default Wolfram-only suite from the repository root:
 
 ```powershell
 wolframscript -script scripts/run-tests.wls -q

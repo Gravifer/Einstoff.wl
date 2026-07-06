@@ -39,7 +39,8 @@ The maintainer updates that generated notebook when new tests arrive on `main`.
 
 ## Tests
 
-Run the default Wolfram-only suite before submitting a change:
+Before submitting a pull request or merge request, make sure the default
+Wolfram-only suite passes at your branch HEAD:
 
 ```powershell
 wolframscript -script scripts/run-tests.wls -q
@@ -55,6 +56,9 @@ wolframscript -script scripts/run-tests.wls python -q
 The Python suite is useful but not required for every contribution. It depends on a
 Python environment and may fail to start under some Windows sandbox restrictions even
 when the Wolfram-only suite passes.
+
+Additional tests are appreciated when they clarify behavior, cover a regression, or
+pin down a design boundary.
 
 ## Generated and Local Files
 
