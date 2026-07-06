@@ -3,7 +3,7 @@
 (* Einstoff parsing — shape-resolution / satisfiability layer.
 
    Given a `desc` (an einops/einx-style axis transformation written as
-   `lhs :> rhs`, list-of-shapes both sides, see SPEC.md) and the *shapes*
+   `lhs :> rhs`, list-of-shapes both sides, see .agents/SPEC.md) and the *shapes*
    of input tensors plus an axis-size `bindings` list, decide whether the
    description is satisfiable and, if so, what the output shapes are.
 

@@ -644,7 +644,7 @@ structural concatenation is not a single target-block operation. Structural
 `CirclePlus` is rejected there, matching einx `id`/`rearrange` behavior for
 `[(a + b)]`. The structural direct-sum gap that remains deferred is equal repeated
 summands such as `b (q + q) -> b q, b q` (the distinct-axis policy rejects this
-today). Historical plan: `docs/plans/circleplus-direct-sum.md`.
+today). Historical plan: `.agents/plans/circleplus-direct-sum.md`.
 
 **Target notation — string-named axes (implemented).** A targeted string axis is now
 `#name` = `Slot["name"]` (§5.1, §3 glossary), bound by unification on its string
@@ -704,7 +704,7 @@ each a policy that admits only the features it declares (element counts, single 
 The repetition / direct-sum test sites that formerly rode on `Einstoff[ArrayReshape]`
 migrated to `Einstoff["Massage"]`; `tests/ArrayContract.wlt` covers the new guard, and
 `tests/Reshape.wlt` asserts the bijective entrance now rejects those descs. Design note:
-`docs/plans/entrance-guards.md`. A future cross-tensor backend parallel to the univalent
+`.agents/plans/entrance-guards.md`. A future cross-tensor backend parallel to the univalent
 Massage — working name **`EinstoffTandem`** — would unify the `Dot`/`Inner` structural
 role under the same metaphor (potential TODO). **Remaining feature-roadmap work:** the
 combiner generalization (`ArrayContract[…, add]` / `Tr[…, add]`), diagonal-keep, and mixed

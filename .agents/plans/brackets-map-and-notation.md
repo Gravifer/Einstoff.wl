@@ -1,6 +1,6 @@
 # Plan: bracket cleanup (done) → `Einstoff[Map]` → `#a`/`##` notation migration
 
-> Referenced from SPEC.md §9. Parts A, B and C are all **done** (2026-06-30). This
+> Referenced from `.agents/SPEC.md` §9. Parts A, B and C are all **done** (2026-06-30). This
 > file is kept as the rationale/record; the implementation is in the tree.
 
 ## Context

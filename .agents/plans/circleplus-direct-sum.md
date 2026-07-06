@@ -1,11 +1,11 @@
 # Plan: CirclePlus (direct sum / concatenation) — concat first
 
-> Referenced from SPEC.md §9.
+> Referenced from `.agents/SPEC.md` §9.
 > **Status: IMPLEMENTED (historical plan).** Both directions — concatenation
 > (RHS CirclePlus) and splitting (LHS CirclePlus) — are done and cross-validated,
 > including nested and composite (CircleTimes-block) summands, integer/unit summands,
 > multiple top-level `CirclePlus` axes per shape, and the `EinstoffJoin`/
-> `EinstoffSplit` directional guards. See SPEC.md §9 for the authoritative current
+> `EinstoffSplit` directional guards. See `.agents/SPEC.md` §9 for the authoritative current
 > state; this file is kept for the original design rationale. Targeted direct sum is
 > supported as a single physical target axis for `ArrayReduce`; `Map` rejects it,
 > and structural `Join`/`Split` intentionally keep the bare `CirclePlus` syntax
@@ -21,7 +21,7 @@
 > (phase 2), including nested and composite (CircleTimes-block) summands in both
 > directions and multiple direct-sum axes, have all shipped. For the authoritative
 > current status and the genuinely remaining deferrals, see the header above and
-> SPEC.md §9.
+> `.agents/SPEC.md` §9.
 
 ---
 
@@ -124,7 +124,7 @@ equal repeated summands such as `b (q + q) -> b q, b q`.
   operand/summand count mismatch, unbound summand).
 - **Create `tests/python/DirectSum.wlt`** — einx cross-validation, reusing the
   shared-session harness (`Einstoff`Tests`$PySession`).
-- **Edit `SPEC.md`** — mark CirclePlus concat implemented once done.
+- **Edit `.agents/SPEC.md`** — mark CirclePlus concat implemented once done.
 
 ## Verification
 
