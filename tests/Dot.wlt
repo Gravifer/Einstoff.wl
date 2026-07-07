@@ -43,6 +43,34 @@ VerificationTest[
   TestID -> "dot-outer"
 ];
 
+(* 4b. Named axis-sequence RHS code can zip captured axes into product axes:
+   einx.multiply("a..., b... -> (a b)..."). *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}],
+        y = ArrayReshape[Range[35], {5, 7}]},
+    Einstoff[Dot][
+      {{a__}, {b__}} :> {MapThread[CircleTimes, {{a}, {b}}]},
+      {x, y}]],
+  ArrayReshape[
+    Table[
+      ArrayReshape[Range[6], {2, 3}][[i1, j1]] *
+        ArrayReshape[Range[35], {5, 7}][[i2, j2]],
+      {i1, 2}, {i2, 5}, {j1, 3}, {j2, 7}],
+    {10, 21}],
+  TestID -> "dot-named-axis-sequence-zip-product"
+];
+
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}],
+        y = ArrayReshape[Range[35], {5, 7}]},
+    With[{g = Einstoff[Dot][
+        {{a__}, {b__}} :> {MapThread[CircleTimes, {{a}, {b}}]},
+        {x, y}, {}, TraceAction -> Hold]},
+      {Head[g], Dimensions[ReleaseHold[g]], ! FreeQ[g, _MapThread]}]],
+  {Hold, {10, 21}, True},
+  TestID -> "dot-named-axis-sequence-zip-product-trace"
+];
+
 (* 5. Inner product 'a, a -> ' contracts everything to a scalar. *)
 VerificationTest[
   Einstoff[Dot][{{a_}, {a_}} :> {{}}, {Range[3], Range[3]}],

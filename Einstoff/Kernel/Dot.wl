@@ -54,6 +54,33 @@ Einstoff["Inner"] := EinstoffInner;
 Options[EinstoffDot] = {TraceAction -> None, "Targeting" -> Automatic};
 Options[EinstoffInner] = {TraceAction -> None, "Targeting" -> Automatic};
 
+dotDescPartsHeldRhs[h : Hold[_Rule | _RuleDelayed]] :=
+  Module[{hr = canonHeld[h]},
+    If[hr === $Failed, $Failed,
+      {normShapes @ Extract[hr, {1, 1}],
+       normHeldShapes @ Extract[hr, {1, 2}, Hold]}]];
+dotDescPartsHeldRhs[_] := ($descRejectReason = None; $Failed);
+
+dotSequenceAtomRules[namedAtoms_Association] :=
+  Table[k -> Apply[Sequence, anonymousCaptureAtomList[{namedAtoms[k]}]],
+    {k, Keys[namedAtoms]}];
+
+dotSequenceRepeatRules[namedAtoms_Association] := {
+  Verbatim[Repeated][sym_Symbol] :>
+    RuleCondition[
+      If[KeyExistsQ[namedAtoms, sym],
+        Apply[Sequence, anonymousCaptureAtomList[{namedAtoms[sym]}]],
+        Repeated[sym]]],
+  Verbatim[RepeatedNull][sym_Symbol] :>
+    RuleCondition[
+      If[KeyExistsQ[namedAtoms, sym],
+        Apply[Sequence, anonymousCaptureAtomList[{namedAtoms[sym]}]],
+        RepeatedNull[sym]]]};
+
+dotEvalRhsTerms[heldRhs_Hold, namedAtoms_Association] :=
+  ReleaseHold[(heldRhs /. dotSequenceRepeatRules[namedAtoms]) /.
+    dotSequenceAtomRules[namedAtoms]];
+
 (* Contract two atomic-axis tensors with combiner (mul, add), keeping the axes in
    `keep`; return {tensor, labels} reshaped to atomic axes (label order B,M,N).
    Emits a message and Throws $Failed on a within-operand drop. *)
@@ -152,14 +179,16 @@ sanitizeOperandHeld[t_, atoms_, env_] :=
    reads as a literal dimension, illegal values rejected downstream; Pattern still
    holds each binding `name_` and `:>` holds the RHS. *)
 innerLower[mul_, add_, desc_, tensors_, bindings_, traceAction_, targeting_] := withAxisScope @
-  Module[{parts, lhs, rhs, shp, env, taggedLabs, labs, lhsBr, outA, sanitized,
+  Module[{parts, lhs, heldRhs, rhs, shp, m, env, seq, decomp, decompList = {},
+          namedAtoms = <||>, rhsTerms, taggedLabs, labs, lhsBr, outA, sanitized,
           stensors, slabs, hsanitized, hstensors, hslabs, result, targetedOcc,
           contractedOcc, targetingMode},
     targetingMode = einCatch[validateTargetingOption[targeting]];
     If[targetingMode === $Failed, Return[$Failed]];
-    parts = descParts[Hold[desc]];
+    parts = dotDescPartsHeldRhs[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
-    {lhs, rhs} = parts;
+    {lhs, heldRhs} = parts;
+    rhs = Quiet @ Check[ReleaseHold[heldRhs], $Failed];
     If[! MatchQ[tensors, {_, __}],
       Message[Einstoff::unsupp,
         "contraction needs at least two input tensors (use ArrayReduce/ArrayReshape \
@@ -188,12 +217,36 @@ case is unsupported); contract that operand first with Einstoff[\"ArrayContract\
     If[! TrueQ[shp["Satisfiable"]],
       Message[Einstoff::unsat, shp["Reason"]]; Return[$Failed]];
     env = shp["Bindings"];
+    m = EinstoffMatch[lhs, Dimensions /@ tensors, bindings];
+    If[! TrueQ[m["ok"]],
+      Message[Einstoff::unsat, m["reason"]]; Return[$Failed]];
+    seq = Lookup[m, "seq", <||>];
 
     (* Atomic axes of each operand (brackets unwrapped, with per-occurrence target
        metadata retained for "Targeting" validation) and of the output. *)
-    taggedLabs = einCatch[Table[
-      Join @@ Table[reduceAtoms[t], {t, lhs[[j]]}], {j, Length[lhs]}]];
-    outA = einCatch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
+    Do[
+      decomp = einCatch[
+        targetDecomposeTerms[lhs[[j]], Dimensions[tensors[[j]]], env, seq]];
+      If[decomp === $Failed,
+        Message[Einstoff::unsat, "an input axis size is unbound or inconsistent"];
+        Return[$Failed]];
+      AppendTo[decompList, decomp];
+      env = decomp["Env"];
+      If[Intersection[Keys[namedAtoms], Keys[decomp["NamedSequenceAtoms"]]] =!= {},
+        Message[Einstoff::unsupp,
+          "a named axis-sequence capture is repeated across contraction operands"];
+        Return[$Failed]];
+      namedAtoms = Join[namedAtoms, decomp["NamedSequenceAtoms"]],
+      {j, Length[lhs]}];
+    taggedLabs = Lookup[decompList, "Tagged"];
+    rhsTerms = einCatch[dotEvalRhsTerms[heldRhs, namedAtoms]];
+    If[rhsTerms === $Failed || ! MatchQ[rhsTerms, {_List}],
+      Message[Einstoff::unsupp,
+        "contraction RHS must evaluate to exactly one output shape"];
+      Return[$Failed]];
+    rhsTerms = einCatch[expandAnonymousTargetRhs[First[rhsTerms], {}, namedAtoms]];
+    If[rhsTerms === $Failed, Return[$Failed]];
+    outA = einCatch[Join @@ Table[rearrangeAtoms[t], {t, rhsTerms}]];
     If[taggedLabs === $Failed || outA === $Failed, Return[$Failed]];
     labs = taggedLabs[[All, All, 1]];
     lhsBr = taggedLabs[[All, All, 2]];
@@ -244,7 +297,7 @@ output for an elementwise/batch product, or contract pairwise)"];
           keep = Union[outA, Join @@ hslabs[[i + 1 ;;]]];
           {accT, accL} = contractPairHeld[mul, add, accT, accL, hstensors[[i]], hslabs[[i]], keep, env],
           {i, 2, Length[hstensors]}];
-        traceReturnHeld[materializeOutputExprHeld[accT, accL, First[rhs], env], traceAction]];
+        traceReturnHeld[materializeOutputExprHeld[accT, accL, rhsTerms, env], traceAction]];
       If[result === $Failed, Return[$Failed]];
       Return[result]];
 
@@ -253,7 +306,7 @@ output for an elementwise/batch product, or contract pairwise)"];
         keep = Union[outA, Join @@ slabs[[i + 1 ;;]]];
         {accT, accL} = contractPair[mul, add, accT, accL, stensors[[i]], slabs[[i]], keep, env],
         {i, 2, Length[stensors]}];
-      With[{accT0 = accT, accL0 = accL, rhs0 = First[rhs], env0 = env},
+      With[{accT0 = accT, accL0 = accL, rhs0 = rhsTerms, env0 = env},
         materializeOutputTrace[accT0, accL0, rhs0, env0, traceAction]]];
     If[result === $Failed, Return[$Failed]];
     result

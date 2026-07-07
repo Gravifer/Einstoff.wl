@@ -371,7 +371,9 @@ after that for brevity.
    Resolved by `RuleDelayed` (§7.1): `{a}`/`{b}` listify the captured
    `Sequence`s, `MapThread` zips them. Cross-group length consistency
    (`Length[{a}] == Length[{b}]`) is enforced by the engine's manual
-   binding phase (§5.3).
+   binding phase (§5.3). Lowering for this product-style case is implemented
+   in `Einstoff[Dot]`: with no contracted axes, the Dot/Inner path is the
+   cross-tensor structural product path.
 
 8. **Named ellipsis with internal structure (pooling)** —
    `einx.sum("b (s [ds])... c", x, ds=(2, 2))`
@@ -434,9 +436,11 @@ semantics already is that interface.
 - Once such an RHS evaluates to a concrete (possibly irregular) shape,
   *lowering* it to actual `Transpose`/`ArrayReshape`/`ArrayReduce`/`Join`
   calls that produce real array data is operation-specific engineering,
-  not a generic compile step. This was always going to be true for
-  irregular ops like Kronecker product; `RuleDelayed` solves expressibility
-  of the spec, not automatic compilation to the four native primitives.
+  not a generic compile step. The product-style cross-tensor zip in example 7
+  is implemented in `Einstoff[Dot]`; structured projection cases such as
+  example 8 remain operation-specific lowering work. `RuleDelayed` solves
+  expressibility of the spec, not automatic compilation to every native
+  primitive.
 
 ### 7.2 `Slot` aliasing `Function` slots — largely resolved (named axes are string-keyed)
 
@@ -688,9 +692,9 @@ needs a real matching policy beyond `Longest` / `Shortest`. Targeted variadic ru
 captured run to `ArrayReduce` / `Map`.
 
 **Other deferred lowering items** (rejected loudly today, not mis-compiled):
-the remaining named axis-sequence lowering surface (§5.3), especially cross-tensor
-and direct-sum interactions; within-operand reduction before contraction in
-`Einstoff[Dot]`.
+the remaining named axis-sequence lowering surface (§5.3), especially structured
+projection and direct-sum interactions; within-operand reduction before contraction
+in `Einstoff[Dot]`.
 
 **Within-tensor contraction — pairwise core implemented.** A name repeated in one
 operand and dropped on the output is summed over its coincident slots (GR-style traces,
