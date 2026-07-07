@@ -83,6 +83,8 @@ related_functions:
 - `bindings` is a list of rules such as `{"channels" -> 3}` or `{c -> 3}`.
 - The public operators do not hold `desc`.
 - `TraceAction -> Hold` and `TraceAction -> Defer` return the lowered Wolfram expression in held or deferred form.
+
+Apart from actual functions, some operators accept named recipes to reproduce part of einx behavior:
 - `Einstoff[ArrayReduce]` allows named recipes `"sum" | "total" | "add"` `"mean" | "average"` `"max"` `"min"` `"prod" | "product" | "times"` `"var" | "variance"` `"std" | "stddev"` `"count_nonzero" | "countnonzero"` `"any"` `all` and `"logsumexp" | "lse"`;
   `Einstoff[Map]` allows named recipes `id` `flip` `sort` `softmax` and `log_softmax`.
 
