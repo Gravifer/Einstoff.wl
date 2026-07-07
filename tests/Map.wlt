@@ -1,11 +1,10 @@
 (* ::Package:: *)
 
-(* Tests for the map lowering path (Einstoff[Map]) — einx miscellaneous /
-   shape-preserving elementary ops (flip/roll/sort/softmax/log_softmax/id).
+(* Tests for the generalized blockwise map lowering path (Einstoff[Map]).
    The op is curried: Einstoff[Map][f][desc, tensors, bindings]; f is a
-   target-block -> same-shape target-block function, or a string shortcut.
-   The targeted axes are the op axes (kept on the output); every
-   untargeted axis is vmapped.  One file per lowering path under tests/.
+   target-block -> output-block function, or a string shortcut. The targeted
+   axes are the input block; every untargeted axis is vmapped. With no target,
+   f is mapped over scalar blocks. One file per lowering path under tests/.
    Run via: wolframscript -script scripts/run-tests.wls
    BeginTestSection/EndTestSection are MUnit markers; the runner loads MUnit`. *)
 
@@ -244,20 +243,17 @@ VerificationTest[
   TestID -> "map-repeat"
 ];
 
-(* 11. A dropped axis is a reduction, not a map — rejected (points at ArrayReduce). *)
+(* 11. A shape-changing map may collapse the targeted block. *)
 VerificationTest[
-  Quiet[
-    Einstoff[Map][Reverse][{{a_, Slot["b"]}} :> {{a}},
-      {ArrayReshape[Range[8], {2, 4}]}],
-    {Einstoff::unsupp}],
-  $Failed,
-  TestID -> "map-reject-dropped-axis"
+  With[{x = ArrayReshape[Range[8], {2, 4}]},
+    Einstoff[Map][Total][{{a_, Slot["b"]}} :> {{a}}, {x}]],
+  Total /@ ArrayReshape[Range[8], {2, 4}],
+  TestID -> "map-collapse-target-block"
 ];
 
-(* 11b. A name repeated within an input shape is within-tensor contraction, which Map
-   (shape-preserving) does not do — rejected.  The output {{a, #b}} is duplicate-free, so
-   EinstoffShapes is Satisfiable and the rejection comes from Map itself (the distinctAxesQ
-   guard, backed by Map's shape-preserving drop-check — defense in depth), not the
+(* 11b. A name repeated within an input shape is within-tensor contraction, which
+   blockwise Map does not do. The output {{a, #b}} is duplicate-free, so
+   EinstoffShapes is Satisfiable and the rejection comes from Map itself, not the
    resolver's output-uniqueness check. *)
 VerificationTest[
   Quiet[
@@ -268,24 +264,23 @@ VerificationTest[
   TestID -> "map-reject-repeated-input-axis"
 ];
 
-(* 12. No targeted axis is a pure rearrange — rejected (points at ArrayReshape). *)
+(* 12. No targeted axis means scalar-level map, matching einx's no-bracket misc-op
+   behavior. *)
 VerificationTest[
-  Quiet[
-    Einstoff[Map][Reverse][{{a_, b_}} :> {{a, b}},
-      {ArrayReshape[Range[8], {2, 4}]}],
-    {Einstoff::unsupp}],
-  $Failed,
-  TestID -> "map-reject-no-bracket"
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
+    Einstoff[Map][{#, 2} &][{{a_, b_}} :> {{a, b, 2}}, {x}]],
+  Map[{#, 2} &, ArrayReshape[Range[6], {2, 3}], {2}],
+  TestID -> "map-no-target-scalar-blocks"
 ];
 
-(* 13. A non-shape-preserving f (collapses the block) is rejected. *)
+(* 13. A produced block whose dimensions do not match the RHS is rejected. *)
 VerificationTest[
   Quiet[
-    Einstoff[Map][Total][{{a_, Slot["b"]}} :> {{a, Slot["b"]}},
-      {ArrayReshape[Range[8], {2, 4}]}],
-    {Einstoff::unsupp}],
+    Einstoff[Map][{#, 2} &][{{a_, b_}} :> {{a, b, 3}},
+      {ArrayReshape[Range[6], {2, 3}]}],
+    {Einstoff::unsat}],
   $Failed,
-  TestID -> "map-reject-not-shape-preserving"
+  TestID -> "map-reject-produced-block-mismatch"
 ];
 
 (* 14b. An unknown map op name is rejected with a clear error. *)
@@ -314,7 +309,7 @@ VerificationTest[
   Quiet[
     Einstoff[Map]["id"][{{a_, Slot[2]}} :> {{a, 2}},
       {ArrayReshape[Range[6], {3, 2}]}],
-    {Einstoff::unsupp}],
+    {Einstoff::unsupp, Einstoff::unsat}],
   $Failed,
   TestID -> "map-reject-kept-literal"
 ];

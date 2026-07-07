@@ -1,21 +1,17 @@
 (* ::Package:: *)
 
-(* Map path: Einstoff[Map] / EinstoffMap (einx miscellaneous / shape-preserving
-   elementary ops — https://einx.readthedocs.io/en/stable/api/operations/misc.html:
-   flip, roll, sort, softmax, log_softmax, id).  The kept-target sibling of
-   Einstoff[ArrayReduce]: a *reduction* drops the targeted axes (f: block ->
-   scalar); a *map* keeps them (f: block -> same-length block), vmapping the op
-   over every untargeted axis.  einx has no generic vmap entry point — each named
-   op carries its own targeted signature — so this is the single generic operator
-   that realizes all of them, with f supplied (curried) by the caller.
+(* Map / Operate path.  Einstoff[Operate] is the shape-preserving targeted-block
+   operation path for einx miscellaneous ops (flip, roll, sort, softmax,
+   log_softmax, id): targeted axes are passed to f as one rectangular block, and
+   f must return the same block shape.  Einstoff[Map] is the broader blockwise
+   transform: the same target/vmap layout is used, but f may change the target
+   block shape and the final result is validated against the RHS.
 
-   Einstoff[Map][f][desc, tensors, bindings].  f receives the targeted axes as
-   one rectangular Wolfram block, preserving nested list structure, and must return
-   a same-shape block.  Examples:
-     Einstoff[Map]["flip"]     reverse along the target   (einx.flip)
-     Einstoff[Map]["sort"]     sort along the target       (einx.sort)
-     Einstoff[Map]["softmax"]  softmax along the target    (einx.softmax)
-     Einstoff[Map][RotateLeft[#, 2] &]   roll               (einx.roll; the shift
+   Examples:
+     Einstoff[Operate]["flip"]     reverse along the target   (einx.flip)
+     Einstoff[Operate]["sort"]     sort along the target       (einx.sort)
+     Einstoff[Operate]["softmax"]  softmax along the target    (einx.softmax)
+     Einstoff[Operate][RotateLeft[#, 2] &]   roll              (einx.roll; the shift
        is a parameter, so roll is expressed as a function rather than a name).
 
    As with the reducer (and for the same reason — a hold attribute cannot survive
@@ -26,21 +22,27 @@
    Shared shape helpers (descParts, distinctAxesQ) live in ShapeChecker.wl; atom and
    materialization helpers live in Lowering.wl. *)
 
-PackageExported[{EinstoffMap}]
+PackageExported[{EinstoffMap, EinstoffOperate}]
 
 EinstoffMap::usage =
-  "EinstoffMap[f][desc, tensors, bindings] realizes a shape-preserving \
-elementary op (einx flip/roll/sort/softmax/log_softmax, einx.misc): the \
-targeted axes are fed to f as one rectangular block and f returns a \
-same-shape block, while every untargeted axis is vmapped.  f may be a \
-function (Reverse, Sort, a custom block map) or a name \
-(\"flip\"/\"sort\"/\"softmax\"/\"log_softmax\"/\"id\").  The targeted axes are \
-kept on the output; dropping an axis is a reduction (use Einstoff[ArrayReduce]).";
+  "EinstoffMap[f][desc, tensors, bindings] realizes a blockwise transform of \
+one tensor: targeted axes are fed to f as one rectangular block, every untargeted \
+axis is vmapped, and the result is checked against the RHS shape. If there are no \
+targets, f is mapped over scalar blocks.";
+
+EinstoffOperate::usage =
+  "EinstoffOperate[f][desc, tensors, bindings] realizes a shape-preserving \
+targeted-block op (einx flip/roll/sort/softmax/log_softmax, einx.misc): the \
+targeted axes are fed to f as one rectangular block and f must return the same \
+block shape, while every untargeted axis is vmapped.";
 
 Einstoff[Map] := EinstoffMap;
 Einstoff["Map"] := EinstoffMap;
+Einstoff[Operate] := EinstoffOperate;
+Einstoff["Operate"] := EinstoffOperate;
 
 Options[EinstoffMap] = {TraceAction -> None};
+Options[EinstoffOperate] = {TraceAction -> None};
 
 mapSoftmaxBlock[x_] :=
   Module[{v = Flatten[x], y},
@@ -66,15 +68,50 @@ mapFunction[s_String] := Replace[ToLowerCase[s], {
   _ :> Missing["UnknownMapOp", s]}];
 mapFunction[f_] := f;
 
-(* Curried: Einstoff[Map][f] is the operator, applied to [desc, tensors, bindings].
-   A subvalue of EinstoffMap, exactly as EinstoffReduce[reducer][…]. *)
-EinstoffMap[fSpec_][desc_, tensors_, bindings_List : {},
-    opts : OptionsPattern[EinstoffMap]] := withAxisScope @
+rhsProducedTerms[terms_List, vmapAtoms_, blockDims_, env_] :=
+  Module[{env2 = env, produced, q, replace, rhsAtoms, nonVmap},
+    rhsAtoms = Join @@ Table[rearrangeAtoms[t], {t, terms}];
+    nonVmap = Select[rhsAtoms, ! MemberQ[vmapAtoms, #] &];
+    If[Length[nonVmap] < Length[blockDims],
+      Message[Einstoff::unsupp,
+        "the map function returned more block axes than the RHS can receive"];
+      Throw[$Failed, einThrowTag]];
+    If[! And @@ Table[atomSize[nonVmap[[i]], env2] === blockDims[[i]],
+        {i, Length[blockDims]}],
+      Message[Einstoff::unsat,
+        "the map function returned block dimensions that do not match the RHS"];
+      Throw[$Failed, einThrowTag]];
+    produced = Table[Unique["map$", {Temporary}], {Length[blockDims]}];
+    Do[env2 = Append[env2, produced[[i]] -> blockDims[[i]]],
+      {i, Length[blockDims]}];
+    q = produced;
+    replace[t_] := Which[
+      MatchQ[t, Verbatim[Pattern][_Symbol, Verbatim[Blank[]]]],
+        If[MemberQ[vmapAtoms, t[[1]]] || q === {}, t,
+          With[{a = First[q]}, q = Rest[q]; a]],
+      Head[t] === Symbol,
+        If[MemberQ[vmapAtoms, t] || q === {}, t,
+          With[{a = First[q]}, q = Rest[q]; a]],
+      IntegerQ[t],
+        If[MemberQ[vmapAtoms, t] || q === {}, t,
+          With[{a = First[q]}, q = Rest[q]; a]],
+      t === {},
+        If[MemberQ[vmapAtoms, 1] || q === {}, t,
+          With[{a = First[q]}, q = Rest[q]; a]],
+      Head[t] === CircleTimes,
+        CircleTimes @@ (replace /@ (List @@ t)),
+      bracketWrapperQ[t],
+        Head[t] @@ (replace /@ (List @@ t)),
+      True, t];
+    {replace /@ terms, env2, produced}];
+
+mapCore[fSpec_, desc_, tensors_, bindings_List, traceAction_, strictQ_] :=
+  withAxisScope @
   Module[{parts, lhs, rhs, inShapes, m, env, f, x, decomp, rhsTerms,
           lhsTagged, lhsAtoms, lhsBr, rhsAtoms, brAtoms, vmapAtoms,
           decompDims, order, srcPerm, xr, vmapDims, brDims,
-          mapped, recombined, result, traceAction, h},
-    traceAction = OptionValue[EinstoffMap, {opts}, TraceAction];
+          mapped, recombined, result, h, mappedDims, blockDims, produced,
+          producedTerms, producedEnv, producedAtoms},
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
@@ -83,7 +120,8 @@ EinstoffMap[fSpec_][desc_, tensors_, bindings_List : {},
         "tensors must be a non-empty list of arrays"]; Return[$Failed]];
     If[! MatchQ[lhs, {_List}] || ! MatchQ[rhs, {_List}] || Length[tensors] =!= 1,
       Message[Einstoff::unsupp,
-        "Map lowering supports exactly one input and one output tensor"];
+        If[strictQ, "Operate", "Map"] <>
+          " lowering supports exactly one input and one output tensor"];
       Return[$Failed]];
 
     f = mapFunction[fSpec];
@@ -95,7 +133,8 @@ flip/sort/softmax/log_softmax/id, or pass a function"];
 
     If[Cases[lhs, t_ /; bracketWrapperQ[t] && ! FreeQ[t, CirclePlus], {0, Infinity}] =!= {},
       Message[Einstoff::unsupp,
-        "Einstoff[Map] does not map over a targeted direct sum (CirclePlus); use \
+        "Einstoff[" <> If[strictQ, "Operate", "Map"] <>
+          "] does not map over a targeted direct sum (CirclePlus); use \
 Einstoff[Join]/[Split] structurally, then map the resulting tensor(s)"];
       Return[$Failed]];
 
@@ -105,7 +144,7 @@ Einstoff[Join]/[Split] structurally, then map the resulting tensor(s)"];
     If[! distinctAxesQ[lhs],
       Message[Einstoff::unsupp,
         "axis " <> axisDisplayName[firstDuplicateAxis[lhs]] <> " repeats within an input \
-shape; Map is shape-preserving and does not contract. Within-tensor contraction is \
+shape; Map/Operate does not contract. Within-tensor contraction is \
 Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
       Return[$Failed]];
 
@@ -139,22 +178,22 @@ plain sequence in the input shape"];
     brAtoms = Pick[lhsAtoms, lhsBr];
     vmapAtoms = Pick[lhsAtoms, lhsBr, False];
 
-    (* Map acts *along* a targeted axis (the op signature); with no target the
-       desc is a pure rearrange. *)
-    If[brAtoms === {},
+    (* Operate is explicitly the targeted-block, shape-preserving path.  Generalized
+       Map follows einx's no-bracket misc-op behavior: no targets means scalar blocks
+       and every input axis is vmapped. *)
+    If[strictQ && brAtoms === {},
       Message[Einstoff::unsupp,
-        "Einstoff[Map] needs a targeted axis (the op acts along it); a desc with \
+        "Einstoff[Operate] needs a targeted axis (the op acts along it); a desc with \
 no target is a pure rearrange; use Einstoff[ArrayReshape]"];
       Return[$Failed]];
 
-    (* Map preserves every axis (keeps the target, vmaps the rest); RHS-only axes are
-       repetition.  A dropped input axis of size > 1 is a reduction (not map); a dropped
-       size-1 (unit) axis carries no data and is squeezed by materializeOutput (einx
-       allows e.g. 'a () [b] -> a [b]'), so the guard is size-aware, like Massage/Dot. *)
-    If[AnyTrue[lhsAtoms, ! MemberQ[rhsAtoms, #] && atomSize[#, env] > 1 &],
+    (* Operate preserves every input axis; broad Map may drop target axes if f
+       collapses them, but still carries/vmaps every untargeted size > 1 axis. *)
+    If[AnyTrue[If[strictQ, lhsAtoms, vmapAtoms],
+        ! MemberQ[rhsAtoms, #] && atomSize[#, env] > 1 &],
       Message[Einstoff::unsupp,
-        "an input axis of size > 1 is dropped on the output; dropping a size > 1 axis \
-is a reduction, use Einstoff[ArrayReduce] (a size-1 unit axis is squeezed)"];
+        "an input axis of size > 1 is dropped on the output; dropping an untargeted \
+size > 1 axis is not a blockwise map (a size-1 unit axis is squeezed)"];
       Return[$Failed]];
 
     x = First[tensors];
@@ -172,13 +211,19 @@ is a reduction, use Einstoff[ArrayReduce] (a size-1 unit axis is squeezed)"];
     vmapDims = atomSize[#, env] & /@ vmapAtoms;
     brDims = atomSize[#, env] & /@ brAtoms;
     mapped = If[vmapAtoms === {}, f[xr], Map[f, xr, {Length[vmapAtoms]}]];
+    mappedDims = Dimensions[mapped];
 
-    (* f must be shape-preserving on each targeted rectangular block. *)
-    If[Dimensions[mapped] =!= Join[vmapDims, brDims],
+    If[strictQ && mappedDims =!= Join[vmapDims, brDims],
       Message[Einstoff::unsupp,
-        "the map function did not return the same target block shape \
-(Einstoff[Map] needs a shape-preserving op; to collapse the axis use \
-Einstoff[ArrayReduce])"];
+        "the operation function did not return the same target block shape \
+(Einstoff[Operate] needs a shape-preserving op; use Einstoff[Map] for \
+shape-changing block maps)"];
+      Return[$Failed]];
+    If[! strictQ && (Length[mappedDims] < Length[vmapDims] ||
+        Take[mappedDims, Length[vmapDims]] =!= vmapDims),
+      Message[Einstoff::unsupp,
+        "the map function changed the vmapped prefix shape; it may only change the \
+target block shape"];
       Return[$Failed]];
 
     recombined = mapped;
@@ -186,22 +231,54 @@ Einstoff[ArrayReduce])"];
       h = heldReshape[heldValue[x], decompDims];
       If[Length[srcPerm] > 1, h = heldTranspose[h, InversePermutation[srcPerm]]];
       h = If[vmapAtoms === {}, heldApply[h, f], heldMapAt[h, f, Length[vmapAtoms]]];
-      result = einCatch[
-        traceReturnHeld[
-          materializeOutputExprHeld[h, order, rhsTerms, env],
-          traceAction]];
+      If[! strictQ && mappedDims =!= Join[vmapDims, brDims],
+        blockDims = Drop[mappedDims, Length[vmapDims]];
+        produced = einCatch[rhsProducedTerms[rhsTerms, vmapAtoms, blockDims, env]];
+        If[produced === $Failed, Return[$Failed]];
+        {producedTerms, producedEnv, producedAtoms} = produced[[{1, 2, 3}]];
+        result = einCatch[
+          traceReturnHeld[
+            materializeOutputExprHeld[h, Join[vmapAtoms, producedAtoms],
+              producedTerms, producedEnv],
+            traceAction]],
+        result = einCatch[
+          traceReturnHeld[
+            materializeOutputExprHeld[h, order, rhsTerms, env],
+            traceAction]]];
       If[result === $Failed,
         Message[Einstoff::unsat,
           "an output axis size is unbound (a repeated axis needs a binding)"];
         Return[$Failed]];
       Return[result]];
-    (* order is recombined's atom order; materialize repeats, permute to RHS, recompose. *)
-    With[{recombined0 = recombined, order0 = order, rhs0 = rhsTerms, env0 = env},
-      result = einCatch[
-        materializeOutputTrace[recombined0, order0, rhs0, env0, traceAction]]];
+    (* Shape-preserving maps keep the current materialization behavior, including
+       output-only broadcast axes around the target block.  Shape-changing maps expose
+       the produced block suffix as anonymous internal axes and match it to the RHS. *)
+    If[! strictQ && mappedDims =!= Join[vmapDims, brDims],
+      blockDims = Drop[mappedDims, Length[vmapDims]];
+      produced = einCatch[rhsProducedTerms[rhsTerms, vmapAtoms, blockDims, env]];
+      If[produced === $Failed, Return[$Failed]];
+      {producedTerms, producedEnv, producedAtoms} = produced[[{1, 2, 3}]];
+      With[{recombined0 = recombined, atoms0 = Join[vmapAtoms, producedAtoms],
+          rhs0 = producedTerms, env0 = producedEnv},
+        result = einCatch[
+          materializeOutputTrace[recombined0, atoms0, rhs0, env0, traceAction]]],
+      With[{recombined0 = recombined, order0 = order, rhs0 = rhsTerms, env0 = env},
+        result = einCatch[
+          materializeOutputTrace[recombined0, order0, rhs0, env0, traceAction]]]];
     If[result === $Failed,
       Message[Einstoff::unsat,
         "an output axis size is unbound (a repeated axis needs a binding)"];
       Return[$Failed]];
     result
   ];
+
+(* Curried operators, like EinstoffReduce[reducer][…]. *)
+EinstoffMap[fSpec_][desc_, tensors_, bindings_List : {},
+    opts : OptionsPattern[EinstoffMap]] :=
+  mapCore[fSpec, desc, tensors, bindings,
+    OptionValue[EinstoffMap, {opts}, TraceAction], False];
+
+EinstoffOperate[fSpec_][desc_, tensors_, bindings_List : {},
+    opts : OptionsPattern[EinstoffOperate]] :=
+  mapCore[fSpec, desc, tensors, bindings,
+    OptionValue[EinstoffOperate, {opts}, TraceAction], True];

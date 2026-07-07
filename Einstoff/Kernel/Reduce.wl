@@ -169,7 +169,7 @@ target; keep it on the output or use a targeted sequence (## / Highlighted[___])
         lhsBr[[#]] && MemberQ[rhsAtoms, lhsAtoms[[#]]] &],
       Message[Einstoff::unsupp,
         "a targeted axis is kept on the output; feeding an axis whole to an \
-elementary op (softmax/flip/sort/…) is the Einstoff[Map][f] path, not reduction"];
+elementary op (softmax/flip/sort/…) is the Einstoff[Operate][f] path, not reduction"];
       Return[$Failed]];
 
     x = First[tensors];

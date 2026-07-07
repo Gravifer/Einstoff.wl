@@ -9,7 +9,8 @@
                   its two guards Einstoff[ArrayReshape]/EinstoffReshape (bijective) and
                   Einstoff["ArrayContract"]/EinstoffContract (no repetition)
      Reduce.wl    Einstoff[ArrayReduce]  / EinstoffReduce  (curried in the reducer)
-     Map.wl       Einstoff[Map]          / EinstoffMap     (curried in the map fn)
+     Map.wl       Einstoff[Map]/[Operate] / EinstoffMap, EinstoffOperate
+                  (curried in the map fn)
      Dot.wl       Einstoff[Dot]/[Inner]  / EinstoffDot, EinstoffInner (Inner curried)
      Einsum.wl    Einstoff["einsum"]     / EinstoffEinsum  (dispatch: 1 tensor ->
                   Massage, >=2 -> Dot fold; pairwise-contraction subset)
@@ -34,8 +35,9 @@ Einstoff::usage =
 within-tensor pairwise contraction), Einstoff[ArrayReshape] (its bijective guard: \
 count-preserving rearrange only), Einstoff[\"ArrayContract\"] (its no-repetition guard: \
 adds within-tensor contraction), Einstoff[ArrayReduce][reducer] (reduction), \
-Einstoff[Map][f] (shape-preserving elementary op along a targeted axis: \
-flip/sort/softmax/…), Einstoff[Dot] (einsum contraction) and its generalization \
+Einstoff[Operate][f] (shape-preserving operation along a targeted axis: \
+flip/sort/softmax/…), Einstoff[Map][f] (general blockwise map), Einstoff[Dot] \
+(einsum contraction) and its generalization \
 Einstoff[Inner][mul, add], Einstoff[\"einsum\"] (the pairwise-contraction subset, \
 within- and cross-tensor), Einstoff[Join]/[Split] (direct sum). Applied as \
 op[desc, tensors, bindings]; the reducer, map fn and (mul, add) are curried.";
