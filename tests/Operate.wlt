@@ -9,14 +9,14 @@ ClearAll[a, b, c];
 
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
-    Einstoff[Operate]["flip"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}}, {x}]],
+    Einstoff[Operate]["flip"][{{a_, Highlighted[b_]}} :> {{a, b}}, {x}]],
   Reverse /@ ArrayReshape[Range[8], {2, 4}],
-  TestID -> "operate-flip-string"
+  TestID -> "operate-flip-highlighted-blank"
 ];
 
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
-    Einstoff[Operate]["sort"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}},
+    Einstoff[Operate]["sort"][{{a_, Highlighted[b_]}} :> {{a, b}},
       {Reverse /@ x}]],
   Sort /@ (Reverse /@ ArrayReshape[Range[8], {2, 4}]),
   TestID -> "operate-sort"
@@ -25,7 +25,7 @@ VerificationTest[
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}],
         sm = Exp[# - Max[#]]/Total[Exp[# - Max[#]]] &},
-    Chop[Einstoff[Operate]["softmax"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}}, {x}] -
+    Chop[Einstoff[Operate]["softmax"][{{a_, Highlighted[b_]}} :> {{a, b}}, {x}] -
       (sm /@ x)] == ConstantArray[0, {2, 4}]],
   True,
   TestID -> "operate-softmax"
@@ -34,7 +34,7 @@ VerificationTest[
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}],
         lsm = (# - Max[#]) - Log[Total[Exp[# - Max[#]]]] &},
-    Chop[Einstoff[Operate]["log_softmax"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}}, {x}] -
+    Chop[Einstoff[Operate]["log_softmax"][{{a_, Highlighted[b_]}} :> {{a, b}}, {x}] -
       (lsm /@ x)] == ConstantArray[0, {2, 4}]],
   True,
   TestID -> "operate-log-softmax"
@@ -42,16 +42,16 @@ VerificationTest[
 
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
-    Einstoff[Operate]["id"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}}, {x}]],
+    Einstoff[Operate]["id"][{{a_, Highlighted[b_]}} :> {{a, b}}, {x}]],
   ArrayReshape[Range[8], {2, 4}],
   TestID -> "operate-id"
 ];
 
 VerificationTest[
   With[{x = ArrayReshape[Range[8], {2, 4}]},
-    Einstoff[Operate]["flip"][{{a_, Highlighted[b_]}} :> {{a, b}}, {x}]],
+    Einstoff[Operate]["flip"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}}, {x}]],
   Reverse /@ ArrayReshape[Range[8], {2, 4}],
-  TestID -> "operate-highlighted-blank"
+  TestID -> "operate-slot-string-target"
 ];
 
 VerificationTest[
@@ -86,7 +86,7 @@ VerificationTest[
 
 VerificationTest[
   Quiet[
-    Einstoff[Operate][Total][{{a_, Slot["b"]}} :> {{a}},
+    Einstoff[Operate][Total][{{a_, Highlighted[b_]}} :> {{a}},
       {ArrayReshape[Range[8], {2, 4}]}],
     {Einstoff::unsupp}],
   $Failed,

@@ -529,14 +529,14 @@ VerificationTest[
   TestID -> "concat-composite-second"
 ];
 
-(* 27. A targeted (Slot) summand is not a product block -> rejected. *)
+(* 27. A targeted summand is not a product block -> rejected. *)
 VerificationTest[
   Quiet[
-    Einstoff["Massage"][{{m_, Slot["a"]}, {m_, c_}} :> {{m, CirclePlus[Slot["a"], c]}},
+    Einstoff["Massage"][{{m_, Highlighted["a"]}, {m_, c_}} :> {{m, CirclePlus[Highlighted["a"], c]}},
       {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[8], {2, 4}]}],
     {Einstoff::unsupp}],
   $Failed,
-  TestID -> "concat-reject-slot-summand"
+  TestID -> "concat-reject-targeted-summand"
 ];
 
 (* ===================== composite summands (split) =============== *)

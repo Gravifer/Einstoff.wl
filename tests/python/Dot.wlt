@@ -74,7 +74,7 @@ VerificationTest[
 
 (* bracketed matmul 'a [b], [b] c -> a c'  <->  {{a_,[b_]},{[b],c_}} :> {{a,c}} *)
 VerificationTest[
-  Einstoff[Dot][{{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}},
+  Einstoff[Dot][{{a_, Highlighted[b_]}, {Highlighted[b_], c_}} :> {{a, c}},
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}],
   pyDot["a [b], [b] c -> a c", {2, 3}, {3, 4}],
   TestID -> "xval-dot-matmul-bracket"
@@ -97,7 +97,7 @@ VerificationTest[
 
 (* contract then merge 'a b, b c -> (a c)'  <->  {{a_,[b_]},{[b],c_}} :> {{a \[CircleTimes] c}} *)
 VerificationTest[
-  Einstoff[Dot][{{a_, Slot["b"]}, {Slot["b"], c_}} :> {{CircleTimes[a, c]}},
+  Einstoff[Dot][{{a_, Highlighted[b_]}, {Highlighted[b_], c_}} :> {{CircleTimes[a, c]}},
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}],
   pyDot["a b, b c -> (a c)", {2, 3}, {3, 4}],
   TestID -> "xval-dot-contract-merge"
@@ -108,7 +108,7 @@ VerificationTest[
 (* einx.dot then repeat 'a [b], [b] c -> a c r', r=2
    <->  {{a_,[b_]},{[b],c_}} :> {{a, c, r}}, {r -> 2} *)
 VerificationTest[
-  Einstoff[Dot][{{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c, r}},
+  Einstoff[Dot][{{a_, Highlighted[b_]}, {Highlighted[b_], c_}} :> {{a, c, r}},
     {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}, {r -> 2}],
   pyDot["a [b], [b] c -> a c r", {2, 3}, {3, 4}, <|"r" -> 2|>],
   TestID -> "xval-dot-repeat"

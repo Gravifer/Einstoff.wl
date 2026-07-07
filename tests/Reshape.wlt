@@ -67,7 +67,7 @@ VerificationTest[
 VerificationTest[
   Quiet[
     Einstoff[ArrayReshape][
-      {{a_, Slot["b"]}} :> {{a}}, {Partition[Range[6], 3]}],
+      {{a_, Highlighted[b_]}} :> {{a}}, {Partition[Range[6], 3]}],
     {Einstoff::unsupp}],
   $Failed,
   TestID -> "lower-reject-bracket"
@@ -472,7 +472,7 @@ VerificationTest[
 (* 33. Massage shares the targeted within-tensor contraction path with ArrayContract. *)
 VerificationTest[
   With[{t = ArrayReshape[Range[27], {3, 3, 3}]},
-    Einstoff["Massage"][{{"a", Slot["a"], Slot["a"]}} :> {{"a"}}, {t}]],
+    Einstoff["Massage"][{{"a", Highlighted["a"], Highlighted["a"]}} :> {{"a"}}, {t}]],
   With[{t = ArrayReshape[Range[27], {3, 3, 3}]},
     Table[Sum[t[[i, j, j]], {j, 3}], {i, 3}]],
   TestID -> "massage-targeting-auto-targeted-pair-kept-carrier"

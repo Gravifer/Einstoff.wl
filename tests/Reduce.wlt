@@ -16,7 +16,7 @@ ClearAll[a, b, c, d];
 (* 1. einx-style bracket sum 'a [b] -> a' === native sum over axis 2. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a}}, {x}]],
+    Einstoff[ArrayReduce][Total][{{a_, Highlighted[b_]}} :> {{a}}, {x}]],
   Total[ArrayReshape[Range[12], {3, 4}], {2}],
   TestID -> "reduce-bracket-sum"
 ];
@@ -56,7 +56,7 @@ VerificationTest[
 (* 5. Reduce then permute survivors: 'a b [c] -> b a'. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[24], {2, 3, 4}]},
-    Einstoff[ArrayReduce][Total][{{a_, b_, Slot["c"]}} :> {{b, a}}, {x}]],
+    Einstoff[ArrayReduce][Total][{{a_, b_, Highlighted[c_]}} :> {{b, a}}, {x}]],
   Transpose[Total[ArrayReshape[Range[24], {2, 3, 4}], {3}]],
   TestID -> "reduce-then-permute"
 ];
@@ -64,7 +64,7 @@ VerificationTest[
 (* 6. Reduce then merge survivors: 'a b [c] -> (a b)'. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[24], {2, 3, 4}]},
-    Einstoff[ArrayReduce][Total][{{a_, b_, Slot["c"]}} :> {{CircleTimes[a, b]}}, {x}]],
+    Einstoff[ArrayReduce][Total][{{a_, b_, Highlighted[c_]}} :> {{CircleTimes[a, b]}}, {x}]],
   Flatten[Total[ArrayReshape[Range[24], {2, 3, 4}], {3}]],
   TestID -> "reduce-then-merge"
 ];
@@ -72,7 +72,7 @@ VerificationTest[
 (* 7. All axes reduced -> scalar. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[ArrayReduce][Total][{{Slot["a"], Slot["b"]}} :> {{}}, {x}]],
+    Einstoff[ArrayReduce][Total][{{Highlighted[a_], Highlighted[b_]}} :> {{}}, {x}]],
   Total[Range[12]],
   TestID -> "reduce-full-scalar"
 ];
@@ -111,7 +111,7 @@ VerificationTest[
 (* 9. Output dims of reduce-then-permute are correct. *)
 VerificationTest[
   Dimensions @ With[{x = ArrayReshape[Range[24], {2, 3, 4}]},
-    Einstoff[ArrayReduce][Total][{{a_, b_, Slot["c"]}} :> {{b, a}}, {x}]],
+    Einstoff[ArrayReduce][Total][{{a_, b_, Highlighted[c_]}} :> {{b, a}}, {x}]],
   {3, 2},
   TestID -> "reduce-then-permute-dims"
 ];
@@ -121,7 +121,7 @@ VerificationTest[
 (* 10. A targeted axis kept on output is the feed-to-elementary path, not reduce. *)
 VerificationTest[
   Quiet[
-    Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a, b}}, {ArrayReshape[Range[12], {3, 4}]}],
+    Einstoff[ArrayReduce][Total][{{a_, Highlighted[b_]}} :> {{a, b}}, {ArrayReshape[Range[12], {3, 4}]}],
     {Einstoff::unsupp}],
   $Failed,
   TestID -> "reduce-reject-kept-bracket"
@@ -141,7 +141,7 @@ VerificationTest[
 (* Named axis-sequences lower as carried/vmapped runs around a targeted reduction. *)
 VerificationTest[
   Einstoff[ArrayReduce][Total][
-    {{a__, Slot["b"]}} :> {{a..}},
+    {{a__, Highlighted[b_]}} :> {{a..}},
     {ArrayReshape[Range[24], {2, 3, 4}]}],
   Total[ArrayReshape[Range[24], {2, 3, 4}], {3}],
   TestID -> "reduce-named-axis-sequence-carry"
@@ -160,7 +160,7 @@ VerificationTest[
    unsatisfiable and rejected. *)
 VerificationTest[
   Quiet[
-    Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a, c}}, {ArrayReshape[Range[12], {3, 4}]}],
+    Einstoff[ArrayReduce][Total][{{a_, Highlighted[b_]}} :> {{a, c}}, {ArrayReshape[Range[12], {3, 4}]}],
     {Einstoff::unsat}],
   $Failed,
   TestID -> "reduce-reject-unbound-repeat"
@@ -169,7 +169,7 @@ VerificationTest[
 (* 12. Unsatisfiable desc (rank mismatch) returns $Failed. *)
 VerificationTest[
   Quiet[
-    Einstoff[ArrayReduce][Total][{{a_, b_, Slot["c"]}} :> {{a, b}}, {ArrayReshape[Range[12], {3, 4}]}],
+    Einstoff[ArrayReduce][Total][{{a_, b_, Highlighted[c_]}} :> {{a, b}}, {ArrayReshape[Range[12], {3, 4}]}],
     {Einstoff::unsat}],
   $Failed,
   TestID -> "reduce-reject-unsat"
@@ -184,14 +184,14 @@ VerificationTest[
 ];
 
 VerificationTest[
-  Einstoff[ArrayReduce][Total][{{a_, ___, Slot["c"]}} :> {{a, ___}},
+  Einstoff[ArrayReduce][Total][{{a_, ___, Highlighted[c_]}} :> {{a, ___}},
     {ArrayReshape[Range[24], {2, 3, 4}]}],
   Total[ArrayReshape[Range[24], {2, 3, 4}], {3}],
   TestID -> "reduce-blanknullsequence-carry"
 ];
 
 VerificationTest[
-  Einstoff[ArrayReduce][Total][{{a_, __, Slot["c"]}} :> {{a, __}},
+  Einstoff[ArrayReduce][Total][{{a_, __, Highlighted[c_]}} :> {{a, __}},
     {ArrayReshape[Range[24], {2, 3, 4}]}],
   Total[ArrayReshape[Range[24], {2, 3, 4}], {3}],
   TestID -> "reduce-blanksequence-carry-nonempty"
@@ -250,7 +250,7 @@ VerificationTest[
 (* 14. Multi-tensor input is rejected. *)
 VerificationTest[
   Quiet[
-    Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}, {c_}} :> {{a, c}}, {ArrayReshape[Range[12], {3, 4}], Range[5]}],
+    Einstoff[ArrayReduce][Total][{{a_, Highlighted[b_]}, {c_}} :> {{a, c}}, {ArrayReshape[Range[12], {3, 4}], Range[5]}],
     {Einstoff::unsupp}],
   $Failed,
   TestID -> "reduce-reject-multitensor"
@@ -261,7 +261,7 @@ VerificationTest[
 (* 15. Reduce b, then broadcast into a new axis c: 'a [b] -> a c', c=3. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[12], {4, 3}]},
-    Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a, c}}, {x}, {c -> 3}]],
+    Einstoff[ArrayReduce][Total][{{a_, Highlighted[b_]}} :> {{a, c}}, {x}, {c -> 3}]],
   Table[Total[ArrayReshape[Range[12], {4, 3}], {2}][[i]], {i, 4}, {j, 3}],
   TestID -> "reduce-then-repeat"
 ];
@@ -269,7 +269,7 @@ VerificationTest[
 (* 16. Reduce all axes, then broadcast the scalar into a vector: '[a] [b] -> c'. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[12], {4, 3}]},
-    Einstoff[ArrayReduce][Total][{{Slot["a"], Slot["b"]}} :> {{c}}, {x}, {c -> 3}]],
+    Einstoff[ArrayReduce][Total][{{Highlighted[a_], Highlighted[b_]}} :> {{c}}, {x}, {c -> 3}]],
   ConstantArray[Total[Range[12]], 3],
   TestID -> "reduce-all-then-repeat"
 ];
@@ -319,7 +319,7 @@ VerificationTest[
 (* 20. Population variance (NOT WL's sample Variance). *)
 VerificationTest[
   With[{x = {{1., 2., 4., 8.}}},
-    Einstoff[ArrayReduce]["var"][{{a_, Slot["b"]}} :> {{a}}, {x}]],
+    Einstoff[ArrayReduce]["var"][{{a_, Highlighted[b_]}} :> {{a}}, {x}]],
   {Mean[({1., 2., 4., 8.} - Mean[{1., 2., 4., 8.}])^2]},
   TestID -> "reduce-var-population"
 ];
@@ -327,7 +327,7 @@ VerificationTest[
 (* 21. Population standard deviation = Sqrt of population variance. *)
 VerificationTest[
   With[{x = {{1., 2., 4., 8.}}},
-    Einstoff[ArrayReduce]["std"][{{a_, Slot["b"]}} :> {{a}}, {x}]],
+    Einstoff[ArrayReduce]["std"][{{a_, Highlighted[b_]}} :> {{a}}, {x}]],
   {Sqrt @ Mean[({1., 2., 4., 8.} - Mean[{1., 2., 4., 8.}])^2]},
   TestID -> "reduce-std-population"
 ];
@@ -335,23 +335,23 @@ VerificationTest[
 (* 22. prod (already aliased; confirm the einx name resolves). *)
 VerificationTest[
   With[{x = {{1, 2, 3, 4}}},
-    Einstoff[ArrayReduce]["prod"][{{a_, Slot["b"]}} :> {{a}}, {x}]],
+    Einstoff[ArrayReduce]["prod"][{{a_, Highlighted[b_]}} :> {{a}}, {x}]],
   {24},
   TestID -> "reduce-prod-name"
 ];
 
 (* 23. count_nonzero counts the nonzero entries along the axis. *)
 VerificationTest[
-  Einstoff[ArrayReduce]["count_nonzero"][{{a_, Slot["b"]}} :> {{a}}, {{{0, 1, 0, 2}}}],
+  Einstoff[ArrayReduce]["count_nonzero"][{{a_, Highlighted[b_]}} :> {{a}}, {{{0, 1, 0, 2}}}],
   {2},
   TestID -> "reduce-count-nonzero"
 ];
 
 (* 24. any / all test "nonzero" (numpy/einx truthiness). *)
 VerificationTest[
-  {Einstoff[ArrayReduce]["any"][{{a_, Slot["b"]}} :> {{a}}, {{{0, 0, 0}}}],
-   Einstoff[ArrayReduce]["all"][{{a_, Slot["b"]}} :> {{a}}, {{{1, 2, 0}}}],
-   Einstoff[ArrayReduce]["all"][{{a_, Slot["b"]}} :> {{a}}, {{{1, 2, 3}}}]},
+  {Einstoff[ArrayReduce]["any"][{{a_, Highlighted[b_]}} :> {{a}}, {{{0, 0, 0}}}],
+   Einstoff[ArrayReduce]["all"][{{a_, Highlighted[b_]}} :> {{a}}, {{{1, 2, 0}}}],
+   Einstoff[ArrayReduce]["all"][{{a_, Highlighted[b_]}} :> {{a}}, {{{1, 2, 3}}}]},
   {{False}, {False}, {True}},
   TestID -> "reduce-any-all"
 ];
@@ -359,7 +359,7 @@ VerificationTest[
 (* 25b. An unknown reducer name is rejected (not applied as "name"[slice]). *)
 VerificationTest[
   Quiet[
-    Einstoff[ArrayReduce]["summ"][{{a_, Slot["b"]}} :> {{a}},
+    Einstoff[ArrayReduce]["summ"][{{a_, Highlighted[b_]}} :> {{a}},
       {ArrayReshape[Range[12], {3, 4}]}],
     {Einstoff::unsupp}],
   $Failed,
@@ -369,7 +369,7 @@ VerificationTest[
 (* 25. logsumexp via the stable max-shift form. *)
 VerificationTest[
   With[{x = {{1., 2., 4., 8.}}, v = {1., 2., 4., 8.}},
-    Einstoff[ArrayReduce]["logsumexp"][{{a_, Slot["b"]}} :> {{a}}, {x}]],
+    Einstoff[ArrayReduce]["logsumexp"][{{a_, Highlighted[b_]}} :> {{a}}, {x}]],
   {Max[{1., 2., 4., 8.}] + Log[Total[Exp[{1., 2., 4., 8.} - Max[{1., 2., 4., 8.}]]]]},
   TestID -> "reduce-logsumexp"
 ];
@@ -394,7 +394,7 @@ VerificationTest[
 
 (* 28. True mode accepts exactly targeted reductions. *)
 VerificationTest[
-  Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a}},
+  Einstoff[ArrayReduce][Total][{{a_, Highlighted[b_]}} :> {{a}},
     {ArrayReshape[Range[6], {2, 3}]}, {}, "Targeting" -> True],
   Total /@ ArrayReshape[Range[6], {2, 3}],
   TestID -> "reduce-targeting-true-targeted-drop"
@@ -404,7 +404,7 @@ VerificationTest[
    untargeted axis is also reduced by RHS absence. *)
 VerificationTest[
   Quiet[
-    Einstoff[ArrayReduce][Total][{{a_, Slot["b"], c_}} :> {{a}},
+    Einstoff[ArrayReduce][Total][{{a_, Highlighted[b_], c_}} :> {{a}},
       {ArrayReshape[Range[24], {2, 3, 4}]}],
     {Einstoff::unsupp}],
   $Failed,
@@ -414,7 +414,7 @@ VerificationTest[
 (* 30. False mode preserves inference-first reduction even with partial targets. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[24], {2, 3, 4}]},
-    Einstoff[ArrayReduce][Total][{{a_, Slot["b"], c_}} :> {{a}},
+    Einstoff[ArrayReduce][Total][{{a_, Highlighted[b_], c_}} :> {{a}},
       {x}, {}, "Targeting" -> False]],
   Map[Total[Flatten[#]] &, ArrayReshape[Range[24], {2, 3, 4}]],
   TestID -> "reduce-targeting-false-partial-targets"
@@ -435,7 +435,7 @@ VerificationTest[
    wraps the lowered expression itself rather than only proving that the head is Hold. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {3, 2}]},
-    With[{g = Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a}}, {x}, {},
+    With[{g = Einstoff[ArrayReduce][Total][{{a_, Highlighted[b_]}} :> {{a}}, {x}, {},
         TraceAction -> Hold]},
       {MatchQ[g, Hold[_ArrayReshape]], ! FreeQ[g, _ArrayReduce],
        FreeQ[g, _Einstoff`PackageScope`materializeOutput]}]],

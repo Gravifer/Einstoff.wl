@@ -136,7 +136,7 @@ VerificationTest[
    of the same axis carries the output. *)
 VerificationTest[
   With[{t = ArrayReshape[Range[27], {3, 3, 3}]},
-    Einstoff["ArrayContract"][{{"a", Slot["a"], Slot["a"]}} :> {{"a"}}, {t}]],
+    Einstoff["ArrayContract"][{{"a", Highlighted["a"], Highlighted["a"]}} :> {{"a"}}, {t}]],
   With[{t = ArrayReshape[Range[27], {3, 3, 3}]},
     Table[Sum[t[[i, j, j]], {j, 3}], {i, 3}]],
   TestID -> "contract-targeting-auto-targeted-pair-kept-carrier"
@@ -146,7 +146,7 @@ VerificationTest[
    rejected diagonal/super-diagonal shape. *)
 VerificationTest[
   Quiet[
-    Einstoff["ArrayContract"][{{"a", Slot["a"], Slot["a"]}} :> {{"a"}},
+    Einstoff["ArrayContract"][{{"a", Highlighted["a"], Highlighted["a"]}} :> {{"a"}},
       {ArrayReshape[Range[27], {3, 3, 3}]}, {}, "Targeting" -> False],
     {Einstoff::unsupp}],
   $Failed,

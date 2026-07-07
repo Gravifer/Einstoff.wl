@@ -68,7 +68,7 @@ VerificationTest[
 
 (* einx sum 'a [b] -> a'  <->  {{a_, [b_]}} :> {{a}}  (bracket reduce) *)
 VerificationTest[
-  Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a}}, {ArrayReshape[Range[12], {3, 4}]}],
+  Einstoff[ArrayReduce][Total][{{a_, Highlighted[b_]}} :> {{a}}, {ArrayReshape[Range[12], {3, 4}]}],
   pyReduce["einx", "sum", "a [b] -> a", {3, 4}],
   TestID -> "xval-einx-sum"
 ];
@@ -89,7 +89,7 @@ VerificationTest[
 
 (* einx max 'a [b] -> a'  <->  {{a_, [b_]}} :> {{a}}, Max reducer *)
 VerificationTest[
-  Einstoff[ArrayReduce][Max][{{a_, Slot["b"]}} :> {{a}}, {ArrayReshape[Range[12], {3, 4}]}],
+  Einstoff[ArrayReduce][Max][{{a_, Highlighted[b_]}} :> {{a}}, {ArrayReshape[Range[12], {3, 4}]}],
   pyReduce["einx", "max", "a [b] -> a", {3, 4}],
   TestID -> "xval-einx-max"
 ];
@@ -97,7 +97,7 @@ VerificationTest[
 (* einops sum 'a b c -> c a' (reduce b, permute survivors)
    <->  {{a_, [b_], c_}} :> {{c, a}} *)
 VerificationTest[
-  Einstoff[ArrayReduce][Total][{{a_, Slot["b"], c_}} :> {{c, a}}, {ArrayReshape[Range[24], {2, 3, 4}]}],
+  Einstoff[ArrayReduce][Total][{{a_, Highlighted[b_], c_}} :> {{c, a}}, {ArrayReshape[Range[24], {2, 3, 4}]}],
   pyReduce["einops", "sum", "a b c -> c a", {2, 3, 4}],
   TestID -> "xval-einops-sum-permute"
 ];
@@ -105,7 +105,7 @@ VerificationTest[
 (* einx sum 'a [b] c -> (a c)' (reduce b, merge survivors)
    <->  {{a_, [b_], c_}} :> {{a \[CircleTimes] c}} *)
 VerificationTest[
-  Einstoff[ArrayReduce][Total][{{a_, Slot["b"], c_}} :> {{CircleTimes[a, c]}}, {ArrayReshape[Range[24], {2, 3, 4}]}],
+  Einstoff[ArrayReduce][Total][{{a_, Highlighted[b_], c_}} :> {{CircleTimes[a, c]}}, {ArrayReshape[Range[24], {2, 3, 4}]}],
   pyReduce["einx", "sum", "a [b] c -> (a c)", {2, 3, 4}],
   TestID -> "xval-einx-sum-merge"
 ];
@@ -115,7 +115,7 @@ VerificationTest[
 (* einx sum then repeat 'a [b] -> a c', c=3
    <->  {{a_, [b_]}} :> {{a, c}}, {c -> 3} *)
 VerificationTest[
-  Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a, c}}, {ArrayReshape[Range[12], {4, 3}]}, {c -> 3}],
+  Einstoff[ArrayReduce][Total][{{a_, Highlighted[b_]}} :> {{a, c}}, {ArrayReshape[Range[12], {4, 3}]}, {c -> 3}],
   pyReduce["einx", "sum", "a [b] -> a c", {4, 3}, <|"c" -> 3|>],
   TestID -> "xval-einx-sum-repeat"
 ];

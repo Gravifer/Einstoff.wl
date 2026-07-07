@@ -40,7 +40,7 @@ BeginTestSection["Einstoff`CrossValidation`Operate", pythonReady];
 
 (* flip (einx.flip) — reverse along the bracket; integer, exact. *)
 VerificationTest[
-  Einstoff[Operate]["flip"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}},
+  Einstoff[Operate]["flip"][{{a_, Highlighted[b_]}} :> {{a, b}},
     {ArrayReshape[Range[8], {2, 4}]}],
   pyMap["einx.flip('a [b]', x)", "(1 + np.arange(8)).reshape(2, 4)"],
   TestID -> "xval-operate-flip"
@@ -48,7 +48,7 @@ VerificationTest[
 
 (* sort (einx.sort) — ascending along the bracket; descending input, exact. *)
 VerificationTest[
-  Einstoff[Operate]["sort"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}},
+  Einstoff[Operate]["sort"][{{a_, Highlighted[b_]}} :> {{a, b}},
     {ArrayReshape[Reverse[Range[8]], {2, 4}]}],
   pyMap["einx.sort('a [b]', x)", "(8 - np.arange(8)).reshape(2, 4)"],
   TestID -> "xval-operate-sort"
@@ -56,7 +56,7 @@ VerificationTest[
 
 (* roll (einx.roll, shift=1) === RotateRight[#, 1]&; integer, exact. *)
 VerificationTest[
-  Einstoff[Operate][RotateRight[#, 1] &][{{a_, Slot["b"]}} :> {{a, Slot["b"]}},
+  Einstoff[Operate][RotateRight[#, 1] &][{{a_, Highlighted[b_]}} :> {{a, b}},
     {ArrayReshape[Range[8], {2, 4}]}],
   pyMap["einx.roll('a [b]', x, shift=1)", "(1 + np.arange(8)).reshape(2, 4)"],
   TestID -> "xval-operate-roll"
@@ -65,7 +65,7 @@ VerificationTest[
 (* softmax (einx.softmax) along the bracket; float, within tolerance. *)
 VerificationTest[
   approxEqual[
-    Einstoff[Operate]["softmax"][{{a_, Slot["b"]}} :> {{a, Slot["b"]}},
+    Einstoff[Operate]["softmax"][{{a_, Highlighted[b_]}} :> {{a, b}},
       {ArrayReshape[Range[8], {2, 4}]}],
     pyMap["einx.softmax('a [b]', x)", "(1.0 + np.arange(8)).reshape(2, 4)"]],
   True,

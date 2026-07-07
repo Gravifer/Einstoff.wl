@@ -23,7 +23,7 @@ VerificationTest[
 (* 2. Bracketed matmul 'a [b], [b] c -> a c' (SPEC ex 10) === native Dot. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[Dot][{{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {x, y}]],
+    Einstoff[Dot][{{a_, Highlighted[b_]}, {Highlighted[b_], c_}} :> {{a, c}}, {x, y}]],
   ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}],
   TestID -> "dot-matmul-bracket"
 ];
@@ -53,7 +53,7 @@ VerificationTest[
 (* 6. Contract then merge survivors 'a b, b c -> (a c)'. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[Dot][{{a_, Slot["b"]}, {Slot["b"], c_}} :> {{CircleTimes[a, c]}}, {x, y}]],
+    Einstoff[Dot][{{a_, Highlighted[b_]}, {Highlighted[b_], c_}} :> {{CircleTimes[a, c]}}, {x, y}]],
   Flatten[ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}]],
   TestID -> "dot-contract-merge"
 ];
@@ -136,7 +136,7 @@ VerificationTest[
 (* 13. Matmul, then broadcast the result into a new axis r: 'a [b], [b] c -> a c r', r=2. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
-    Einstoff[Dot][{{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c, r}}, {x, y}, {r -> 2}]],
+    Einstoff[Dot][{{a_, Highlighted[b_]}, {Highlighted[b_], c_}} :> {{a, c, r}}, {x, y}, {r -> 2}]],
   With[{mm = ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}]},
     Table[mm[[i, j]], {i, 2}, {j, 4}, {k, 2}]],
   TestID -> "dot-then-repeat"
@@ -165,7 +165,7 @@ VerificationTest[
 (* 16. Bracketed three-operand chain 'a [b], [b] [c], [c] d -> a d'. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}], z = ArrayReshape[Range[20], {4, 5}]},
-    Einstoff[Dot][{{a_, Slot["b"]}, {Slot["b"], Slot["c"]}, {Slot["c"], d_}} :> {{a, d}}, {x, y, z}]],
+    Einstoff[Dot][{{a_, Highlighted[b_]}, {Highlighted[b_], Highlighted[c_]}, {Highlighted[c_], d_}} :> {{a, d}}, {x, y, z}]],
   ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}] . ArrayReshape[Range[20], {4, 5}],
   TestID -> "dot-three-chain-bracketed"
 ];
@@ -253,7 +253,7 @@ VerificationTest[
 VerificationTest[
   With[{x = ArrayReshape[Range[24] - 1, {2, 3, 4}],
       y = ArrayReshape[Range[60] - 1, {4, 5, 3}]},
-    Einstoff[Dot][{{a_, Slot["b"], Slot["c"]}, {Slot["c"], d_, Slot["b"]}} :>
+    Einstoff[Dot][{{a_, Highlighted[b_], Highlighted[c_]}, {Highlighted[c_], d_, Highlighted[b_]}} :>
       {{d, a}}, {x, y}]],
   With[{x = ArrayReshape[Range[24] - 1, {2, 3, 4}],
       y = ArrayReshape[Range[60] - 1, {4, 5, 3}]},
@@ -289,7 +289,7 @@ VerificationTest[
    shared axis to be kept as batch/output. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[6] + 10, {2, 3}]},
-    Einstoff[Dot][{{a_, Slot["b"]}, {a_, Slot["b"]}} :> {{a, Slot["b"]}},
+    Einstoff[Dot][{{a_, Highlighted[b_]}, {a_, Highlighted[b_]}} :> {{a, b}},
       {x, y}, {}, "Targeting" -> False]],
   ArrayReshape[Range[6], {2, 3}] ArrayReshape[Range[6] + 10, {2, 3}],
   TestID -> "dot-targeting-false-kept-target"
@@ -299,7 +299,7 @@ VerificationTest[
 VerificationTest[
   Quiet[
     With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[6] + 10, {2, 3}]},
-      Einstoff[Dot][{{a_, Slot["b"]}, {a_, Slot["b"]}} :> {{a, Slot["b"]}},
+      Einstoff[Dot][{{a_, Highlighted[b_]}, {a_, Highlighted[b_]}} :> {{a, b}},
         {x, y}]],
     {Einstoff::unsupp}],
   $Failed,
