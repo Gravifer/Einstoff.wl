@@ -285,6 +285,9 @@ namedCaptureAtomList[captures_Association, key_] :=
 
 targetDecomposeTerm[t_, d_, env_, br_] :=
   Module[{atoms, env2 = env, atom},
+    If[MatchQ[t, Verbatim[Blank[]]],
+      {atom, env2} = anonymousTargetAtom[d, env2];
+      Return[{{{atom, br}}, env2, {}}]];
     If[br && IntegerQ[t],
       If[t =!= d, Throw[$Failed, einThrowTag]];
       {atom, env2} = anonymousTargetAtom[t, env2];

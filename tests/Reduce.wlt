@@ -156,6 +156,30 @@ VerificationTest[
   TestID -> "reduce-structured-named-axis-sequence"
 ];
 
+(* Unnamed `_` axes may be reduced away when no output identity is needed. *)
+VerificationTest[
+  Einstoff[ArrayReduce][Total][{{a_, _}} :> {{a}},
+    {ArrayReshape[Range[6], {2, 3}]}],
+  Total[ArrayReshape[Range[6], {2, 3}], {2}],
+  TestID -> "reduce-unnamed-bare-axis"
+];
+
+VerificationTest[
+  Einstoff[ArrayReduce][Total][{{a_, Highlighted[_]}} :> {{a}},
+    {ArrayReshape[Range[6], {2, 3}]}],
+  Total[ArrayReshape[Range[6], {2, 3}], {2}],
+  TestID -> "reduce-unnamed-targeted-axis"
+];
+
+VerificationTest[
+  Quiet[
+    Einstoff[ArrayReduce][Total][{{a_, _}} :> {{a, _}},
+      {ArrayReshape[Range[6], {2, 3}]}],
+    {Einstoff::unsupp, Einstoff::unsat}],
+  $Failed,
+  TestID -> "reduce-reject-output-unnamed-axis"
+];
+
 (* 11. A new output axis is repetition (SPEC 5.5); without a binding it is
    unsatisfiable and rejected. *)
 VerificationTest[
