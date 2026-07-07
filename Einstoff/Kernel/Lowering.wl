@@ -301,16 +301,48 @@ targetDecomposeTerm[t_, d_, env_, br_] :=
     {{#, br} & /@ atoms, env2, {}}];
 
 targetDecomposeTerms[terms_List, dims_List, env_, seq_ : <||>] :=
-  Module[{tagged = {}, anonymous = {}, named = <||>, env2 = env, pos = 1, i, t,
+  Module[{tagged = {}, anonymous = {}, named = <||>, env2 = env, workTerms,
+          expandFactor, expandTerm, addNamed, vals, seqAtoms, pos = 1, i, t,
           restTerms, minRest, k, atom, group, parts, td, anon, spec, body, inner,
-          rules, fresh, vals, renamed, captures, j, outerGroup},
-    If[plainSequenceCount[terms] > 1,
+          rules, fresh, renamed, captures, j, outerGroup},
+    addNamed[key_, atoms_] := (
+      If[KeyExistsQ[named, key], Throw[$Failed, einThrowTag]];
+      named = Append[named, key -> (anonymousSequence @@ atoms)]);
+    expandFactor[f_] := Which[
+      MatchQ[f, Verbatim[Pattern][_Symbol, Verbatim[BlankSequence[]]]] &&
+          KeyExistsQ[seq, f[[1]]],
+        vals = seq[f[[1]]];
+        If[! ListQ[vals] || Length[vals] < 1 ||
+            ! AllTrue[vals, IntegerQ[#] && # >= 1 &],
+          Throw[$Failed, einThrowTag]];
+        seqAtoms = Table[
+          {atom, env2} = anonymousTargetAtom[v, env2]; atom,
+          {v, vals}];
+        addNamed[f[[1]], seqAtoms];
+        seqAtoms,
+      MatchQ[f, Verbatim[Pattern][_Symbol, Verbatim[BlankNullSequence[]]]] &&
+          KeyExistsQ[seq, f[[1]]],
+        vals = seq[f[[1]]];
+        If[! ListQ[vals] || ! AllTrue[vals, IntegerQ[#] && # >= 1 &],
+          Throw[$Failed, einThrowTag]];
+        seqAtoms = Table[
+          {atom, env2} = anonymousTargetAtom[v, env2]; atom,
+          {v, vals}];
+        addNamed[f[[1]], seqAtoms];
+        If[seqAtoms === {}, {1}, seqAtoms],
+      True, {f}];
+    expandTerm[t_] := Which[
+      Head[t] === CircleTimes, CircleTimes @@ Flatten[expandFactor /@ (List @@ t)],
+      bracketWrapperQ[t], Head[t] @@ (expandTerm /@ (List @@ t)),
+      True, t];
+    workTerms = expandTerm /@ terms;
+    If[plainSequenceCount[workTerms] > 1,
       Message[Einstoff::unsupp,
         "multiple plain anonymous sequences (__ / ___) in one shape are ambiguous; \
 support for matching more than one is deferred"];
       Throw[$Failed, einThrowTag]];
-    For[i = 1, i <= Length[terms], i++,
-      t = terms[[i]];
+    For[i = 1, i <= Length[workTerms], i++,
+      t = workTerms[[i]];
       Which[
         AssociationQ[spec = namedSequenceSpec[t]],
           body = spec["Body"];
@@ -320,7 +352,7 @@ support for matching more than one is deferred"];
             Message[Einstoff::unsupp,
               "nested named axis-sequences and PatternSequence are not supported in lowering"];
             Throw[$Failed, einThrowTag]];
-          restTerms = Drop[terms, i];
+          restTerms = Drop[workTerms, i];
           minRest = Total[termDimCount /@ restTerms];
           k = namedSequenceLength[spec, seq, Length[dims] - pos + 1 - minRest];
           If[k === $Failed || k < spec["Min"] || k > Length[dims] - pos + 1 - minRest,
@@ -356,7 +388,7 @@ support for matching more than one is deferred"];
           Do[named = Append[named, key -> (anonymousSequence @@ captures[key])],
             {key, Keys[captures]}],
         bracketWrapperQ[t] && Length[t] === 1 && targetSequenceQ[First[t]],
-          restTerms = Drop[terms, i];
+          restTerms = Drop[workTerms, i];
           minRest = Total[termDimCount /@ restTerms];
           k = Length[dims] - pos + 1 - minRest;
           If[k < targetSequenceMin[First[t]], Throw[$Failed, einThrowTag]];
@@ -369,7 +401,7 @@ support for matching more than one is deferred"];
             {k}];
           AppendTo[anonymous, anonymousSequence @@ group],
         Head[t] === SlotSequence,
-          restTerms = Drop[terms, i];
+          restTerms = Drop[workTerms, i];
           minRest = Total[termDimCount /@ restTerms];
           k = Length[dims] - pos + 1 - minRest;
           If[k < targetSequenceMin[t], Throw[$Failed, einThrowTag]];
@@ -382,7 +414,7 @@ support for matching more than one is deferred"];
             {k}];
           AppendTo[anonymous, anonymousSequence @@ group],
         targetSequenceQ[t],
-          restTerms = Drop[terms, i];
+          restTerms = Drop[workTerms, i];
           minRest = Total[termDimCount /@ restTerms];
           k = Length[dims] - pos + 1 - minRest;
           If[k < targetSequenceMin[t], Throw[$Failed, einThrowTag]];

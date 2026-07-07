@@ -114,6 +114,70 @@ VerificationTest[
   TestID -> "lower-named-axis-sequence-pack-trace"
 ];
 
+VerificationTest[
+  Einstoff[ArrayReshape][
+    {{CircleTimes[a__]}} :> {{a..}}, {Range[24]},
+    {a -> Inactive[Sequence][2, 3, 4]}],
+  ArrayReshape[Range[24], {2, 3, 4}],
+  TestID -> "lower-named-axis-sequence-unpack"
+];
+
+VerificationTest[
+  Einstoff[ArrayReshape][
+    {{CircleTimes[a___]}} :> {{a..}}, {Range[24]},
+    {a -> Inactive[Sequence][2, 3, 4]}],
+  ArrayReshape[Range[24], {2, 3, 4}],
+  TestID -> "lower-named-axis-nullsequence-unpack-nonempty"
+];
+
+VerificationTest[
+  Einstoff[ArrayReshape][
+    {{CircleTimes[a___]}} :> {{a..}}, {Range[1]},
+    {a -> Inactive[Sequence][]}],
+  1,
+  TestID -> "lower-named-axis-nullsequence-unpack-empty-unit"
+];
+
+VerificationTest[
+  Quiet[
+    Einstoff[ArrayReshape][
+      {{CircleTimes[a___]}} :> {{a..}}, {Range[24]},
+      {a -> Inactive[Sequence][]}],
+    {Einstoff::unsat}],
+  $Failed,
+  TestID -> "lower-reject-empty-nullsequence-unpack-nonunit"
+];
+
+VerificationTest[
+  Quiet[
+    Einstoff[ArrayReshape][
+      {{CircleTimes[a__]}} :> {{a..}}, {Range[1]},
+      {a -> Inactive[Sequence][]}],
+    {Einstoff::unsat}],
+  $Failed,
+  TestID -> "lower-reject-empty-blanksequence-unpack"
+];
+
+VerificationTest[
+  Quiet[
+    Einstoff[ArrayReshape][
+      {{CircleTimes[a__]}} :> {{a..}}, {Range[24]},
+      {a -> Inactive[Sequence][2, 0, 4]}],
+    {Einstoff::unsat}],
+  $Failed,
+  TestID -> "lower-reject-bad-sequence-binding"
+];
+
+VerificationTest[
+  Quiet[
+    Einstoff[ArrayReshape][
+      {{CircleTimes[a__]}} :> {{a..}}, {Range[24]},
+      {a -> Inactive[Sequence][2, 3, 5]}],
+    {Einstoff::unsat}],
+  $Failed,
+  TestID -> "lower-reject-sequence-product-mismatch"
+];
+
 (* 9. Unsatisfiable desc (rank mismatch) returns $Failed. *)
 VerificationTest[
   Quiet[

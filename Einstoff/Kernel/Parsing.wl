@@ -152,7 +152,8 @@ unify[n_, d_, env_] :=
 (* captures stay private in "Seq" and are used only for RHS evaluation. *)
 (* ------------------------------------------------------------------ *)
 
-matchState[env_] := <|"Env" -> env, "Seq" -> <||>, "RepeatedLength" -> Missing["Unset"]|>;
+matchState[env_, seq_ : <||>] :=
+  <|"Env" -> env, "Seq" -> seq, "RepeatedLength" -> Missing["Unset"]|>;
 
 unifyState[n_, d_, state_] :=
   Module[{e2},
@@ -251,12 +252,27 @@ seqRepeatRule[seq_Association] := {
    a fresh positive-integer placeholder (anon, for `_`). A CircleTimes factor
    recurses, distributing into a product — this is what lets a direct-sum summand
    itself be a product block, e.g. (a b) ⊕ c. An unsupported head yields $opaque. *)
-factorToExpr[f_, env_] :=
+sequenceBindingValue[Verbatim[Inactive][Sequence][xs___]] := {xs};
+sequenceBindingValue[_] := Missing["NotSequenceBinding"];
+
+validSequenceBindingQ[vals_List, min_] :=
+  Length[vals] >= min && AllTrue[vals, IntegerQ[#] && # >= 1 &];
+
+factorToExpr[f_, state_] :=
   Which[
     IntegerQ[f], {f, {}, {}},
     f === {}, {1, {}, {}},   (* in-shape unit-axis term {} == literal 1 *)
     MatchQ[f, Verbatim[Pattern][_Symbol, Verbatim[Blank][]]],
-      With[{n = f[[1]]}, If[KeyExistsQ[env, n], {env[n], {}, {}}, {n, {n}, {}}]],
+      With[{n = f[[1]]},
+        If[KeyExistsQ[state["Env"], n], {state["Env"][n], {}, {}}, {n, {n}, {}}]],
+    MatchQ[f, Verbatim[Pattern][_Symbol, Verbatim[BlankSequence[]]]],
+      With[{n = f[[1]], vals = Lookup[state["Seq"], f[[1]], Missing["NoCapture"]]},
+        If[ListQ[vals] && validSequenceBindingQ[vals, 1],
+          {Times @@ vals, {}, {}}, $opaque]],
+    MatchQ[f, Verbatim[Pattern][_Symbol, Verbatim[BlankNullSequence[]]]],
+      With[{n = f[[1]], vals = Lookup[state["Seq"], f[[1]], Missing["NoCapture"]]},
+        If[ListQ[vals] && validSequenceBindingQ[vals, 0],
+          {Times @@ vals, {}, {}}, $opaque]],
     MatchQ[f, Verbatim[Blank[]]],   (* Temporary: a transient solve placeholder, GC'd after
        resolution — never escapes to the result, so it should not persist in the caller's
        context (consistent with the axis-identity symbols). *)
@@ -264,11 +280,12 @@ factorToExpr[f_, env_] :=
     StringQ[f],            (* a string / #name axis inside a composite, e.g. (g #c) or ("a" "b") *)
       If[! validAxisNameQ[f], $opaque,   (* illegal name -> unsupported factor (rejected) *)
         With[{n = axisSymbol[f]},   (* valueless when shadowed — no leaked global into Solve *)
-          If[KeyExistsQ[env, n], {env[n], {}, {}}, {n, {n}, {}}]]],
-    bracketWrapperQ[f] && Length[f] === 1, factorToExpr[First[f], env],
-    Head[f] === Symbol, If[KeyExistsQ[env, f], {env[f], {}, {}}, {f, {f}, {}}],
+          If[KeyExistsQ[state["Env"], n], {state["Env"][n], {}, {}}, {n, {n}, {}}]]],
+    bracketWrapperQ[f] && Length[f] === 1, factorToExpr[First[f], state],
+    Head[f] === Symbol,
+      If[KeyExistsQ[state["Env"], f], {state["Env"][f], {}, {}}, {f, {f}, {}}],
     Head[f] === CircleTimes,
-      Module[{subs = Table[factorToExpr[g, env], {g, List @@ f}]},
+      Module[{subs = Table[factorToExpr[g, state], {g, List @@ f}]},
         If[MemberQ[subs, $opaque], $opaque,
           {Times @@ subs[[All, 1]], Join @@ subs[[All, 2]], Join @@ subs[[All, 3]]}]],
     True, $opaque];
@@ -283,7 +300,7 @@ solveComposite[op_, factors_, d_, state_, rest_, drest_] :=
   Module[{parsed, exprs, named, anon, allVars, eqn, sols, sol, e2},
     (* Table, not `&/@`: a factor can be Slot[...], which an anonymous Function
        would capture as its own argument slot (SPEC 7.2). *)
-    parsed = Table[factorToExpr[f, state["Env"]], {f, factors}];
+    parsed = Table[factorToExpr[f, state], {f, factors}];
     If[MemberQ[parsed, $opaque],
       Sow["unsupported factor inside " <> ToString[op] <> " composition"];
       Return[{}]];
@@ -456,8 +473,8 @@ matchTerms[terms_, dims_, state_] :=
    Function: a shape can contain Slot[...] (targets), and any Slot routed
    through a `&`/Function body is captured as that function's argument slot
    (SPEC 7.2) — which silently corrupts the match. *)
-matchAll[lhss_, inps_, env_] :=
-  Fold[matchStep, {matchState[env]}, Transpose[{lhss, inps}]];
+matchAll[lhss_, inps_, env_, seq_ : <||>] :=
+  Fold[matchStep, {matchState[env, seq]}, Transpose[{lhss, inps}]];
 
 matchStep[envs_, pair_] :=
   Module[{acc = {}, e},
@@ -484,7 +501,8 @@ EinstoffMatch[lhsShapes_, inputShapes_, bindingsIn_ : {}] :=
 context is compromised (a Protected+Locked generated symbol); cannot resolve"|>]]];
 
 einstoffMatchCore[lhsShapes_, inputShapes_, bindingsIn_] :=
-  Module[{bindings, env0, res, sown, slotNames, badSlotKey},
+  Module[{bindings, scalarBindings, sequenceBindings, env0, seq0, res, sown,
+          slotNames, badSlotKey},
     If[! MatchQ[lhsShapes, {___List}],
       Return[<|"ok" -> False, "reason" -> "LHS is not a list of shapes"|>]];
     If[! MatchQ[inputShapes, {___List}],
@@ -539,12 +557,24 @@ einstoffMatchCore[lhsShapes_, inputShapes_, bindingsIn_] :=
           StringRiffle[
             axisDisplayName /@ Keys @ Select[Counts[First /@ bindings], # > 1 &], ", "] <>
           "}; each axis may be bound at most once"|>]];
-    env0 = Association[bindings];
+    sequenceBindings = Select[bindings,
+      ! MissingQ[sequenceBindingValue[Last[#]]] &];
+    scalarBindings = Select[bindings,
+      MissingQ[sequenceBindingValue[Last[#]]] &];
+    If[! AllTrue[sequenceBindings,
+        validSequenceBindingQ[sequenceBindingValue[Last[#]],
+          If[MatchQ[First[#], _Symbol], 0, 1]] &],
+      Return[<|"ok" -> False,
+        "reason" -> "each sequence binding must use Inactive[Sequence][...] with \
+positive-integer dimensions; got " <> ToString[sequenceBindings, InputForm]|>]];
+    env0 = Association[scalarBindings];
     If[! AllTrue[env0, IntegerQ[#] && # >= 1 &],
       Return[<|"ok" -> False,
         "reason" -> "each binding must give a positive-integer axis size; got " <>
           ToString[Normal[env0], InputForm]|>]];
-    {res, sown} = Reap[matchAll[lhsShapes, inputShapes, env0]];
+    seq0 = Association[
+      Table[First[bd] -> sequenceBindingValue[Last[bd]], {bd, sequenceBindings}]];
+    {res, sown} = Reap[matchAll[lhsShapes, inputShapes, env0, seq0]];
     If[res === {},
       <|"ok" -> False,
         "reason" -> If[sown === {},
