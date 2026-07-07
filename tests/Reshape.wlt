@@ -91,6 +91,29 @@ VerificationTest[
   TestID -> "lower-named-axis-sequence-carry"
 ];
 
+VerificationTest[
+  Einstoff[ArrayReshape][
+    {{a__}} :> {{CircleTimes[a..]}}, {ArrayReshape[Range[24], {2, 3, 4}]}],
+  Range[24],
+  TestID -> "lower-named-axis-sequence-pack"
+];
+
+VerificationTest[
+  Einstoff["Massage"][
+    {{a__}} :> {{CircleTimes[a..]}}, {ArrayReshape[Range[24], {2, 3, 4}]}],
+  Range[24],
+  TestID -> "massage-named-axis-sequence-pack"
+];
+
+VerificationTest[
+  With[{x = ArrayReshape[Range[24], {2, 3, 4}]},
+    With[{g = Einstoff[ArrayReshape][{{a__}} :> {{CircleTimes[a..]}}, {x}, {},
+        TraceAction -> Hold]},
+      {Head[g], ReleaseHold[g], ! FreeQ[g, _ArrayReshape]}]],
+  {Hold, Range[24], True},
+  TestID -> "lower-named-axis-sequence-pack-trace"
+];
+
 (* 9. Unsatisfiable desc (rank mismatch) returns $Failed. *)
 VerificationTest[
   Quiet[

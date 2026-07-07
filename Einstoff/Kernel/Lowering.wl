@@ -415,7 +415,16 @@ support for matching more than one is deferred"];
       "NamedSequenceAtoms" -> named|>];
 
 expandAnonymousTargetRhs[terms_List, anonAtoms_List, namedAtoms_ : <||>] :=
-  Module[{q = anonAtoms},
+  Module[{q = anonAtoms, expand},
+    expand[t_] := Which[
+      MatchQ[t, Verbatim[Repeated][_Symbol] | Verbatim[RepeatedNull][_Symbol]] &&
+          KeyExistsQ[namedAtoms, First[t]],
+        namedCaptureAtomList[namedAtoms, First[t]],
+      Head[t] === CircleTimes,
+        {CircleTimes @@ Flatten[expand /@ (List @@ t)]},
+      bracketWrapperQ[t],
+        {Head[t] @@ Flatten[expand /@ (List @@ t)]},
+      True, {t}];
     If[plainSequenceCount[terms] > 1,
       Message[Einstoff::unsupp,
         "multiple plain anonymous sequences (__ / ___) in one shape are ambiguous; \
@@ -434,7 +443,7 @@ support for matching more than one is deferred"];
           With[{a = anonymousCaptureAtomList[q]}, q = {}; a],
         bracketWrapperQ[t] && Length[t] === 1 && IntegerQ[First[t]] && q =!= {},
           With[{a = First[q]}, q = Rest[q]; a],
-        True, t],
+        True, expand[t]],
       {t, terms}]];
 
 (* ------------------------------------------------------------------ *)
