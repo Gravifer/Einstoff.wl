@@ -39,7 +39,7 @@ the einx reduction style; a bare dropped axis is the einops style.";
 Einstoff[ArrayReduce] := EinstoffReduce;
 Einstoff["Reduce"] := EinstoffReduce;
 
-Options[EinstoffReduce] = {TraceAction -> None};
+Options[EinstoffReduce] = {TraceAction -> None, "Targeting" -> Automatic};
 
 (* Resolve a reducer spec to a list-reducing function.  Accepts a raw function
    (Total, Mean, Max, Min, ...) as-is, or a convenience string matched
@@ -71,8 +71,12 @@ EinstoffReduce[reducerSpec_][desc_, tensors_, bindings_List : {},
     opts : OptionsPattern[EinstoffReduce]] := withAxisScope @
   Module[{parts, lhs, rhs, inShapes, shp, m, env, x, reducer, decomp,
           rhsTerms, lhsTagged, lhsAtoms, lhsBr, rhsAtoms, reducedPos,
-          plainAnonAtoms, keptOrder, decompDims, xr, xred, result, traceAction},
+          plainAnonAtoms, keptOrder, decompDims, xr, xred, result, traceAction,
+          targeting, targetedPos},
     traceAction = OptionValue[EinstoffReduce, {opts}, TraceAction];
+    targeting = einCatch[validateTargetingOption[
+      OptionValue[EinstoffReduce, {opts}, "Targeting"]]];
+    If[targeting === $Failed, Return[$Failed]];
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
@@ -146,6 +150,10 @@ plain sequence in the input shape"];
     (* Reduced atoms = LHS atoms absent on RHS (1-indexed positions).  RHS-only
        atoms are not reduced — they are repetition axes, materialized below. *)
     reducedPos = Select[Range@Length[lhsAtoms], ! MemberQ[rhsAtoms, lhsAtoms[[#]]] &];
+    targetedPos = Flatten[Position[lhsBr, True]];
+    If[einCatch[validateTargetingPositions[targeting, targetedPos, reducedPos,
+        "ArrayReduce"]] === $Failed,
+      Return[$Failed]];
     plainAnonAtoms = Intersection[
       Pick[lhsAtoms, lhsBr, False],
       anonymousCaptureAtomList[decomp["AnonymousTargetAtoms"]]];

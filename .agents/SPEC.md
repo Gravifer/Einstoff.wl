@@ -615,6 +615,15 @@ set covers **every einx reduction op** (sum/mean/var/std/prod/count_nonzero/any/
 max/min/logsumexp); `var`/`std` are population (ddof = 0, matching numpy/einx), and
 any raw list-reducer (`Total`, `Variance`, a custom function) is also accepted.
 
+`"Targeting" -> False | Automatic | True` is implemented for `ArrayReduce`, `Dot`/
+`Inner`, `Massage`, `ArrayContract`, and `einsum` (via delegation). `False` preserves
+the old inference-first semantics: reduced/contracted axes are selected from RHS
+absence or repeated/shared names. `Automatic` is the default: shorthand inference is
+still accepted, but explicit targets must exactly agree with the operated input
+occurrences, so mismatched dot targets such as `a [b] c, a [c] d -> a b d` reject.
+`True` requires explicit targets for operated axes. Axis identity is unchanged by this
+option: targeting is occurrence-role metadata, not a separate size/name identity.
+
 **`CirclePlus` (direct sum) — implemented and cross-validated.** The direct-sum
 axis `(a + b)` lowers two ways, both folded into the permissive `Einstoff["Massage"]`
 (einx puts `+` in `id`; the bijective `Einstoff[ArrayReshape]` guard rejects a direct
@@ -691,12 +700,15 @@ required — the 3-arg form mis-levels). Exposed two ways:
   1 tensor → Massage, ≥2 → the `Dot` cross-tensor fold; rejects repetition and the mixed
   multi-operand case (deferred). Cross-validated against `einops.einsum`.
 
-Only *pairwise* is supported (the tensorial case): a kept repeat (diagonal `aa->a`), an
-axis occurring `>2` times (super-diagonal, non-tensorial — `EinsteinSummation` also caps
-at 2), and a single dropped index (plain sum-reduction → `Einstoff[ArrayReduce]`) are all
-rejected. **Deferred:** the combiner generalization (`ArrayContract[…, add]` /
-`Tr[…, add]`, mirroring `Einstoff[Inner]`); diagonal-keep; mixed within+cross multi-
-operand einsum; and the bracket/composite interactions. Analysis:
+Only *pairwise* is supported (the tensorial case). With default `"Targeting" ->
+Automatic`, a targeted pair may be contracted while exactly one untargeted occurrence
+of the same axis carries the output (for example `a [a] [a] -> a`, using string-kind
+`#a` in WL). A kept repeat without such a carrier (diagonal `aa->a`), an axis occurring
+`>2` times after the targeted pair policy (super-diagonal, non-tensorial —
+`EinsteinSummation` also caps at 2), and a single dropped index (plain sum-reduction →
+`Einstoff[ArrayReduce]`) are all rejected. **Deferred:** the combiner generalization
+(`ArrayContract[…, add]` / `Tr[…, add]`, mirroring `Einstoff[Inner]`); diagonal-keep;
+mixed within+cross multi-operand einsum; and the bracket/composite interactions. Analysis:
 `docs/within-tensor-contraction.md`.
 
 **Entrance re-architecture (done).** `Einstoff["Massage"]` is the permissive engine; the

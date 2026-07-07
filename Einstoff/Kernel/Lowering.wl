@@ -67,7 +67,8 @@ PackageScoped[{rearrangeAtoms, atomSize, reduceAtoms, targetDecomposeTerms,
   heldMapThreadDot,
   heldMapThreadInner, heldJoin, heldList,
   reshapeTo, directSumConcat, directSumSplit, einThrowTag, einCatch,
-  traceActionEnabledQ, traceReturn, traceReturnHeld}]
+  traceActionEnabledQ, traceReturn, traceReturnHeld, validateTargetingOption,
+  validateTargetingPositions}]
 
 (* Internal control-flow tag.  The lowering helpers signal an unsupported / unsatisfiable
    desc with Throw[$Failed, einThrowTag]; the operator that called them recovers it with
@@ -89,6 +90,30 @@ traceReturn[expr_, action_] :=
 
 traceReturnHeld[HoldComplete[expr_], action_] :=
   If[traceActionEnabledQ[action], Apply[action, Hold[expr]], expr];
+
+validateTargetingOption[mode_] :=
+  If[! MatchQ[mode, False | Automatic | True],
+    Message[Einstoff::unsupp,
+      "\"Targeting\" must be False, Automatic, or True"];
+    Throw[$Failed, einThrowTag],
+    mode];
+
+validateTargetingPositions[mode_, targetedPos_, operatedPos_, context_String] :=
+  Module[{t = Sort[targetedPos], o = Sort[operatedPos]},
+    validateTargetingOption[mode];
+    Which[
+      mode === False, Null,
+      mode === Automatic && t =!= {} && t =!= o,
+        Message[Einstoff::unsupp,
+          context <> ": targeted axes must exactly match the operated axes when \
+\"Targeting\" -> Automatic"];
+        Throw[$Failed, einThrowTag],
+      mode === True && t =!= o,
+        Message[Einstoff::unsupp,
+          context <> ": operated axes must be explicitly targeted when \
+\"Targeting\" -> True"];
+        Throw[$Failed, einThrowTag],
+      True, Null]];
 
 
 (* ------------------------------------------------------------------ *)
@@ -548,10 +573,65 @@ materializeOutputTrace[arr_, presentAtoms_, rhsTerms_, env_, action_] :=
 (* Throws (caught by the caller) on an unbound axis too.                *)
 (* ------------------------------------------------------------------ *)
 
-selfContract[x_, lhsAtoms_, rhsAtoms_, env_] :=
-  Module[{dims, xr, names, repeated, groups, ndims},
+selfContract[x_, lhsAtoms_, rhsAtoms_, env_, targeting_ : False,
+    lhsTargeted_ : Automatic] :=
+  Module[{dims, xr, names, repeated, groups, ndims, br, atoms, positions,
+          targetedPositions, remainingPositions},
     dims = atomSize[#, env] & /@ lhsAtoms;        (* Throws if unbound *)
     xr = reshapeTo[x, dims];                       (* scalar-safe (dims may be {}) *)
+    validateTargetingOption[targeting];
+    br = If[lhsTargeted === Automatic,
+      ConstantArray[False, Length[lhsAtoms]],
+      lhsTargeted];
+    If[Length[br] =!= Length[lhsAtoms], Throw[$Failed, einThrowTag]];
+    If[targeting === True || (targeting === Automatic && AnyTrue[br, TrueQ]),
+      atoms = DeleteDuplicates[DeleteCases[lhsAtoms, _Integer]];
+      groups = {};
+      Do[
+        positions = Flatten[Position[lhsAtoms, ax]];
+        targetedPositions = Select[positions, TrueQ[br[[#]]] &];
+        remainingPositions = Complement[positions, targetedPositions];
+        Which[
+          targetedPositions === {} && Length[positions] >= 2 && targeting === True,
+            Message[Einstoff::unsupp,
+              "a repeated axis is contracted without explicit targeting; target the \
+pair or set \"Targeting\" -> Automatic/False"];
+            Throw[$Failed, einThrowTag],
+          targetedPositions === {} && Length[positions] >= 2,
+            If[MemberQ[rhsAtoms, ax],
+              Message[Einstoff::unsupp,
+                "a repeated axis is kept on the output (a diagonal); this is not \
+supported yet. drop the axis to contract it"];
+              Throw[$Failed, einThrowTag]];
+            If[Length[positions] > 2,
+              Message[Einstoff::unsupp,
+                "an axis occurs more than twice (a super-diagonal); only pairwise \
+contraction is supported (it is the geometrically meaningful, tensorial case)"];
+              Throw[$Failed, einThrowTag]];
+            AppendTo[groups, positions],
+          targetedPositions =!= {},
+            If[Length[targetedPositions] =!= 2,
+              Message[Einstoff::unsupp,
+                "a targeted within-tensor contraction must target exactly two \
+occurrences of an axis"];
+              Throw[$Failed, einThrowTag]];
+            If[MemberQ[rhsAtoms, ax] && Length[remainingPositions] =!= 1,
+              Message[Einstoff::unsupp,
+                "a targeted within-tensor contraction kept on the output needs exactly \
+one untargeted occurrence of that axis to carry"];
+              Throw[$Failed, einThrowTag]];
+            If[Length[remainingPositions] > 1,
+              Message[Einstoff::unsupp,
+                "an axis has more than one untargeted occurrence after targeted \
+contraction; diagonal/super-diagonal cases are not supported"];
+              Throw[$Failed, einThrowTag]];
+            AppendTo[groups, targetedPositions],
+          True, Null],
+        {ax, atoms}];
+      If[groups === {}, Return[{xr, lhsAtoms}]];
+      ndims = Length[lhsAtoms];
+      Return[{ResourceFunction["ArrayContract"][xr, groups, Plus, ndims],
+        Delete[lhsAtoms, List /@ Flatten[groups]]}]];
     names = DeleteCases[lhsAtoms, _Integer];
     repeated = Select[DeleteDuplicates[names], Count[lhsAtoms, #] >= 2 &];
     If[repeated === {}, Return[{xr, lhsAtoms}]];

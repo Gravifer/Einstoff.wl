@@ -33,11 +33,13 @@ are out of scope (use Einstoff[\"Massage\"] / Einstoff[ArrayReduce]).";
 Einstoff["einsum"] := EinstoffEinsum;
 Einstoff["Einsum"] := EinstoffEinsum;
 
-Options[EinstoffEinsum] = {TraceAction -> None};
+Options[EinstoffEinsum] = {TraceAction -> None, "Targeting" -> Automatic};
 
 EinstoffEinsum[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] := withAxisScope @
-  Module[{parts, lhs, rhs, opAtoms, rhsAtoms, allLhs, traceAction},
+  Module[{parts, lhs, rhs, opAtoms, rhsAtoms, allLhs, traceAction, targeting},
     traceAction = OptionValue[TraceAction];
+    targeting = einCatch[validateTargetingOption[OptionValue["Targeting"]]];
+    If[targeting === $Failed, Return[$Failed]];
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
@@ -70,7 +72,8 @@ absent from every input, is repetition / broadcast (use Einstoff[\"Massage\"])"]
     Which[
       Length[tensors] === 1,
         (* within-tensor contraction (+ rearrange) is exactly the Massage engine *)
-        EinstoffMassage[desc, tensors, bindings, TraceAction -> traceAction],
+        EinstoffMassage[desc, tensors, bindings, TraceAction -> traceAction,
+          "Targeting" -> targeting],
       AnyTrue[opAtoms, ! DuplicateFreeQ[DeleteCases[#, _Integer]] &],
         (Message[Einstoff::unsupp,
           "einsum with a within-operand repeated index across multiple tensors is \
@@ -78,5 +81,6 @@ not supported yet (contract that tensor on its own first)"];
          $Failed),
       True,
         (* cross-tensor contraction is the Dot (Times/Plus) fold *)
-        EinstoffDot[desc, tensors, bindings, TraceAction -> traceAction]]
+        EinstoffDot[desc, tensors, bindings, TraceAction -> traceAction,
+          "Targeting" -> targeting]]
   ];

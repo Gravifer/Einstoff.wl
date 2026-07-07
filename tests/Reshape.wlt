@@ -469,7 +469,16 @@ VerificationTest[
   TestID -> "unit-empty-duplicate-output"
 ];
 
-(* 33. TraceAction returns the lowered expression wrapped by the requested action. *)
+(* 33. Massage shares the targeted within-tensor contraction path with ArrayContract. *)
+VerificationTest[
+  With[{t = ArrayReshape[Range[27], {3, 3, 3}]},
+    Einstoff["Massage"][{{"a", Slot["a"], Slot["a"]}} :> {{"a"}}, {t}]],
+  With[{t = ArrayReshape[Range[27], {3, 3, 3}]},
+    Table[Sum[t[[i, j, j]], {j, 3}], {i, 3}]],
+  TestID -> "massage-targeting-auto-targeted-pair-kept-carrier"
+];
+
+(* 34. TraceAction returns the lowered expression wrapped by the requested action. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}]},
     Head @ Einstoff[ArrayReshape][{{a_, b_}} :> {{b, a}}, {x}, {}, TraceAction -> Hold]],

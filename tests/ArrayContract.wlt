@@ -132,7 +132,38 @@ VerificationTest[
   TestID -> "contract-reject-super-diagonal"
 ];
 
-(* 14. Multi-tensor input is a cross-tensor path, not within-tensor contraction. *)
+(* 14. Automatic mode allows a targeted pair to contract while an untargeted occurrence
+   of the same axis carries the output. *)
+VerificationTest[
+  With[{t = ArrayReshape[Range[27], {3, 3, 3}]},
+    Einstoff["ArrayContract"][{{"a", Slot["a"], Slot["a"]}} :> {{"a"}}, {t}]],
+  With[{t = ArrayReshape[Range[27], {3, 3, 3}]},
+    Table[Sum[t[[i, j, j]], {j, 3}], {i, 3}]],
+  TestID -> "contract-targeting-auto-targeted-pair-kept-carrier"
+];
+
+(* 15. False mode ignores target roles, so the same three occurrences remain a
+   rejected diagonal/super-diagonal shape. *)
+VerificationTest[
+  Quiet[
+    Einstoff["ArrayContract"][{{"a", Slot["a"], Slot["a"]}} :> {{"a"}},
+      {ArrayReshape[Range[27], {3, 3, 3}]}, {}, "Targeting" -> False],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "contract-targeting-false-reject-targeted-pair-kept-carrier"
+];
+
+(* 16. True mode requires explicit targets for within-tensor contraction. *)
+VerificationTest[
+  Quiet[
+    Einstoff["ArrayContract"][{{a_, b_, a_}} :> {{b}},
+      {ArrayReshape[Range[18], {3, 2, 3}]}, {}, "Targeting" -> True],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "contract-targeting-true-reject-bare-repeat"
+];
+
+(* 17. Multi-tensor input is a cross-tensor path, not within-tensor contraction. *)
 VerificationTest[
   Quiet[
     Einstoff["ArrayContract"][{{a_, b_}, {b_, c_}} :> {{a, c}},

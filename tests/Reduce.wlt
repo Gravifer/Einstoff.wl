@@ -382,7 +382,45 @@ VerificationTest[
   TestID -> "reduce-literal-axis"
 ];
 
-(* 27. ...but a literal-integer axis cannot be KEPT (it has no carryable identity —
+(* 27. "Targeting" -> True requires reduced axes to be explicit targets. *)
+VerificationTest[
+  Quiet[
+    Einstoff[ArrayReduce][Total][{{a_, b_}} :> {{a}},
+      {ArrayReshape[Range[6], {2, 3}]}, {}, "Targeting" -> True],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "reduce-targeting-true-reject-bare-drop"
+];
+
+(* 28. True mode accepts exactly targeted reductions. *)
+VerificationTest[
+  Einstoff[ArrayReduce][Total][{{a_, Slot["b"]}} :> {{a}},
+    {ArrayReshape[Range[6], {2, 3}]}, {}, "Targeting" -> True],
+  Total /@ ArrayReshape[Range[6], {2, 3}],
+  TestID -> "reduce-targeting-true-targeted-drop"
+];
+
+(* 29. Automatic mode rejects a mixture where targets are present but another
+   untargeted axis is also reduced by RHS absence. *)
+VerificationTest[
+  Quiet[
+    Einstoff[ArrayReduce][Total][{{a_, Slot["b"], c_}} :> {{a}},
+      {ArrayReshape[Range[24], {2, 3, 4}]}],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "reduce-targeting-auto-reject-partial-targets"
+];
+
+(* 30. False mode preserves inference-first reduction even with partial targets. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[24], {2, 3, 4}]},
+    Einstoff[ArrayReduce][Total][{{a_, Slot["b"], c_}} :> {{a}},
+      {x}, {}, "Targeting" -> False]],
+  Map[Total[Flatten[#]] &, ArrayReshape[Range[24], {2, 3, 4}]],
+  TestID -> "reduce-targeting-false-partial-targets"
+];
+
+(* 31. ...but a literal-integer axis cannot be KEPT (it has no carryable identity —
    shared materializeOutput guard, Option A); rejected rather than leaked. *)
 VerificationTest[
   Quiet[
@@ -393,7 +431,7 @@ VerificationTest[
   TestID -> "reduce-reject-kept-literal"
 ];
 
-(* 28. TraceAction is a standard option even on the curried reducer subvalue, and it
+(* 32. TraceAction is a standard option even on the curried reducer subvalue, and it
    wraps the lowered expression itself rather than only proving that the head is Hold. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {3, 2}]},

@@ -58,9 +58,9 @@ Einstoff["Rearrange"]     := EinstoffReshape;
 Einstoff["ArrayContract"] := EinstoffContract;
 Einstoff["Contract"]      := EinstoffContract;
 
-Options[EinstoffMassage] = {TraceAction -> None};
-Options[EinstoffReshape] = {TraceAction -> None};
-Options[EinstoffContract] = {TraceAction -> None};
+Options[EinstoffMassage] = {TraceAction -> None, "Targeting" -> Automatic};
+Options[EinstoffReshape] = {TraceAction -> None, "Targeting" -> Automatic};
+Options[EinstoffContract] = {TraceAction -> None, "Targeting" -> Automatic};
 
 (* The three entrances are one engine under three policies, differing only in which
    non-bijective features they admit (element counts, single tensor):
@@ -71,17 +71,22 @@ Options[EinstoffContract] = {TraceAction -> None};
    intent declarations and the classification of a rejected desc ("wrong guard" vs
    "wrong lowering") lives at the exact point each feature becomes known. *)
 EinstoffMassage[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
-  massageCore[desc, tensors, bindings, All, OptionValue[TraceAction]];
+  massageCore[desc, tensors, bindings, All, OptionValue[TraceAction],
+    OptionValue["Targeting"]];
 EinstoffReshape[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
-  massageCore[desc, tensors, bindings, "Reshape", OptionValue[TraceAction]];
+  massageCore[desc, tensors, bindings, "Reshape", OptionValue[TraceAction],
+    OptionValue["Targeting"]];
 EinstoffContract[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
-  massageCore[desc, tensors, bindings, "Contract", OptionValue[TraceAction]];
+  massageCore[desc, tensors, bindings, "Contract", OptionValue[TraceAction],
+    OptionValue["Targeting"]];
 
 (* desc is NOT held (uniform convention): Pattern holds each binding `name_` and `:>`
    holds the RHS, so only a bare reference to a globally bound symbol is substituted. *)
-massageCore[desc_, tensors_, bindings_List, policy_, traceAction_] := withAxisScope @
+massageCore[desc_, tensors_, bindings_List, policy_, traceAction_, targeting_] := withAxisScope @
   Module[{parts, lhs, rhs, m, env, decomp, rhsTerms, lhsAtoms, rhsAtoms, sc,
-          xc, atomsc, result, outOnly, repeated, contracted},
+          lhsBr, xc, atomsc, result, outOnly, repeated, contracted, targetingMode},
+    targetingMode = einCatch[validateTargetingOption[targeting]];
+    If[targetingMode === $Failed, Return[$Failed]];
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
@@ -121,7 +126,9 @@ massageCore[desc_, tensors_, bindings_List, policy_, traceAction_] := withAxisSc
     If[decomp === $Failed,
       Message[Einstoff::unsat, "an input axis size is unbound or inconsistent"];
       Return[$Failed]];
-    lhsAtoms = decomp["Tagged"][[All, 1]]; env = decomp["Env"];
+    lhsAtoms = decomp["Tagged"][[All, 1]];
+    lhsBr = decomp["Tagged"][[All, 2]];
+    env = decomp["Env"];
     If[plainSequenceCount[First[rhs]] > 0 && plainSequenceCount[First[lhs]] == 0,
       Message[Einstoff::unsupp,
         "a plain anonymous sequence (__ / ___) on the output needs a corresponding \
@@ -140,7 +147,8 @@ plain sequence in the input shape"];
       Return[$Failed]];
 
     (* Self-contract a within-tensor repeated (dropped) index; identity otherwise. *)
-    sc = einCatch[selfContract[First[tensors], lhsAtoms, rhsAtoms, env]];
+    sc = einCatch[selfContract[First[tensors], lhsAtoms, rhsAtoms, env,
+      targetingMode, lhsBr]];
     If[sc === $Failed, Return[$Failed]];
     {xc, atomsc} = sc;
 

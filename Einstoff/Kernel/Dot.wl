@@ -51,8 +51,8 @@ Einstoff["Dot"] := EinstoffDot;
 Einstoff[Inner] := EinstoffInner;
 Einstoff["Inner"] := EinstoffInner;
 
-Options[EinstoffDot] = {TraceAction -> None};
-Options[EinstoffInner] = {TraceAction -> None};
+Options[EinstoffDot] = {TraceAction -> None, "Targeting" -> Automatic};
+Options[EinstoffInner] = {TraceAction -> None, "Targeting" -> Automatic};
 
 (* Contract two atomic-axis tensors with combiner (mul, add), keeping the axes in
    `keep`; return {tensor, labels} reshaped to atomic axes (label order B,M,N).
@@ -151,9 +151,12 @@ sanitizeOperandHeld[t_, atoms_, env_] :=
    (uniform convention): a globally bound axis symbol substitutes — a bound integer
    reads as a literal dimension, illegal values rejected downstream; Pattern still
    holds each binding `name_` and `:>` holds the RHS. *)
-innerLower[mul_, add_, desc_, tensors_, bindings_, traceAction_] := withAxisScope @
-  Module[{parts, lhs, rhs, shp, env, labs, outA, sanitized, stensors, slabs,
-          hsanitized, hstensors, hslabs, result},
+innerLower[mul_, add_, desc_, tensors_, bindings_, traceAction_, targeting_] := withAxisScope @
+  Module[{parts, lhs, rhs, shp, env, taggedLabs, labs, lhsBr, outA, sanitized,
+          stensors, slabs, hsanitized, hstensors, hslabs, result, targetedOcc,
+          contractedOcc, targetingMode},
+    targetingMode = einCatch[validateTargetingOption[targeting]];
+    If[targetingMode === $Failed, Return[$Failed]];
     parts = descParts[Hold[desc]];
     If[parts === $Failed, Return[descFailReturn[]]];
     {lhs, rhs} = parts;
@@ -186,11 +189,26 @@ case is unsupported); contract that operand first with Einstoff[\"ArrayContract\
       Message[Einstoff::unsat, shp["Reason"]]; Return[$Failed]];
     env = shp["Bindings"];
 
-    (* Atomic axes of each operand (brackets unwrapped) and of the output. *)
-    labs = einCatch[Table[
-      (Join @@ Table[reduceAtoms[t], {t, lhs[[j]]}])[[All, 1]], {j, Length[lhs]}]];
+    (* Atomic axes of each operand (brackets unwrapped, with per-occurrence target
+       metadata retained for "Targeting" validation) and of the output. *)
+    taggedLabs = einCatch[Table[
+      Join @@ Table[reduceAtoms[t], {t, lhs[[j]]}], {j, Length[lhs]}]];
     outA = einCatch[Join @@ Table[rearrangeAtoms[t], {t, First[rhs]}]];
-    If[labs === $Failed || outA === $Failed, Return[$Failed]];
+    If[taggedLabs === $Failed || outA === $Failed, Return[$Failed]];
+    labs = taggedLabs[[All, All, 1]];
+    lhsBr = taggedLabs[[All, All, 2]];
+    targetedOcc = Flatten[Table[
+      If[TrueQ[lhsBr[[j, p]]], {{j, p}}, Nothing],
+      {j, Length[lhsBr]}, {p, Length[lhsBr[[j]]]}], 1];
+    contractedOcc = Flatten[Table[
+      With[{ax = labs[[j, p]]},
+        If[! IntegerQ[ax] && ! MemberQ[outA, ax] &&
+            Count[labs, l_ /; MemberQ[l, ax]] === 2,
+          {{j, p}}, Nothing]],
+      {j, Length[labs]}, {p, Length[labs[[j]]]}], 1];
+    If[einCatch[validateTargetingPositions[targetingMode, targetedOcc,
+        contractedOcc, "Dot/Inner"]] === $Failed,
+      Return[$Failed]];
 
     (* Sanitize each operand for Option A: squeeze unit literals, reject size > 1
        literals, so contractPair only ever sees named (identity-bearing) axes. *)
@@ -243,9 +261,10 @@ output for an elementwise/batch product, or contract pairwise)"];
 
 EinstoffDot[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
   innerLower[Times, Plus, desc, tensors, bindings,
-    OptionValue[TraceAction]];
+    OptionValue[TraceAction], OptionValue["Targeting"]];
 
 EinstoffInner[mul_, add_][desc_, tensors_, bindings_List : {},
     opts : OptionsPattern[EinstoffInner]] :=
   innerLower[mul, add, desc, tensors, bindings,
-    OptionValue[EinstoffInner, {opts}, TraceAction]];
+    OptionValue[EinstoffInner, {opts}, TraceAction],
+    OptionValue[EinstoffInner, {opts}, "Targeting"]];

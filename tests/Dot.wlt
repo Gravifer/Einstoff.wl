@@ -248,7 +248,65 @@ VerificationTest[
   TestID -> "dot-nary-elementwise-keep"
 ];
 
-(* 25. TraceAction holds the contraction primitive instead of a precomputed result. *)
+(* 25. "Targeting" -> Automatic preserves matching explicit contraction targets,
+   including multiple target pairs. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[24] - 1, {2, 3, 4}],
+      y = ArrayReshape[Range[60] - 1, {4, 5, 3}]},
+    Einstoff[Dot][{{a_, Slot["b"], Slot["c"]}, {Slot["c"], d_, Slot["b"]}} :>
+      {{d, a}}, {x, y}]],
+  With[{x = ArrayReshape[Range[24] - 1, {2, 3, 4}],
+      y = ArrayReshape[Range[60] - 1, {4, 5, 3}]},
+    Table[
+      Sum[x[[aa, bb, cc]] y[[cc, dd, bb]], {bb, 3}, {cc, 4}],
+      {dd, 5}, {aa, 2}]],
+  TestID -> "dot-targeting-auto-multiple-pairs"
+];
+
+(* 26. In Automatic mode, explicit targets must agree with inferred contracted axes. *)
+VerificationTest[
+  Quiet[
+    Einstoff[Dot][{{a_, Highlighted[b_], c_}, {a_, Highlighted[c_], d_}} :>
+      {{a, b, d}},
+      {ArrayReshape[Range[24], {2, 3, 4}], ArrayReshape[Range[40], {2, 4, 5}]}],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "dot-targeting-auto-reject-mismatched-targets"
+];
+
+(* 27. True mode requires explicit targets for contraction. *)
+VerificationTest[
+  Quiet[
+    Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c}},
+      {ArrayReshape[Range[6], {2, 3}], ArrayReshape[Range[12], {3, 4}]}, {},
+      "Targeting" -> True],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "dot-targeting-true-reject-bare-contraction"
+];
+
+(* 28. False mode keeps targeted wrappers as syntax/hygiene and allows a targeted
+   shared axis to be kept as batch/output. *)
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[6] + 10, {2, 3}]},
+    Einstoff[Dot][{{a_, Slot["b"]}, {a_, Slot["b"]}} :> {{a, Slot["b"]}},
+      {x, y}, {}, "Targeting" -> False]],
+  ArrayReshape[Range[6], {2, 3}] ArrayReshape[Range[6] + 10, {2, 3}],
+  TestID -> "dot-targeting-false-kept-target"
+];
+
+(* 29. The same targeted kept axis rejects under Automatic. *)
+VerificationTest[
+  Quiet[
+    With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[6] + 10, {2, 3}]},
+      Einstoff[Dot][{{a_, Slot["b"]}, {a_, Slot["b"]}} :> {{a, Slot["b"]}},
+        {x, y}]],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "dot-targeting-auto-reject-kept-target"
+];
+
+(* 30. TraceAction holds the contraction primitive instead of a precomputed result. *)
 VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
     With[{g = Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c}}, {x, y}, {},
