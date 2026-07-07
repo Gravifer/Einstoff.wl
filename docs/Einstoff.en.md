@@ -153,6 +153,14 @@ In[9]:= Einstoff[Dot][{{a_, b_}, {b_, c_}} :> {{a, c}}, {x, y}]
 Out[9]= {{38, 44, 50, 56}, {83, 98, 113, 128}}
 ```
 
+Require explicit contraction targets:
+
+```wl
+In[10]:= Einstoff[Dot][{{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {x, y}, {}, "Targeting" -> True]
+
+Out[10]= {{38, 44, 50, 56}, {83, 98, 113, 128}}
+```
+
 ### Scope
 
 Split a composed axis with an explicit binding:
