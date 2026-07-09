@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       154,          7]
-NotebookDataLength[   2923113,      49896]
-NotebookOptionsPosition[   2908016,      49646]
-NotebookOutlinePosition[   2908886,      49673]
-CellTagsIndexPosition[   2908799,      49668]
+NotebookDataLength[   2930025,      50088]
+NotebookOptionsPosition[   2914928,      49838]
+NotebookOutlinePosition[   2915802,      49865]
+CellTagsIndexPosition[   2915715,      49860]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -21809,10 +21809,11 @@ kind=None)], keywords=[keyword(arg='c', value=Constant(...))]))"}},
                     "\"None\""}, {"\"wl_expr_2\"", 
                     "\"((1, 2, 3), (4, 5, 6), (7, 8, 9), (10, 11, 12))\""}, {
                     "\"np\"", 
-                    "\"<module 'numpy' from 'C:\\\\\\\\Users\\\\\\\\user\\\\\
-\\\\Desktop\\\\\\\\einstoff.wl\\\\\\\\.venv\\\\\\\\Lib\\\\\\\\site-packages\\\
-\\\\\\numpy\\\\\\\\__init__.py'>\""}, {"\"a\"", 
-                    "\"[[1 2]\\n [3 4]\\n [5 6]]\""}, {"\"b\"", 
+                    "\"<module 'numpy' from \
+'C:\\\\\\\\Users\\\\\\\\user\\\\\\\\Desktop\\\\\\\\einstoff.wl\\\\\\\\.venv\\\
+\\\\\\Lib\\\\\\\\site-packages\\\\\\\\numpy\\\\\\\\__init__.py'>\""}, {
+                    "\"a\"", "\"[[1 2]\\n [3 4]\\n [5 6]]\""}, {
+                    "\"b\"", 
                     "\"[[ 1  2  3]\\n [ 4  5  6]\\n [ 7  8  9]\\n [10 11 12]]\
 \""}, {"\"ra\"", 
                     "\"[[[[ 3.66499018e-02  9.90379190e-01  \
@@ -22301,12 +22302,11 @@ kind=None)], keywords=[keyword(arg='c', value=Constant(...))]))"}},
 [1.         0.81960784 0.92941176]\\n   [1.         0.81960784 0.92941176]]]]\
 \""}, {"\"reduce\"", "\"<function reduce at 0x00000112DC0A8880>\""}, {
                     "\"einx\"", 
-                    "\"<module 'einx' from \
-'C:\\\\\\\\Users\\\\\\\\user\\\\\\\\Desktop\\\\\\\\einstoff.wl\\\\\\\\.venv\\\
-\\\\\\Lib\\\\\\\\site-packages\\\\\\\\einx\\\\\\\\__init__.py'>\""}}, 
-                    GridBoxAlignment -> {"Columns" -> {{Left}}}, AutoDelete -> 
-                    False, GridBoxBackground -> {"Columns" -> {{Null}}, 
-                    "Rows" -> {
+                    "\"<module 'einx' from 'C:\\\\\\\\Users\\\\\\\\user\\\\\\\
+\\Desktop\\\\\\\\einstoff.wl\\\\\\\\.venv\\\\\\\\Lib\\\\\\\\site-packages\\\\\
+\\\\einx\\\\\\\\__init__.py'>\""}}, GridBoxAlignment -> {"Columns" -> {{
+                    Left}}}, AutoDelete -> False, GridBoxBackground -> {
+                    "Columns" -> {{Null}}, "Rows" -> {
                     GrayLevel[0.85]}}, 
                     GridBoxFrame -> {"ColumnsIndexed" -> {{{1, -1}, {1, -1}} -> 
                     GrayLevel[0.85]}}, GridBoxItemSize -> {"Columns" -> {{
@@ -25021,9 +25021,9 @@ kind=None)], keywords=[keyword(arg='c', value=Constant(...))]))"}},
                 Grid[{{"Key", "Value"}, {"wl_expr_1", "None"}, {
                   "wl_expr_2", 
                    "((1, 2, 3), (4, 5, 6), (7, 8, 9), (10, 11, 12))"}, {
-                  "np", "<module 'numpy' from \
-'C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\\\\Lib\\\\site-\
-packages\\\\numpy\\\\__init__.py'>"}, {"a", "[[1 2]\n [3 4]\n [5 6]]"}, {
+                  "np", "<module 'numpy' from 'C:\\\\Users\\\\user\\\\Desktop\
+\\\\einstoff.wl\\\\.venv\\\\Lib\\\\site-packages\\\\numpy\\\\__init__.py'>"}, \
+{"a", "[[1 2]\n [3 4]\n [5 6]]"}, {
                   "b", "[[ 1  2  3]\n [ 4  5  6]\n [ 7  8  9]\n [10 11 \
 12]]"}, {"ra", 
                    "[[[[ 3.66499018e-02  9.90379190e-01  1.83806098e+00]\n   \
@@ -28226,10 +28226,11 @@ b).tolist()\"", Background -> RGBColor[1, 1, 0.85], StripOnInput -> False]}},
                     "\"None\""}, {"\"wl_expr_2\"", 
                     "\"((1, 2, 3), (4, 5, 6), (7, 8, 9), (10, 11, 12))\""}, {
                     "\"np\"", 
-                    "\"<module 'numpy' from 'C:\\\\\\\\Users\\\\\\\\user\\\\\
-\\\\Desktop\\\\\\\\einstoff.wl\\\\\\\\.venv\\\\\\\\Lib\\\\\\\\site-packages\\\
-\\\\\\numpy\\\\\\\\__init__.py'>\""}, {"\"a\"", 
-                    "\"[[1 2]\\n [3 4]\\n [5 6]]\""}, {"\"b\"", 
+                    "\"<module 'numpy' from \
+'C:\\\\\\\\Users\\\\\\\\user\\\\\\\\Desktop\\\\\\\\einstoff.wl\\\\\\\\.venv\\\
+\\\\\\Lib\\\\\\\\site-packages\\\\\\\\numpy\\\\\\\\__init__.py'>\""}, {
+                    "\"a\"", "\"[[1 2]\\n [3 4]\\n [5 6]]\""}, {
+                    "\"b\"", 
                     "\"[[ 1  2  3]\\n [ 4  5  6]\\n [ 7  8  9]\\n [10 11 12]]\
 \""}, {"\"ra\"", 
                     "\"[[[[ 3.66499018e-02  9.90379190e-01  \
@@ -28718,12 +28719,11 @@ b).tolist()\"", Background -> RGBColor[1, 1, 0.85], StripOnInput -> False]}},
 [1.         0.81960784 0.92941176]\\n   [1.         0.81960784 0.92941176]]]]\
 \""}, {"\"reduce\"", "\"<function reduce at 0x00000112DC0A8880>\""}, {
                     "\"einx\"", 
-                    "\"<module 'einx' from \
-'C:\\\\\\\\Users\\\\\\\\user\\\\\\\\Desktop\\\\\\\\einstoff.wl\\\\\\\\.venv\\\
-\\\\\\Lib\\\\\\\\site-packages\\\\\\\\einx\\\\\\\\__init__.py'>\""}}, 
-                    GridBoxAlignment -> {"Columns" -> {{Left}}}, AutoDelete -> 
-                    False, GridBoxBackground -> {"Columns" -> {{Null}}, 
-                    "Rows" -> {
+                    "\"<module 'einx' from 'C:\\\\\\\\Users\\\\\\\\user\\\\\\\
+\\Desktop\\\\\\\\einstoff.wl\\\\\\\\.venv\\\\\\\\Lib\\\\\\\\site-packages\\\\\
+\\\\einx\\\\\\\\__init__.py'>\""}}, GridBoxAlignment -> {"Columns" -> {{
+                    Left}}}, AutoDelete -> False, GridBoxBackground -> {
+                    "Columns" -> {{Null}}, "Rows" -> {
                     GrayLevel[0.85]}}, 
                     GridBoxFrame -> {"ColumnsIndexed" -> {{{1, -1}, {1, -1}} -> 
                     GrayLevel[0.85]}}, GridBoxItemSize -> {"Columns" -> {{
@@ -29723,8 +29723,8 @@ packages\\\\einx\\\\__init__.py'>"}}, Background -> {Null, {LightGray}},
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -29737,11 +29737,10 @@ packages\\einx\\_src\\frontend\\api.py"]], Appearance -> "Frameless",
                     "\" in \"", "\"inner\""}, "RowDefault"]}}, 
                     GridBoxAlignment -> {"Columns" -> {{Left}}}, AutoDelete -> 
                     False, GridBoxBackground -> {"Columns" -> {{Automatic}}}, 
-                    GridBoxItemSize -> {"Columns" -> {{Automatic}}, 
-                    "Rows" -> {{Automatic}}}, 
-                    GridBoxSpacings -> {"Columns" -> {{0.2}}, 
-                    "Rows" -> {{0.5}}}, BaselinePosition -> {1, 1}], True -> 
-                    GridBox[{{
+                    GridBoxItemSize -> {"Columns" -> {{Automatic}}, "Rows" -> 
+                    {{Automatic}}}, GridBoxSpacings -> {
+                    "Columns" -> {{0.2}}, "Rows" -> {{0.5}}}, 
+                    BaselinePosition -> {1, 1}], True -> GridBox[{{
                     OpenerBox[
                     Dynamic[Typeset`var$$], Appearance -> Automatic, Enabled -> 
                     Automatic, AutoAction -> False, ContinuousAction -> 
@@ -29749,8 +29748,8 @@ packages\\einx\\_src\\frontend\\api.py"]], Appearance -> "Frameless",
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -29959,8 +29958,8 @@ einx._src.frontend.types.Tensor"}}, Background -> {Null, {LightGray}},
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\util\\\\lru_cache.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\util\\\\lru_cache.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -29985,8 +29984,8 @@ packages\\einx\\_src\\util\\lru_cache.py"]], Appearance -> "Frameless",
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\util\\\\lru_cache.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\util\\\\lru_cache.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -30163,8 +30162,8 @@ object at 0x00000112DAF8AA50>), 'kwargs': frozendict.frozendict({'backend': \
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -30189,8 +30188,8 @@ packages\\einx\\_src\\frontend\\api.py"]], Appearance -> "Frameless",
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -30396,8 +30395,8 @@ object at 0x00000112DDFB0050>, \
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\ops.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\ops.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -30422,8 +30421,8 @@ packages\\einx\\_src\\frontend\\ops.py"]], Appearance -> "Frameless",
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\ops.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\ops.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -30607,8 +30606,8 @@ object at 0x00000112DDFB0050>, \
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\backend.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\backend.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -30633,8 +30632,8 @@ packages\\einx\\_src\\frontend\\backend.py"]], Appearance -> "Frameless",
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\backend.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\backend.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -30813,9 +30812,9 @@ object at 0x00000112DAF8AA50>)"}, {"kwargs", "{}"}, {"name", "dot"}, {
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_\
-namedtensor.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_namedtensor.\
+py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -30840,9 +30839,9 @@ packages\\einx\\_src\\adapter\\einx_from_namedtensor.py"]], Appearance ->
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_\
-namedtensor.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_namedtensor.\
+py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -31069,9 +31068,9 @@ use_name_of.<locals>.inner.<locals>.inner at 0x00000112DDCC7ED0>"}},
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_\
-namedtensor.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_namedtensor.\
+py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -31097,9 +31096,9 @@ packages\\einx\\_src\\adapter\\einx_from_namedtensor.py"]], Appearance ->
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_\
-namedtensor.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_namedtensor.\
+py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -31286,9 +31285,9 @@ object at 0x00000112DDE6A0D0>"}, {"allow_concat", "False"}, {
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\namedtensor\\\\stage1\\\\\
-parse.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\namedtensor\\\\stage1\\\\parse.py\
+\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -31314,9 +31313,9 @@ packages\\einx\\_src\\namedtensor\\stage1\\parse.py"]], Appearance ->
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\namedtensor\\\\stage1\\\\\
-parse.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\namedtensor\\\\stage1\\\\parse.py\
+\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -33721,9 +33720,9 @@ attr='tolist', ctx=Load(...)), args=[], keywords=[]))"}},
                 Grid[{{"Key", "Value"}, {"wl_expr_1", "None"}, {
                   "wl_expr_2", 
                    "((1, 2, 3), (4, 5, 6), (7, 8, 9), (10, 11, 12))"}, {
-                  "np", "<module 'numpy' from \
-'C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\\\\Lib\\\\site-\
-packages\\\\numpy\\\\__init__.py'>"}, {"a", "[[1 2]\n [3 4]\n [5 6]]"}, {
+                  "np", "<module 'numpy' from 'C:\\\\Users\\\\user\\\\Desktop\
+\\\\einstoff.wl\\\\.venv\\\\Lib\\\\site-packages\\\\numpy\\\\__init__.py'>"}, \
+{"a", "[[1 2]\n [3 4]\n [5 6]]"}, {
                   "b", "[[ 1  2  3]\n [ 4  5  6]\n [ 7  8  9]\n [10 11 \
 12]]"}, {"ra", 
                    "[[[[ 3.66499018e-02  9.90379190e-01  1.83806098e+00]\n   \
@@ -37303,10 +37302,11 @@ b).tolist()\"", Background -> RGBColor[1, 1, 0.85], StripOnInput -> False]}},
                     "\"None\""}, {"\"wl_expr_2\"", 
                     "\"((1, 2, 3), (4, 5, 6), (7, 8, 9), (10, 11, 12))\""}, {
                     "\"np\"", 
-                    "\"<module 'numpy' from 'C:\\\\\\\\Users\\\\\\\\user\\\\\
-\\\\Desktop\\\\\\\\einstoff.wl\\\\\\\\.venv\\\\\\\\Lib\\\\\\\\site-packages\\\
-\\\\\\numpy\\\\\\\\__init__.py'>\""}, {"\"a\"", 
-                    "\"[[1 2]\\n [3 4]\\n [5 6]]\""}, {"\"b\"", 
+                    "\"<module 'numpy' from \
+'C:\\\\\\\\Users\\\\\\\\user\\\\\\\\Desktop\\\\\\\\einstoff.wl\\\\\\\\.venv\\\
+\\\\\\Lib\\\\\\\\site-packages\\\\\\\\numpy\\\\\\\\__init__.py'>\""}, {
+                    "\"a\"", "\"[[1 2]\\n [3 4]\\n [5 6]]\""}, {
+                    "\"b\"", 
                     "\"[[ 1  2  3]\\n [ 4  5  6]\\n [ 7  8  9]\\n [10 11 12]]\
 \""}, {"\"ra\"", 
                     "\"[[[[ 3.66499018e-02  9.90379190e-01  \
@@ -37795,12 +37795,11 @@ b).tolist()\"", Background -> RGBColor[1, 1, 0.85], StripOnInput -> False]}},
 [1.         0.81960784 0.92941176]\\n   [1.         0.81960784 0.92941176]]]]\
 \""}, {"\"reduce\"", "\"<function reduce at 0x00000112DC0A8880>\""}, {
                     "\"einx\"", 
-                    "\"<module 'einx' from \
-'C:\\\\\\\\Users\\\\\\\\user\\\\\\\\Desktop\\\\\\\\einstoff.wl\\\\\\\\.venv\\\
-\\\\\\Lib\\\\\\\\site-packages\\\\\\\\einx\\\\\\\\__init__.py'>\""}}, 
-                    GridBoxAlignment -> {"Columns" -> {{Left}}}, AutoDelete -> 
-                    False, GridBoxBackground -> {"Columns" -> {{Null}}, 
-                    "Rows" -> {
+                    "\"<module 'einx' from 'C:\\\\\\\\Users\\\\\\\\user\\\\\\\
+\\Desktop\\\\\\\\einstoff.wl\\\\\\\\.venv\\\\\\\\Lib\\\\\\\\site-packages\\\\\
+\\\\einx\\\\\\\\__init__.py'>\""}}, GridBoxAlignment -> {"Columns" -> {{
+                    Left}}}, AutoDelete -> False, GridBoxBackground -> {
+                    "Columns" -> {{Null}}, "Rows" -> {
                     GrayLevel[0.85]}}, 
                     GridBoxFrame -> {"ColumnsIndexed" -> {{{1, -1}, {1, -1}} -> 
                     GrayLevel[0.85]}}, GridBoxItemSize -> {"Columns" -> {{
@@ -38800,8 +38799,8 @@ packages\\\\einx\\\\__init__.py'>"}}, Background -> {Null, {LightGray}},
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -38826,8 +38825,8 @@ packages\\einx\\_src\\frontend\\api.py"]], Appearance -> "Frameless",
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -39036,8 +39035,8 @@ einx._src.frontend.types.Tensor"}}, Background -> {Null, {LightGray}},
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\util\\\\lru_cache.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\util\\\\lru_cache.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -39062,8 +39061,8 @@ packages\\einx\\_src\\util\\lru_cache.py"]], Appearance -> "Frameless",
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\util\\\\lru_cache.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\util\\\\lru_cache.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -39240,8 +39239,8 @@ object at 0x00000112DDCE18B0>), 'kwargs': frozendict.frozendict({'backend': \
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -39266,8 +39265,8 @@ packages\\einx\\_src\\frontend\\api.py"]], Appearance -> "Frameless",
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\api.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -39473,8 +39472,8 @@ object at 0x00000112DAF8AA50>, \
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\ops.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\ops.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -39499,8 +39498,8 @@ packages\\einx\\_src\\frontend\\ops.py"]], Appearance -> "Frameless",
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\ops.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\ops.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -39566,9 +39565,8 @@ sequentially in an unspecified\""}}, GridBoxAlignment -> {
                     False], "\"Local variables\""}, {"", 
                     PaneBox[
                     TagBox[
-                    GridBox[{{"\"Key\"", "\"Value\""}, {
-                    "\"description\"", "\"k i, j k -> i k\""}, {
-                    "\"backend\"", 
+                    GridBox[{{"\"Key\"", "\"Value\""}, {"\"description\"", 
+                    "\"k i, j k -> i k\""}, {"\"backend\"", 
                     "\"<einx._src.frontend.backend.Backend object at \
 0x00000112DDBD6520>\""}, {"\"tensors\"", 
                     "\"(<einx._src.tracer.signature.classical.tensor.Tensor \
@@ -39648,7 +39646,6 @@ Tensor:",
                     Item[
                     " 190.      return backend.dot(description, *tensors, \
 **parameters)", Background -> LightYellow], " 191.  ", " 192.  ", 
-                    
                     " 193.  dot.__doc__ = f\"\"\"Compute the dot-product of \
 values in the given tensors.", " 194.  ", 
                     " 195.  In the simplest case, the elementary operation \
@@ -39684,8 +39681,8 @@ object at 0x00000112DAF8AA50>, \
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\backend.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\backend.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -39710,8 +39707,8 @@ packages\\einx\\_src\\frontend\\backend.py"]], Appearance -> "Frameless",
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\backend.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\frontend\\\\backend.py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -39890,9 +39887,9 @@ object at 0x00000112DDCE18B0>)"}, {"kwargs", "{}"}, {"name", "dot"}, {
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_\
-namedtensor.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_namedtensor.\
+py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -39917,9 +39914,9 @@ packages\\einx\\_src\\adapter\\einx_from_namedtensor.py"]], Appearance ->
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_\
-namedtensor.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_namedtensor.\
+py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -40180,9 +40177,9 @@ use_name_of.<locals>.inner.<locals>.inner at 0x00000112DDCC7ED0>"}},
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_\
-namedtensor.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_namedtensor.\
+py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -40208,9 +40205,9 @@ packages\\einx\\_src\\adapter\\einx_from_namedtensor.py"]], Appearance ->
                     TemplateBox[{
                     ButtonBox[
                     StyleBox[
-                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.\
-venv\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_\
-namedtensor.py\"", 
+                    "\"C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\
+\\\\Lib\\\\site-packages\\\\einx\\\\_src\\\\adapter\\\\einx_from_namedtensor.\
+py\"", 
                     RGBColor[0.25, 0.48, 1], Small, FontFamily -> "Courier", 
                     StripOnInput -> False], ButtonFunction :> If[
                     FileExistsQ[
@@ -41640,6 +41637,7 @@ object at 0x00000112DDCE18B0>)"}, {
                     "backend", 
                     "<einx._src.frontend.backend.Backend object at \
 0x00000112DDBD6520>"}, {"input_tracers", 
+                    
                     "[<einx._src.tracer.signature.classical.tensor.Tensor \
 object at 0x00000112DAF8AA50>, \
 <einx._src.tracer.signature.classical.tensor.Tensor object at \
@@ -41816,9 +41814,9 @@ object at 0x00000112DDBFEE90>"}, {"keepdims", "{}"}, {
                     "iskwarg", "<function <lambda> at 0x00000112DDB9EE50>"}, {
                     "mark_reduced_axes", "True"}, {
                     "no_el_axis_permute", "False"}, {
-                    "op", "<function \
-use_name_of.<locals>.inner.<locals>.inner at 0x00000112DDCC7ED0>"}}, 
-                    Background -> {Null, {LightGray}}, Alignment -> Left, 
+                    "op", 
+                    "<function use_name_of.<locals>.inner.<locals>.inner at \
+0x00000112DDCC7ED0>"}}, Background -> {Null, {LightGray}}, Alignment -> Left, 
                     Frame -> LightGray]}]}]}, True], 
                     OpenerView[{
                     Row[{
@@ -42458,6 +42456,7 @@ ast.ClassDef)):", " 231.          return env[last_expr.name]", " 232.  ",
                   GrayLevel[0.95], 
                   GrayLevel[1]}}, Frame -> LightGray], 
               OpenerView[{"Local variables", 
+                
                 Grid[{{"Key", "Value"}, {
                   "consumer", 
                    "<ExternalEvaluateConsumer globals=14 objects=0>"}, {
@@ -42485,9 +42484,9 @@ attr='tolist', ctx=Load(...)), args=[], keywords=[]))"}},
                 Grid[{{"Key", "Value"}, {"wl_expr_1", "None"}, {
                   "wl_expr_2", 
                    "((1, 2, 3), (4, 5, 6), (7, 8, 9), (10, 11, 12))"}, {
-                  "np", "<module 'numpy' from \
-'C:\\\\Users\\\\user\\\\Desktop\\\\einstoff.wl\\\\.venv\\\\Lib\\\\site-\
-packages\\\\numpy\\\\__init__.py'>"}, {"a", "[[1 2]\n [3 4]\n [5 6]]"}, {
+                  "np", "<module 'numpy' from 'C:\\\\Users\\\\user\\\\Desktop\
+\\\\einstoff.wl\\\\.venv\\\\Lib\\\\site-packages\\\\numpy\\\\__init__.py'>"}, \
+{"a", "[[1 2]\n [3 4]\n [5 6]]"}, {
                   "b", "[[ 1  2  3]\n [ 4  5  6]\n [ 7  8  9]\n [10 11 \
 12]]"}, {"ra", 
                    "[[[[ 3.66499018e-02  9.90379190e-01  1.83806098e+00]\n   \
@@ -43140,6 +43139,7 @@ Backend | str | None = None, **parameters: npt.ArrayLike) -> Tensor:",
                 Item[
                 " 190.      return backend.dot(description, *tensors, \
 **parameters)", Background -> LightYellow], " 191.  ", " 192.  ", 
+                
                 " 193.  dot.__doc__ = f\"\"\"Compute the dot-product of \
 values in the given tensors.", " 194.  ", 
                 " 195.  In the simplest case, the elementary operation has \
@@ -43229,7 +43229,6 @@ packages\\einx\\_src\\adapter\\einx_from_namedtensor.py"]], Appearance ->
               
               Column[{" 616.                  raise SemanticError(", 
                 " 617.                      invocation=invocation,", 
-                
                 " 618.                      \
 pos=invocation.indicator.get_pos_for_axisnames(exprs_in + exprs_out, \
 axis_names_reduced),", 
@@ -48452,10 +48451,10 @@ matching language, whose scope overlaps a surprising lot with WL ",
 
 Cell[CellGroupData[{
 
-Cell[BoxData[
- RowBox[{"Tabular", "[", "\[IndentingNewLine]", 
-  RowBox[{
-   RowBox[{"(", GridBox[{
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"summary", "=", 
+   RowBox[{"(", "\[IndentingNewLine]", GridBox[{
       {"\"\<a\>\"", "\"\<name\>\"", "\"\<axis identifier\>\"", 
        RowBox[{
        "HoldForm", "[", "a_", "]"}], "\"\<can have multiple occurrences\>\""},
@@ -48480,7 +48479,7 @@ sum of dimensions\>\"",
        RowBox[{
        "HoldForm", "[", "___", 
         "]"}], "\"\<WL also has the non-nullable \
-\!\(\*Cell[\"__\",ExpressionUUID->\"593650d3-5948-4a46-a023-5072420d9419\"]\)\
+\!\(\*Cell[\"__\",ExpressionUUID->\"86f55459-32eb-2c47-99b3-0d05f44afed4\"]\)\
 \>\""},
       {"\"\<a...\>\"", "\"\<named ellipsis\>\"", "\"\<named sequence of \
 axes\>\"", 
@@ -48490,140 +48489,331 @@ axes\>\"",
 \[RightAngleBracket]\",FontSlant->\"Italic\"]\)...\>\"", "\"\<sub-expr \
 ellipsis\>\"", "\"\<pattern sequence\>\"", 
        RowBox[{"HoldForm", "[", 
-        RowBox[{
-         StyleBox["pat",
-          FontSlant->"Italic"], "..."}], 
+        RowBox[{"pat", "..."}], 
         "]"}], "\"\<WL also has the non-nullable \!\(\*Cell[TextData[{
 StyleBox[\"pat\",FontSlant->\"Italic\"],
 \"..\"
-}],ExpressionUUID->\"8b45fb7c-8530-fc4c-bf23-3d07979ed342\"]\)\>\""},
+}],ExpressionUUID->\"af27f9f0-ac54-9f47-b39b-d8382e96f23e\"]\)\>\""},
       {"\"\<[\[CenterEllipsis]]\>\"", "\"\<bracket\>\"", "\"\<operation \
-target\>\"", "\[Placeholder]", "\"\<some inert WL head would suffice\>\""}
-     }], ")"}], "\[IndentingNewLine]", ",", 
-   RowBox[{"<|", 
-    RowBox[{
-     RowBox[{"\"\<ColumnKeys\>\"", "->", 
-      RowBox[{"{", 
-       RowBox[{"\"\<einx syntax\>\"", ",", "\"\<called\>\"", 
-        ",", "\"\<purpose\>\"", ",", "\"\<WL counterpart\>\"", 
-        ",", "\"\<Notes\>\""}], "}"}]}], ",", 
-     RowBox[{"\"\<ElementType\>\"", "->", 
-      RowBox[{"{", 
-       RowBox[{
-        RowBox[{"\"\<einx syntax\>\"", "->", "\"\<String\>\""}], ",", 
-        RowBox[{"\"\<called\>\"", "->", "\"\<String\>\""}], ",", 
-        RowBox[{"\"\<purpose\>\"", "->", "\"\<String\>\""}], ",", 
-        RowBox[{"\"\<WL counterpart\>\"", "->", "\"\<InertExpression\>\""}], ",", 
-        RowBox[{"\"\<Notes\>\"", "->", "\"\<String\>\""}]}], "}"}]}]}], 
-    "|>"}]}], "]"}]], "Input",
- CellLabel->"In[46]:=",ExpressionUUID->"f0832e03-beb7-5649-b0c5-1e6d11019965"],
+target\>\"", "ToBeDetermined", "\"\<some inert WL head would suffice\>\""}
+     }], "\[IndentingNewLine]", ")"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"Tabular", "[", 
+   RowBox[{"summary", "\[IndentingNewLine]", ",", 
+    RowBox[{"<|", 
+     RowBox[{
+      RowBox[{"\"\<ColumnKeys\>\"", "->", 
+       RowBox[{"{", 
+        RowBox[{"\"\<einx syntax\>\"", ",", "\"\<called\>\"", 
+         ",", "\"\<purpose\>\"", ",", "\"\<WL counterpart\>\"", 
+         ",", "\"\<Notes\>\""}], "}"}]}], ",", 
+      RowBox[{"\"\<ElementType\>\"", "->", 
+       RowBox[{"{", 
+        RowBox[{
+         RowBox[{"\"\<einx syntax\>\"", "->", "\"\<String\>\""}], ",", 
+         RowBox[{"\"\<called\>\"", "->", "\"\<String\>\""}], ",", 
+         RowBox[{"\"\<purpose\>\"", "->", "\"\<String\>\""}], ",", 
+         RowBox[{"\"\<WL counterpart\>\"", "->", "\"\<InertExpression\>\""}], 
+         ",", 
+         RowBox[{"\"\<Notes\>\"", "->", "\"\<String\>\""}]}], "}"}]}]}], 
+     "|>"}]}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"%", "//", 
+  InterpretationBox[
+   TagBox[
+    TagBox[
+     DynamicModuleBox[{Typeset`open = False}, 
+      FrameBox[
+       PaneSelectorBox[{False->GridBox[{
+          {
+           PaneBox[GridBox[{
+              {
+               StyleBox[
+                StyleBox[
+                 AdjustmentBox["\<\"[\[FilledSmallSquare]]\"\>",
+                  BoxBaselineShift->-0.25,
+                  BoxMargins->{{0, 0}, {-1, -1}}], "ResourceFunctionIcon",
+                 
+                 FontColor->RGBColor[
+                  0.8745098039215686, 0.2784313725490196, 
+                   0.03137254901960784]],
+                ShowStringCharacters->False,
+                FontFamily->"Source Sans Pro Black",
+                FontSize->0.6538461538461539 Inherited,
+                FontWeight->"Heavy",
+                PrivateFontOptions->{"OperatorSubstitution"->False}], 
+               StyleBox[
+                RowBox[{
+                 StyleBox["PrettyGrid", "ResourceFunctionLabel"], " "}],
+                ShowAutoStyles->False,
+                ShowStringCharacters->False,
+                FontSize->Rational[12, 13] Inherited,
+                FontColor->GrayLevel[0.09999084492227013]]}
+             },
+             GridBoxSpacings->{"Columns" -> {{0.25}}}],
+            Alignment->Left,
+            BaseStyle->{LineSpacing -> {0, 0}, LineBreakWithin -> False},
+            BaselinePosition->Baseline,
+            FrameMargins->{{3, 0}, {0, 0}}], 
+           ItemBox[
+            PaneBox[
+             TogglerBox[Dynamic[Typeset`open], {True->
+              
+              DynamicBox[FEPrivate`FrontEndResource[
+               "FEBitmaps", "IconizeCloser"],
+               ImageSizeCache->{11., {1.15185546875, 9.84814453125}}], False->
+              
+              DynamicBox[FEPrivate`FrontEndResource[
+               "FEBitmaps", "IconizeOpener"],
+               ImageSizeCache->{11., {1.15185546875, 9.84814453125}}]},
+              Appearance->None,
+              BaselinePosition->Baseline,
+              ContentPadding->False,
+              FrameMargins->0],
+             Alignment->Left,
+             BaselinePosition->Baseline,
+             FrameMargins->{{1, 1}, {0, 0}}],
+            Frame->{{
+               Directive[
+                Opacity[0.5], 
+                RGBColor[
+                0.831298829690661, 0.847045900003161, 0.850952150003161]], 
+               False}, {False, False}}]}
+         },
+         BaselinePosition->{1, 1},
+         GridBoxAlignment->{"Columns" -> {{Left}}, "Rows" -> {{Baseline}}},
+         GridBoxItemSize->{
+          "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}},
+         GridBoxSpacings->{"Columns" -> {{0}}, "Rows" -> {{0}}}], True->
+        GridBox[{
+          {GridBox[{
+             {
+              PaneBox[GridBox[{
+                 {
+                  StyleBox[
+                   AdjustmentBox[
+                    
+                    StyleBox["\<\"[\[FilledSmallSquare]]\"\>", 
+                    "ResourceFunctionIcon",
+                    
+                    FontColor->RGBColor[
+                    0.8745098039215686, 0.2784313725490196, 
+                    0.03137254901960784]],
+                    BoxBaselineShift->-0.25,
+                    BoxMargins->{{0, 0}, {-1, -1}}],
+                   ShowStringCharacters->False,
+                   FontFamily->"Source Sans Pro Black",
+                   FontSize->0.6538461538461539 Inherited,
+                   FontWeight->"Heavy",
+                   PrivateFontOptions->{"OperatorSubstitution"->False}], 
+                  StyleBox[
+                   RowBox[{
+                    StyleBox["PrettyGrid", "ResourceFunctionLabel"], " "}],
+                   ShowAutoStyles->False,
+                   ShowStringCharacters->False,
+                   FontSize->Rational[12, 13] Inherited,
+                   FontColor->GrayLevel[0.09999084492227013]]}
+                },
+                GridBoxSpacings->{"Columns" -> {{0.25}}}],
+               Alignment->Left,
+               BaseStyle->{LineSpacing -> {0, 0}, LineBreakWithin -> False},
+               BaselinePosition->Baseline,
+               FrameMargins->{{3, 0}, {0, 0}}], 
+              ItemBox[
+               PaneBox[
+                TogglerBox[Dynamic[Typeset`open], {True->
+                 
+                 DynamicBox[FEPrivate`FrontEndResource[
+                  "FEBitmaps", "IconizeCloser"]], False->
+                 
+                 DynamicBox[FEPrivate`FrontEndResource[
+                  "FEBitmaps", "IconizeOpener"]]},
+                 Appearance->None,
+                 BaselinePosition->Baseline,
+                 ContentPadding->False,
+                 FrameMargins->0],
+                Alignment->Left,
+                BaselinePosition->Baseline,
+                FrameMargins->{{1, 1}, {0, 0}}],
+               Frame->{{
+                  Directive[
+                   Opacity[0.5], 
+                   RGBColor[
+                   0.831298829690661, 0.847045900003161, 0.850952150003161]], 
+                  False}, {False, False}}]}
+            },
+            BaselinePosition->{1, 1},
+            GridBoxAlignment->{"Columns" -> {{Left}}, "Rows" -> {{Baseline}}},
+            
+            GridBoxItemSize->{
+             "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}},
+            GridBoxSpacings->{"Columns" -> {{0}}, "Rows" -> {{0}}}]},
+          {
+           StyleBox[
+            PaneBox[GridBox[{
+               {
+                RowBox[{
+                 TagBox["\<\"Version (latest): \"\>",
+                  "IconizedLabel"], " ", 
+                 TagBox["\<\"1.0.1\"\>",
+                  "IconizedItem"]}]},
+               {
+                TagBox[
+                 
+                 TemplateBox[{
+                  "\"Documentation \[RightGuillemet]\"", 
+                   "https://resources.wolframcloud.com/FunctionRepository/\
+resources/3a28eafc-d397-4f77-ba35-7ea83e797969/"},
+                  "HyperlinkURL"],
+                 "IconizedItem"]}
+              },
+              DefaultBaseStyle->"Column",
+              GridBoxAlignment->{"Columns" -> {{Left}}},
+              
+              GridBoxItemSize->{
+               "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}],
+             Alignment->Left,
+             BaselinePosition->Baseline,
+             FrameMargins->{{5, 4}, {0, 4}}], "DialogStyle",
+            FontFamily->"Roboto",
+            FontSize->11]}
+         },
+         BaselinePosition->{1, 1},
+         GridBoxAlignment->{"Columns" -> {{Left}}, "Rows" -> {{Baseline}}},
+         GridBoxDividers->{"Columns" -> {{None}}, "Rows" -> {False, {
+              GrayLevel[0.8]}, False}},
+         GridBoxItemSize->{
+          "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}]}, Dynamic[
+        Typeset`open],
+        BaselinePosition->Baseline,
+        ImageSize->Automatic],
+       Background->RGBColor[
+        0.968505860940661, 0.976440431253161, 0.984252931253161],
+       BaselinePosition->Baseline,
+       DefaultBaseStyle->{
+        LightDarkAutoColorRules -> <|"MarkedColors" -> True|>},
+       FrameMargins->{{0, 0}, {1, 0}},
+       FrameStyle->RGBColor[
+        0.831298829690661, 0.847045900003161, 0.850952150003161],
+       RoundingRadius->4]],
+     #& ,
+     TagBoxNote->" "],
+    {"FunctionResourceBox", 
+     RGBColor[0.8745098039215686, 0.2784313725490196, 0.03137254901960784], 
+     "PrettyGrid"},
+    TagBoxNote->"FunctionResourceBox"],
+   ResourceFunction[
+    ResourceObject[<|
+     "Name" -> "PrettyGrid", "ShortName" -> "PrettyGrid", "UUID" -> 
+      "3a28eafc-d397-4f77-ba35-7ea83e797969", "ResourceType" -> "Function", 
+      "Version" -> "1.0.1", "Description" -> 
+      "Conveniently display two-dimensional data in a nicely styled grid", 
+      "RepositoryLocation" -> 
+      URL["https://www.wolframcloud.com/obj/resourcesystem/api/1.0"], 
+      "SymbolName" -> 
+      "FunctionRepository`$3ac4967e84da47e68230daefaf96c81d`PrettyGrid", 
+      "FunctionLocation" -> 
+      CloudObject[
+       "https://www.wolframcloud.com/obj/b9fac05d-e7e3-4071-832e-\
+40638fad5e75"]|>, ResourceSystemBase -> Automatic]],
+   Selectable->False]}]}], "Input",
+ CellChangeTimes->{{3.9926024492528973`*^9, 3.992602487396061*^9}, {
+  3.9926025525430527`*^9, 3.9926025651002502`*^9}, {3.9926030323729267`*^9, 
+  3.9926031170130596`*^9}, {3.9926031837766666`*^9, 3.9926032773405533`*^9}, {
+  3.9926033488055687`*^9, 3.992603356581917*^9}},
+ CellLabel->"In[24]:=",ExpressionUUID->"f0832e03-beb7-5649-b0c5-1e6d11019965"],
 
 Cell[BoxData[
- TemplateBox[<|
-  "Summary" -> 
-   TemplateBox[<|
-     "RowCount" -> 9, "ColumnCount" -> 5, "ColumnTypes" -> 
-      Grid[{{"einx syntax", "String"}, {"called", "String"}, {
-         "purpose", "String"}, {"WL counterpart", "InertExpression"}, {
-         "Notes", "String"}}, Alignment -> Left], "Backend" -> 
-      "Tabular`Backend`WolframKernel", "UUID" -> 
-      "Tabular-d58e8dbf-961a-409e-b953-a7698e9ae233", "Form" -> StandardForm, 
-      "Interpretable" -> True|>, "TabularSummary", 
-     BaseStyle -> (DynamicUpdating -> True)], "Main" -> TableViewBox[
-     Tabular[<|
-      "RawSchema" -> <|
-        "ColumnProperties" -> <|
-          "einx syntax" -> <|"ElementType" -> "String"|>, 
-           "called" -> <|"ElementType" -> "String"|>, 
-           "purpose" -> <|"ElementType" -> "String"|>, 
-           "WL counterpart" -> <|"ElementType" -> "InertExpression"|>, 
-           "Notes" -> <|"ElementType" -> "String"|>|>, "KeyColumns" -> None, 
-         "Backend" -> "WolframKernel"|>, "Options" -> {}, 
-       "BackendData" -> <|"ColumnData" -> DataStructure["ColumnTable", {{
-             
-             TabularColumn[<|
-              "Data" -> {{
-                 2, {0, 1, 2, 3, 8, 13, 16, 20, 168, 173}, 
-                  "a2_(a b)(a+b)...a...\!\(\*StyleBox[\"\[LeftAngleBracket]\",\
-FontSlant->\"Italic\"]\)\!\(\*StyleBox[\"pattern\",FontSlant->\"Italic\"]\)\!\
-\(\*StyleBox[\"\[RightAngleBracket]\",FontSlant->\"Italic\"]\)...[\
-\[CenterEllipsis]]"}, {}, None}, "ElementType" -> "String"|>], 
-             
-             TabularColumn[<|
-              "Data" -> {{
-                 3, {0, 4, 11, 15, 24, 36, 44, 58, 75, 82}, 
-                  "namenumericholeflattenedconcatenatedellipsisnamed \
-ellipsissub-expr ellipsisbracket"}, {}, None}, "ElementType" -> "String"|>], 
-             
-             TabularColumn[<|
-              "Data" -> {{
-                 3, {0, 15, 32, 46, 89, 128, 151, 173, 189, 205}, 
-                  "axis identifierimmediate literalanonymous axiscomposite as \
-a direct product of dimensionscomposite as a direct sum of \
-dimensionsanonymous axis sequencenamed sequence of axespattern \
-sequenceoperation target"}, {}, None}, "ElementType" -> "String"|>], 
-             TabularColumn[<|"Data" -> {{
-                  HoldForm[
-                   Pattern[$CellContext`a, 
-                    Blank[]]], 
-                  HoldForm[2], 
-                  HoldForm[
-                   Blank[]], 
-                  HoldForm[
-                   CircleTimes[$CellContext`a, $CellContext`b]], 
-                  HoldForm[
-                   CirclePlus[$CellContext`a, $CellContext`b]], 
-                  HoldForm[
-                   BlankNullSequence[]], 
-                  HoldForm[
-                   Pattern[$CellContext`a, 
-                    BlankNullSequence[]]], 
-                  HoldForm[
-                   
-                   RepeatedNull[$CellContext`pat]], $CellContext`\
-\[Placeholder]}, {}, None}, "ElementType" -> "InertExpression"|>], 
-             
-             TabularColumn[<|
-              "Data" -> {{
-                 2, {0, 29, 72, 72, 133, 175, 226, 240, 342, 374}, 
-                  "can have multiple occurrencesdistinct identity even when \
-value coincidesneed a non-comm head in WL; natural candidates are \
-\[CircleTimes] and **need a non-comm head in WL (like previous)WL also has \
-the non-nullable \!\(\*Cell[\"__\"]\)(see previous)WL also has the \
-non-nullable \!\(\*Cell[TextData[{\nStyleBox[\"pat\",FontSlant->\"Italic\"],\n\
-\"..\"\n}]]\)some inert WL head would suffice"}, {}, None}, "ElementType" -> 
-               "String"|>]}}]|>|>], Expression, 
-     AppearanceElements -> {"RowHeaders", "ColumnHeaders", "ResizeArea"}, 
-     TableViewBoxAlignment -> <|
-      "ColumnsIndexed" -> {
-        1 -> Left, 2 -> Left, 3 -> Left, 4 -> Left, 5 -> Left}|>, 
-     TableViewBoxFieldType -> <|
-      "ColumnsIndexed" -> {
-        1 -> String, 2 -> String, 3 -> String, 4 -> Expression, 5 -> 
-         String}|>, 
-     TableViewBoxHeaderStyle -> <|"Columns" -> {{"TabularPrimaryData"}}|>, 
-     TableViewBoxHeaders -> <|
-      "ColumnsIndexed" -> {
-        1 -> TemplateBox[{"\"einx syntax\""}, "StringTabularHeader"], 2 -> 
-         TemplateBox[{"\"called\""}, "StringTabularHeader"], 3 -> 
-         TemplateBox[{"\"purpose\""}, "StringTabularHeader"], 4 -> 
-         TemplateBox[{"\"WL counterpart\""}, "InertExpressionTabularHeader"], 
-         5 -> TemplateBox[{"\"Notes\""}, "StringTabularHeader"]}|>, 
-     TableViewBoxItemDisplayRules -> <|
-      "Columns" -> {{{Blank[Missing] -> (MakeBoxes[#, TraditionalForm]& )}}}, 
-       "ColumnsIndexed" -> {
-        1 -> {}, 2 -> {}, 3 -> {}, 
-         4 -> {Blank[] -> (
-            Tabular`Typesetting`ToBoxesWithMinimalSummary[#]& )}, 5 -> {}}|>, 
-     TableViewBoxItemSize -> <|
-      "ColumnsIndexed" -> {1 -> 7, 2 -> 12, 3 -> 15, 5 -> 24, 4 -> 9}|>], 
-   "ItemSizeConstraints" -> <|
-    "ColumnsIndexed" -> {
-      1 -> {3, 92}, 2 -> {3, 12}, 3 -> {3, 28}, 5 -> {3, 64}, 4 -> 
-       Missing[]}|>|>,
-  "Tabular"]], "Output",
- CellChangeTimes->{3.9926019917710266`*^9},
- CellLabel->"Out[46]=",ExpressionUUID->"b680c1c5-2dba-bf44-90d8-71546734e4a5"]
+ PaneBox[
+  TagBox[GridBox[{
+     {
+      ItemBox["\<\"einx syntax\"\>",
+       Alignment->{Center, Baseline},
+       BaseStyle->Bold,
+       ItemSize->{Automatic, 1.5},
+       StripOnInput->False], 
+      ItemBox["\<\"called\"\>",
+       Alignment->{Center, Baseline},
+       BaseStyle->Bold,
+       ItemSize->{Automatic, 1.5},
+       StripOnInput->False], 
+      ItemBox["\<\"purpose\"\>",
+       Alignment->{Center, Baseline},
+       BaseStyle->Bold,
+       ItemSize->{Automatic, 1.5},
+       StripOnInput->False], 
+      ItemBox["\<\"WL counterpart\"\>",
+       Alignment->{Center, Baseline},
+       BaseStyle->Bold,
+       ItemSize->{Automatic, 1.5},
+       StripOnInput->False], 
+      ItemBox["\<\"Notes\"\>",
+       Alignment->{Center, Baseline},
+       BaseStyle->Bold,
+       ItemSize->{Automatic, 1.5},
+       StripOnInput->False]},
+     {"\<\"a\"\>", "\<\"name\"\>", "\<\"axis identifier\"\>", 
+      TagBox["a_",
+       HoldForm], "\<\"can have multiple occurrences\"\>"},
+     {"\<\"2\"\>", "\<\"numeric\"\>", "\<\"immediate literal\"\>", 
+      TagBox["2",
+       HoldForm], "\<\"distinct identity even when value coincides\"\>"},
+     {"\<\"_\"\>", "\<\"hole\"\>", "\<\"anonymous axis\"\>", 
+      TagBox["_",
+       HoldForm], "\<\"\"\>"},
+     {"\<\"(a b)\"\>", "\<\"flattened\"\>", "\<\"composite as a direct \
+product of dimensions\"\>", 
+      TagBox[
+       RowBox[{"a", "\[CircleTimes]", "b"}],
+       HoldForm], "\<\"need a non-comm head in WL; natural candidates are \
+\[CircleTimes] and **\"\>"},
+     {"\<\"(a+b)\"\>", "\<\"concatenated\"\>", "\<\"composite as a direct sum \
+of dimensions\"\>", 
+      TagBox[
+       RowBox[{"a", "\[CirclePlus]", "b"}],
+       HoldForm], "\<\"need a non-comm head in WL (like previous)\"\>"},
+     {"\<\"...\"\>", "\<\"ellipsis\"\>", "\<\"anonymous axis sequence\"\>", 
+      TagBox["___",
+       HoldForm], "\<\"WL also has the non-nullable \\!\\(\\*Cell[\\\"__\\\"]\
+\\)\"\>"},
+     {"\<\"a...\"\>", "\<\"named ellipsis\"\>", "\<\"named sequence of axes\"\
+\>", 
+      TagBox["a___",
+       HoldForm], "\<\"(see previous)\"\>"},
+     {"\<\"\\!\\(\\*StyleBox[\\\"\[LeftAngleBracket]\\\",FontSlant->\\\"\
+Italic\\\"]\\)\\!\\(\\*StyleBox[\\\"pattern\\\",FontSlant->\\\"Italic\\\"]\\)\
+\\!\\(\\*StyleBox[\\\"\[RightAngleBracket]\\\",FontSlant->\\\"Italic\\\"]\\)..\
+.\"\>", "\<\"sub-expr ellipsis\"\>", "\<\"pattern sequence\"\>", 
+      TagBox[
+       RowBox[{"pat", "..."}],
+       HoldForm], "\<\"WL also has the non-nullable \
+\\!\\(\\*Cell[TextData[{\\nStyleBox[\\\"pat\\\",FontSlant->\\\"Italic\\\"],\\\
+n\\\"..\\\"\\n}]]\\)\"\>"},
+     {"\<\"[\[CenterEllipsis]]\"\>", "\<\"bracket\"\>", "\<\"operation target\
+\"\>", "ToBeDetermined", "\<\"some inert WL head would suffice\"\>"}
+    },
+    AutoDelete->False,
+    BaseStyle->{FontFamily -> "Arial", FontSize -> 12},
+    FrameStyle->GrayLevel[0.65],
+    GridBoxAlignment->{
+     "Columns" -> {Left, Left, Left, Left, Left}, "Rows" -> {{Center}}},
+    GridBoxBackground->{"Columns" -> {
+        GrayLevel[1], {
+         GrayLevel[0.93], 
+         GrayLevel[1]}}, "Rows" -> {
+        GrayLevel[1], {
+         GrayLevel[0.93], 
+         GrayLevel[1]}}},
+    GridBoxFrame->{"Columns" -> {{True}}, "Rows" -> {{True}}},
+    GridBoxItemSize->{"Columns" -> {{All}}, "Rows" -> {{All}}},
+    GridBoxSpacings->{"Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}],
+   "Grid"],
+  ImageSizeAction->"Scrollable"]], "Output",
+ CellChangeTimes->{
+  3.9926019917710266`*^9, 3.9926024920051937`*^9, {3.992602569249777*^9, 
+   3.992602589754528*^9}, {3.9926030364733295`*^9, 3.9926030786384964`*^9}, {
+   3.992603190910671*^9, 3.99260321864625*^9}, {3.9926032655430374`*^9, 
+   3.992603277779043*^9}, 3.9926033576526775`*^9},
+ CellLabel->"Out[26]=",ExpressionUUID->"019f897e-4ac8-b948-8849-7483f69dba96"]
 }, {2}]],
 
 Cell[TextData[{
@@ -48830,11 +49020,13 @@ EinsteinSummation", "FunctionLocation" ->
 1b5c9e3d6dcf"]|>, {
      ResourceSystemBase -> 
       "https://www.wolframcloud.com/obj/resourcesystem/api/1.0"}]],
-   Selectable->False]], "Output",
-  ExpressionUUID->"01f46c8c-2c42-0b4a-a3a6-256e9f3feae0"],
+   Selectable->False]], "Output",ExpressionUUID->
+  "01f46c8c-2c42-0b4a-a3a6-256e9f3feae0"],
  " , it feels tempting for me to reify the analogy."
 }], "Text",
-ExpressionUUID->"3f658f84-3c7b-8f44-959d-355c43c35690"]
+ CellChangeTimes->{{3.992602660536791*^9, 
+  3.992602662440428*^9}},ExpressionUUID->"3f658f84-3c7b-8f44-959d-\
+355c43c35690"]
 }, Open  ]]
 }, Open  ]],
 
@@ -49644,8 +49836,8 @@ much obliged \[HappySmiley]\
 ExpressionUUID->"ff24b649-56de-5149-abce-7e25aa13f0d3"]
 }, Open  ]]
 },
-WindowSize->{1269, 646.5},
-WindowMargins->{{0, Automatic}, {Automatic, 0}},
+WindowSize->{1280, 652},
+WindowMargins->{{-5.5, Automatic}, {Automatic, -5.5}},
 SpellingDictionaries->{"CorrectWords"->{
  "wantare", "einops", "einsum", "einx", "nein", "Eins"}},
 FrontEndVersion->"15.0 for Microsoft Windows (64-bit) (2026\:5e745\:670819\
@@ -49659,15 +49851,15 @@ ExpressionUUID->"bf621e10-6378-644e-9480-8f3a5fe2c8ef"
 (*CellTagsOutline
 CellTagsIndex->{
  "np-transpose_and_dot"->{
-  Cell[406966, 7074, 638, 17, 126, "ExternalLanguage",ExpressionUUID->"f795a2da-db1e-5545-b3f9-93cc07ff653c",
+  Cell[406961, 7074, 637, 17, 126, "ExternalLanguage",ExpressionUUID->"f795a2da-db1e-5545-b3f9-93cc07ff653c",
    CellTags->"np-transpose_and_dot"],
-  Cell[407607, 7093, 381, 10, 32, "Output",ExpressionUUID->"a3ee1a92-6ae7-a14f-879e-7bfe647b6c61",
+  Cell[407601, 7093, 381, 10, 70, "Output",ExpressionUUID->"a3ee1a92-6ae7-a14f-879e-7bfe647b6c61",
    CellTags->"np-transpose_and_dot"]}
  }
 *)
 (*CellTagsIndex
 CellTagsIndex->{
- {"np-transpose_and_dot", 2908490, 49660}
+ {"np-transpose_and_dot", 2915406, 49852}
  }
 *)
 (*NotebookFileOutline
@@ -49681,222 +49873,222 @@ Cell[10454, 232, 218, 4, 32, "Output",ExpressionUUID->"e7a748e6-dba2-5548-bc4d-a
 }, Open  ]],
 Cell[CellGroupData[{
 Cell[10709, 241, 8378, 201, 50, "Input",ExpressionUUID->"d8b7c2d6-c9ab-4140-9187-4f5ec60c2763"],
-Cell[19090, 444, 33644, 587, 59, "Output",ExpressionUUID->"f0cb9de8-72d6-ae47-9a68-ed2fd0563702"]
+Cell[19090, 444, 33639, 587, 59, "Output",ExpressionUUID->"f0cb9de8-72d6-ae47-9a68-ed2fd0563702"]
 }, Open  ]],
-Cell[52749, 1034, 687, 19, 33, "Text",ExpressionUUID->"3304ac71-9cae-7945-a1ef-cf5b649c5b3d"],
+Cell[52744, 1034, 687, 19, 33, "Text",ExpressionUUID->"3304ac71-9cae-7945-a1ef-cf5b649c5b3d"],
 Cell[CellGroupData[{
-Cell[53461, 1057, 795, 21, 47, "Input",ExpressionUUID->"edcc8268-6683-6b4f-a003-490f2870bf99"],
-Cell[54259, 1080, 42364, 698, 98, "Output",ExpressionUUID->"b7f96d1d-55fc-0f48-8b86-ba30474aa32b"]
+Cell[53456, 1057, 795, 21, 47, "Input",ExpressionUUID->"edcc8268-6683-6b4f-a003-490f2870bf99"],
+Cell[54254, 1080, 42364, 698, 98, "Output",ExpressionUUID->"b7f96d1d-55fc-0f48-8b86-ba30474aa32b"]
 }, Open  ]],
-Cell[96638, 1781, 104, 1, 33, "Text",ExpressionUUID->"c528f448-d6e9-f645-9d21-830bae05ea66"],
+Cell[96633, 1781, 104, 1, 33, "Text",ExpressionUUID->"c528f448-d6e9-f645-9d21-830bae05ea66"],
 Cell[CellGroupData[{
-Cell[96767, 1786, 1360, 36, 32, "Input",ExpressionUUID->"6786da15-8351-394e-9ccd-74a961474198"],
-Cell[98130, 1824, 7003, 142, 81, "Output",ExpressionUUID->"adedbae0-0a06-c944-b85a-e6106fb6b733"]
+Cell[96762, 1786, 1360, 36, 32, "Input",ExpressionUUID->"6786da15-8351-394e-9ccd-74a961474198"],
+Cell[98125, 1824, 7003, 142, 81, "Output",ExpressionUUID->"adedbae0-0a06-c944-b85a-e6106fb6b733"]
 }, Open  ]],
-Cell[105148, 1969, 152, 3, 33, "Text",ExpressionUUID->"b7813199-369c-824e-a861-657744522840"],
+Cell[105143, 1969, 152, 3, 33, "Text",ExpressionUUID->"b7813199-369c-824e-a861-657744522840"],
 Cell[CellGroupData[{
-Cell[105325, 1976, 723, 21, 28, "Input",ExpressionUUID->"d24550e0-47c8-8a4c-9090-0af639b872df"],
-Cell[106051, 1999, 9557, 160, 137, "Output",ExpressionUUID->"030c09f8-6cfb-2644-97a5-7567da99aeec"]
-}, Open  ]],
-Cell[CellGroupData[{
-Cell[115645, 2164, 1034, 30, 28, "Input",ExpressionUUID->"edba90f3-3d05-544c-bc92-947cabbb80f5"],
-Cell[116682, 2196, 21421, 355, 98, "Output",ExpressionUUID->"2b88e7be-ac3c-4b42-b872-17bacc700226"]
+Cell[105320, 1976, 723, 21, 28, "Input",ExpressionUUID->"d24550e0-47c8-8a4c-9090-0af639b872df"],
+Cell[106046, 1999, 9557, 160, 137, "Output",ExpressionUUID->"030c09f8-6cfb-2644-97a5-7567da99aeec"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[138140, 2556, 907, 27, 38, "Input",ExpressionUUID->"56288ceb-30ad-2445-8ca4-a1c871d464fd"],
-Cell[139050, 2585, 42400, 699, 98, "Output",ExpressionUUID->"8238f74e-f0f7-5449-aa00-2928342333a9"]
+Cell[115640, 2164, 1034, 30, 28, "Input",ExpressionUUID->"edba90f3-3d05-544c-bc92-947cabbb80f5"],
+Cell[116677, 2196, 21421, 355, 98, "Output",ExpressionUUID->"2b88e7be-ac3c-4b42-b872-17bacc700226"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[181487, 3289, 1006, 27, 47, "Input",ExpressionUUID->"55562574-719b-cf48-a79e-d8520db6dfdb"],
-Cell[182496, 3318, 219720, 3617, 117, "Output",ExpressionUUID->"e80183c1-48ea-f942-a920-4d69d2c74231"]
-}, Open  ]],
-Cell[402231, 6938, 211, 4, 33, "Text",ExpressionUUID->"750b1aa6-39a6-f84f-92e2-390fa828e503"],
-Cell[402445, 6944, 154, 3, 33, "Text",ExpressionUUID->"c4a31e00-b550-ef45-b4ed-c48771d3e0c5"],
-Cell[402602, 6949, 371, 6, 55, "Text",ExpressionUUID->"d230f274-f8e2-c44d-b409-1b74d416fb7d"],
-Cell[CellGroupData[{
-Cell[402998, 6959, 85, 1, 66, "Section",ExpressionUUID->"32fae459-fede-934e-90d4-ca299517bbb9"],
-Cell[403086, 6962, 222, 3, 33, "Text",ExpressionUUID->"4a92b59a-5dd0-0142-9269-7dccdd2805f3"],
-Cell[403311, 6967, 1088, 30, 77, "Text",ExpressionUUID->"6054ed84-20b4-a245-95fc-28b9badb8cc4"],
-Cell[404402, 6999, 480, 8, 77, "Text",ExpressionUUID->"2edf3562-6533-7c4d-81d9-93b17164c943"],
-Cell[CellGroupData[{
-Cell[404907, 7011, 95, 1, 53, "Subsection",ExpressionUUID->"6e0e2970-2c6b-0b44-84d4-0d4d3e54a922"],
-Cell[405005, 7014, 924, 22, 55, "Text",ExpressionUUID->"cfffc6d3-6b6d-b245-8b66-98412b0fb6bc"],
-Cell[CellGroupData[{
-Cell[405954, 7040, 626, 18, 66, "Input",ExpressionUUID->"60f3b4ce-2fd9-5143-82a7-b92cef545b6c"],
-Cell[406583, 7060, 346, 9, 32, "Output",ExpressionUUID->"e30ff41b-b67f-334b-bdf5-41c87bd322c4"]
+Cell[138135, 2556, 907, 27, 38, "Input",ExpressionUUID->"56288ceb-30ad-2445-8ca4-a1c871d464fd"],
+Cell[139045, 2585, 42400, 699, 98, "Output",ExpressionUUID->"8238f74e-f0f7-5449-aa00-2928342333a9"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[406966, 7074, 638, 17, 126, "ExternalLanguage",ExpressionUUID->"f795a2da-db1e-5545-b3f9-93cc07ff653c",
+Cell[181482, 3289, 1006, 27, 47, "Input",ExpressionUUID->"55562574-719b-cf48-a79e-d8520db6dfdb"],
+Cell[182491, 3318, 219720, 3617, 117, "Output",ExpressionUUID->"e80183c1-48ea-f942-a920-4d69d2c74231"]
+}, Open  ]],
+Cell[402226, 6938, 211, 4, 33, "Text",ExpressionUUID->"750b1aa6-39a6-f84f-92e2-390fa828e503"],
+Cell[402440, 6944, 154, 3, 33, "Text",ExpressionUUID->"c4a31e00-b550-ef45-b4ed-c48771d3e0c5"],
+Cell[402597, 6949, 371, 6, 55, "Text",ExpressionUUID->"d230f274-f8e2-c44d-b409-1b74d416fb7d"],
+Cell[CellGroupData[{
+Cell[402993, 6959, 85, 1, 66, "Section",ExpressionUUID->"32fae459-fede-934e-90d4-ca299517bbb9"],
+Cell[403081, 6962, 222, 3, 33, "Text",ExpressionUUID->"4a92b59a-5dd0-0142-9269-7dccdd2805f3"],
+Cell[403306, 6967, 1088, 30, 77, "Text",ExpressionUUID->"6054ed84-20b4-a245-95fc-28b9badb8cc4"],
+Cell[404397, 6999, 480, 8, 77, "Text",ExpressionUUID->"2edf3562-6533-7c4d-81d9-93b17164c943"],
+Cell[CellGroupData[{
+Cell[404902, 7011, 95, 1, 53, "Subsection",ExpressionUUID->"6e0e2970-2c6b-0b44-84d4-0d4d3e54a922"],
+Cell[405000, 7014, 924, 22, 55, "Text",ExpressionUUID->"cfffc6d3-6b6d-b245-8b66-98412b0fb6bc"],
+Cell[CellGroupData[{
+Cell[405949, 7040, 626, 18, 66, "Input",ExpressionUUID->"60f3b4ce-2fd9-5143-82a7-b92cef545b6c"],
+Cell[406578, 7060, 346, 9, 32, "Output",ExpressionUUID->"e30ff41b-b67f-334b-bdf5-41c87bd322c4"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[406961, 7074, 637, 17, 126, "ExternalLanguage",ExpressionUUID->"f795a2da-db1e-5545-b3f9-93cc07ff653c",
  CellTags->"np-transpose_and_dot"],
-Cell[407607, 7093, 381, 10, 32, "Output",ExpressionUUID->"a3ee1a92-6ae7-a14f-879e-7bfe647b6c61",
+Cell[407601, 7093, 381, 10, 70, "Output",ExpressionUUID->"a3ee1a92-6ae7-a14f-879e-7bfe647b6c61",
  CellTags->"np-transpose_and_dot"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[408025, 7108, 668, 15, 96, "ExternalLanguage",ExpressionUUID->"d660d488-2215-c24d-b0e1-714681f2e176"],
-Cell[408696, 7125, 216682, 3576, 59, "Output",ExpressionUUID->"98503e64-3477-824f-b315-edb764ecd88c"]
+Cell[408019, 7108, 667, 15, 70, "ExternalLanguage",ExpressionUUID->"d660d488-2215-c24d-b0e1-714681f2e176"],
+Cell[408689, 7125, 216682, 3576, 70, "Output",ExpressionUUID->"98503e64-3477-824f-b315-edb764ecd88c"]
 }, Open  ]],
-Cell[625393, 10704, 8870, 217, 35, "Text",ExpressionUUID->"f8a894aa-0457-9944-8600-a37d05fc58fd"],
+Cell[625386, 10704, 8870, 217, 70, "Text",ExpressionUUID->"f8a894aa-0457-9944-8600-a37d05fc58fd"],
 Cell[CellGroupData[{
-Cell[634288, 10925, 8609, 213, 31, "Input",ExpressionUUID->"e939a48c-5967-dc4d-9930-66f477b9a11b"],
-Cell[642900, 11140, 348, 9, 32, "Output",ExpressionUUID->"9270cc54-336f-3142-8426-6f34682ba22b"]
+Cell[634281, 10925, 8609, 213, 70, "Input",ExpressionUUID->"e939a48c-5967-dc4d-9930-66f477b9a11b"],
+Cell[642893, 11140, 348, 9, 70, "Output",ExpressionUUID->"9270cc54-336f-3142-8426-6f34682ba22b"]
 }, Open  ]],
-Cell[643263, 11152, 302, 5, 55, "Text",ExpressionUUID->"beb8ded8-b7f1-cf46-bba6-e19d6e45c040"],
+Cell[643256, 11152, 302, 5, 70, "Text",ExpressionUUID->"beb8ded8-b7f1-cf46-bba6-e19d6e45c040"],
 Cell[CellGroupData[{
-Cell[643590, 11161, 8945, 224, 88, "Input",ExpressionUUID->"ecc2d1b4-e65b-aa49-a403-5d14bf2a2b56"],
-Cell[652538, 11387, 575, 16, 32, "Output",ExpressionUUID->"34cf2f43-e2b1-1c41-8d9a-15c541526d4b"]
+Cell[643583, 11161, 8945, 224, 70, "Input",ExpressionUUID->"ecc2d1b4-e65b-aa49-a403-5d14bf2a2b56"],
+Cell[652531, 11387, 575, 16, 70, "Output",ExpressionUUID->"34cf2f43-e2b1-1c41-8d9a-15c541526d4b"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[653150, 11408, 8609, 213, 31, "Input",ExpressionUUID->"6eb48235-e7a9-9345-beb7-8c3dc7ec96a3"],
-Cell[661762, 11623, 451, 12, 32, "Output",ExpressionUUID->"287e204d-ac82-4840-97ec-92964c8d743e"]
+Cell[653143, 11408, 8609, 213, 70, "Input",ExpressionUUID->"6eb48235-e7a9-9345-beb7-8c3dc7ec96a3"],
+Cell[661755, 11623, 451, 12, 70, "Output",ExpressionUUID->"287e204d-ac82-4840-97ec-92964c8d743e"]
 }, Open  ]]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[662262, 11641, 169, 6, 53, "Subsection",ExpressionUUID->"bd22bf09-c8f7-d247-bec3-e706e60a8adb"],
-Cell[662434, 11649, 661, 18, 77, "Text",ExpressionUUID->"74384c68-cec4-3640-b1d2-edc0c0a04d2f"],
+Cell[662255, 11641, 169, 6, 70, "Subsection",ExpressionUUID->"bd22bf09-c8f7-d247-bec3-e706e60a8adb"],
+Cell[662427, 11649, 661, 18, 70, "Text",ExpressionUUID->"74384c68-cec4-3640-b1d2-edc0c0a04d2f"],
 Cell[CellGroupData[{
-Cell[663120, 11671, 659, 17, 126, "ExternalLanguage",ExpressionUUID->"fb497f8e-f719-a846-aaa0-36b7a51f1c8b"],
-Cell[663782, 11690, 5489, 115, 59, "Output",ExpressionUUID->"fa435153-a2b2-f043-85c8-a63932e358bd"]
+Cell[663113, 11671, 658, 17, 70, "ExternalLanguage",ExpressionUUID->"fb497f8e-f719-a846-aaa0-36b7a51f1c8b"],
+Cell[663774, 11690, 5489, 115, 70, "Output",ExpressionUUID->"fa435153-a2b2-f043-85c8-a63932e358bd"]
 }, Closed]],
 Cell[CellGroupData[{
-Cell[669308, 11810, 417, 11, 24, "Input",ExpressionUUID->"5dca5ebf-bd79-6d4f-be78-34f8f35285a3"],
-Cell[669728, 11823, 2295, 42, 110, "Output",ExpressionUUID->"79e9bf89-f210-a74f-a869-c3cf7f7f6071"]
+Cell[669300, 11810, 417, 11, 70, "Input",ExpressionUUID->"5dca5ebf-bd79-6d4f-be78-34f8f35285a3"],
+Cell[669720, 11823, 2295, 42, 70, "Output",ExpressionUUID->"79e9bf89-f210-a74f-a869-c3cf7f7f6071"]
 }, Open  ]],
-Cell[672038, 11868, 192, 4, 33, "Text",ExpressionUUID->"23d82a97-c7ab-4a41-b040-f2a027432dad"],
+Cell[672030, 11868, 192, 4, 70, "Text",ExpressionUUID->"23d82a97-c7ab-4a41-b040-f2a027432dad"],
 Cell[CellGroupData[{
-Cell[672255, 11876, 662, 14, 66, "ExternalLanguage",ExpressionUUID->"c18f2db3-7b10-124a-947b-b7097aa1580e"],
-Cell[672920, 11892, 6435, 135, 81, "Output",ExpressionUUID->"138265a0-bacd-324a-9c9b-d73bd6fa5ab2"]
+Cell[672247, 11876, 661, 14, 70, "ExternalLanguage",ExpressionUUID->"c18f2db3-7b10-124a-947b-b7097aa1580e"],
+Cell[672911, 11892, 6435, 135, 70, "Output",ExpressionUUID->"138265a0-bacd-324a-9c9b-d73bd6fa5ab2"]
 }, Closed]],
 Cell[CellGroupData[{
-Cell[679392, 12032, 209, 4, 24, "Input",ExpressionUUID->"aec396e8-8e2b-f24d-859f-74a7a49c0726"],
-Cell[679604, 12038, 90275, 1484, 98, "Output",ExpressionUUID->"fb0e006d-38c5-8940-a227-cca2d0907705"]
+Cell[679383, 12032, 209, 4, 70, "Input",ExpressionUUID->"aec396e8-8e2b-f24d-859f-74a7a49c0726"],
+Cell[679595, 12038, 90275, 1484, 70, "Output",ExpressionUUID->"fb0e006d-38c5-8940-a227-cca2d0907705"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[769916, 13527, 692, 16, 111, "ExternalLanguage",ExpressionUUID->"4f7b08dc-f3b4-3a47-ac06-cb9f73fd9da7"],
-Cell[770611, 13545, 13389, 244, 59, "Output",ExpressionUUID->"cac6f911-a73f-5b43-ac1a-8c7cb56e3f7e"]
+Cell[769907, 13527, 691, 16, 70, "ExternalLanguage",ExpressionUUID->"4f7b08dc-f3b4-3a47-ac06-cb9f73fd9da7"],
+Cell[770601, 13545, 13389, 244, 70, "Output",ExpressionUUID->"cac6f911-a73f-5b43-ac1a-8c7cb56e3f7e"]
 }, Closed]],
 Cell[CellGroupData[{
-Cell[784037, 13794, 209, 4, 24, "Input",ExpressionUUID->"105eab87-53a4-3445-aafc-fbbc227082d2"],
-Cell[784249, 13800, 12096, 202, 137, "Output",ExpressionUUID->"c4f6bc2c-fa32-5b4d-b99d-b8e50bb65d76"]
+Cell[784027, 13794, 209, 4, 70, "Input",ExpressionUUID->"105eab87-53a4-3445-aafc-fbbc227082d2"],
+Cell[784239, 13800, 12096, 202, 70, "Output",ExpressionUUID->"c4f6bc2c-fa32-5b4d-b99d-b8e50bb65d76"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[796382, 14007, 559, 11, 66, "ExternalLanguage",ExpressionUUID->"3477ffc9-a144-d14a-8c41-1d96c254a17e"],
-Cell[796944, 14020, 10708, 199, 59, "Output",ExpressionUUID->"c26fb74b-a938-cc4f-8a1a-87f6f5ac76ad"]
+Cell[796372, 14007, 558, 11, 70, "ExternalLanguage",ExpressionUUID->"3477ffc9-a144-d14a-8c41-1d96c254a17e"],
+Cell[796933, 14020, 10708, 199, 70, "Output",ExpressionUUID->"c26fb74b-a938-cc4f-8a1a-87f6f5ac76ad"]
 }, Closed]],
 Cell[CellGroupData[{
-Cell[807689, 14224, 207, 4, 24, "Input",ExpressionUUID->"c62aad68-0f8c-3e47-b954-edf0c147bd2a"],
-Cell[807899, 14230, 64321, 1058, 157, "Output",ExpressionUUID->"fbc47296-3353-0d44-936e-36008111f007"]
+Cell[807678, 14224, 207, 4, 70, "Input",ExpressionUUID->"c62aad68-0f8c-3e47-b954-edf0c147bd2a"],
+Cell[807888, 14230, 64321, 1058, 70, "Output",ExpressionUUID->"fbc47296-3353-0d44-936e-36008111f007"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[872257, 15293, 593, 13, 81, "ExternalLanguage",ExpressionUUID->"d3553277-cf45-2f47-998b-ab6d27e4f035"],
-Cell[872853, 15308, 6436, 135, 81, "Output",ExpressionUUID->"dcc715e1-0da5-7b4b-8eb3-73180b1a4286"]
+Cell[872246, 15293, 592, 13, 70, "ExternalLanguage",ExpressionUUID->"d3553277-cf45-2f47-998b-ab6d27e4f035"],
+Cell[872841, 15308, 6436, 135, 70, "Output",ExpressionUUID->"dcc715e1-0da5-7b4b-8eb3-73180b1a4286"]
 }, Closed]],
 Cell[CellGroupData[{
-Cell[879326, 15448, 207, 4, 24, "Input",ExpressionUUID->"b43d4ae4-ab6f-ac4d-ac42-bd067e5fd885"],
-Cell[879536, 15454, 91672, 1507, 98, "Output",ExpressionUUID->"ee6a4c94-a61a-8145-bfa5-0ae638f27d77"]
+Cell[879314, 15448, 207, 4, 70, "Input",ExpressionUUID->"b43d4ae4-ab6f-ac4d-ac42-bd067e5fd885"],
+Cell[879524, 15454, 91672, 1507, 98, "Output",ExpressionUUID->"ee6a4c94-a61a-8145-bfa5-0ae638f27d77"]
 }, Open  ]],
-Cell[971223, 16964, 583, 14, 55, "Text",ExpressionUUID->"b2bc0ff2-abc9-7544-890c-00c7bc965384"],
+Cell[971211, 16964, 583, 14, 55, "Text",ExpressionUUID->"b2bc0ff2-abc9-7544-890c-00c7bc965384"],
 Cell[CellGroupData[{
-Cell[971831, 16982, 534, 10, 66, "ExternalLanguage",ExpressionUUID->"a05217a9-9be4-2a4b-91ad-9717c8907fc8"],
-Cell[972368, 16994, 6438, 135, 81, "Output",ExpressionUUID->"4d3b45a2-fe9c-0c4e-88d7-9656693038ad"]
+Cell[971819, 16982, 533, 10, 66, "ExternalLanguage",ExpressionUUID->"a05217a9-9be4-2a4b-91ad-9717c8907fc8"],
+Cell[972355, 16994, 6438, 135, 70, "Output",ExpressionUUID->"4d3b45a2-fe9c-0c4e-88d7-9656693038ad"]
 }, Closed]],
 Cell[CellGroupData[{
-Cell[978843, 17134, 209, 4, 24, "Input",ExpressionUUID->"c98f07fa-e6b3-a945-9bdc-58ccc0e4c3a3"],
-Cell[979055, 17140, 116271, 1910, 98, "Output",ExpressionUUID->"aa50674b-71fc-0442-ba30-9533fb886f0e"]
+Cell[978830, 17134, 209, 4, 24, "Input",ExpressionUUID->"c98f07fa-e6b3-a945-9bdc-58ccc0e4c3a3"],
+Cell[979042, 17140, 116271, 1910, 98, "Output",ExpressionUUID->"aa50674b-71fc-0442-ba30-9533fb886f0e"]
 }, Open  ]],
-Cell[1095341, 19053, 413, 11, 33, "Text",ExpressionUUID->"cf8ad989-ac17-3f45-8cf7-a23e7d64cea7"],
-Cell[1095757, 19066, 1014, 27, 77, "Text",ExpressionUUID->"2cd28f81-421a-fd48-a2f9-f8b886063929"],
+Cell[1095328, 19053, 413, 11, 33, "Text",ExpressionUUID->"cf8ad989-ac17-3f45-8cf7-a23e7d64cea7"],
+Cell[1095744, 19066, 1014, 27, 77, "Text",ExpressionUUID->"2cd28f81-421a-fd48-a2f9-f8b886063929"],
 Cell[CellGroupData[{
-Cell[1096796, 19097, 380, 12, 30, "Item",ExpressionUUID->"d729b9fa-c006-bf41-901d-8444b7f1fb71"],
+Cell[1096783, 19097, 380, 12, 30, "Item",ExpressionUUID->"d729b9fa-c006-bf41-901d-8444b7f1fb71"],
 Cell[CellGroupData[{
-Cell[1097201, 19113, 659, 19, 171, "ExternalLanguage",ExpressionUUID->"46975194-e810-1f46-83f7-bb487ca48f79"],
-Cell[1097863, 19134, 393989, 6362, 59, "Output",ExpressionUUID->"675ff5ea-50be-5545-a9ca-599a71d72281"]
+Cell[1097188, 19113, 658, 19, 171, "ExternalLanguage",ExpressionUUID->"46975194-e810-1f46-83f7-bb487ca48f79"],
+Cell[1097849, 19134, 393979, 6362, 59, "Output",ExpressionUUID->"675ff5ea-50be-5545-a9ca-599a71d72281"]
 }, Open  ]]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[1491901, 25502, 249, 7, 30, "Item",ExpressionUUID->"a05de04c-a975-4341-8e56-e914bf85f655"],
+Cell[1491877, 25502, 249, 7, 30, "Item",ExpressionUUID->"a05de04c-a975-4341-8e56-e914bf85f655"],
 Cell[CellGroupData[{
-Cell[1492175, 25513, 644, 14, 96, "ExternalLanguage",ExpressionUUID->"edb57a4a-229e-d143-9004-29244a16e50b"],
-Cell[1492822, 25529, 321, 8, 32, "Output",ExpressionUUID->"3c42b6dc-7cf9-8f42-ac7c-b5e86a1c8f9a"]
+Cell[1492151, 25513, 643, 14, 96, "ExternalLanguage",ExpressionUUID->"edb57a4a-229e-d143-9004-29244a16e50b"],
+Cell[1492797, 25529, 321, 8, 32, "Output",ExpressionUUID->"3c42b6dc-7cf9-8f42-ac7c-b5e86a1c8f9a"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[1493180, 25542, 90, 1, 23, "ItemParagraph",ExpressionUUID->"34907973-7fd6-a64d-817c-90d432054e17"],
+Cell[1493155, 25542, 90, 1, 23, "ItemParagraph",ExpressionUUID->"34907973-7fd6-a64d-817c-90d432054e17"],
 Cell[CellGroupData[{
-Cell[1493295, 25547, 569, 12, 66, "ExternalLanguage",ExpressionUUID->"1f67d850-e0a5-824b-818e-03e1df0ea97c"],
-Cell[1493867, 25561, 348, 9, 32, "Output",ExpressionUUID->"ac042ca0-c4e6-4944-9ce0-95fcd1a6b148"]
+Cell[1493270, 25547, 568, 12, 66, "ExternalLanguage",ExpressionUUID->"1f67d850-e0a5-824b-818e-03e1df0ea97c"],
+Cell[1493841, 25561, 348, 9, 32, "Output",ExpressionUUID->"ac042ca0-c4e6-4944-9ce0-95fcd1a6b148"]
 }, Open  ]]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[1494264, 25576, 120, 1, 23, "ItemParagraph",ExpressionUUID->"296c8648-3a9c-1240-ac49-bdfb18785e81"],
+Cell[1494238, 25576, 120, 1, 23, "ItemParagraph",ExpressionUUID->"296c8648-3a9c-1240-ac49-bdfb18785e81"],
 Cell[CellGroupData[{
-Cell[1494409, 25581, 542, 10, 66, "ExternalLanguage",ExpressionUUID->"ea69e8cc-1368-fc44-ab80-584a92337dba"],
-Cell[1494954, 25593, 543416, 9051, 113, "Output",ExpressionUUID->"97016b4a-3430-034a-9a04-57ac2f8f8e2f"]
+Cell[1494383, 25581, 541, 10, 66, "ExternalLanguage",ExpressionUUID->"ea69e8cc-1368-fc44-ab80-584a92337dba"],
+Cell[1494927, 25593, 543265, 9050, 113, "Output",ExpressionUUID->"97016b4a-3430-034a-9a04-57ac2f8f8e2f"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[2038407, 34649, 538, 10, 66, "ExternalLanguage",ExpressionUUID->"cd7a0007-b45b-a348-95b6-b341fd6049f0"],
-Cell[2038948, 34661, 523050, 8687, 165, "Output",ExpressionUUID->"7811eb6a-1247-bb42-b482-69d849484728"]
-}, Open  ]]
-}, Open  ]]
-}, Open  ]],
-Cell[CellGroupData[{
-Cell[2562059, 43355, 399, 12, 30, "Item",ExpressionUUID->"99d85c00-26b2-374f-a4d2-f5e73c9f0368"],
-Cell[CellGroupData[{
-Cell[2562483, 43371, 648, 14, 81, "ExternalLanguage",ExpressionUUID->"8d809acd-9de8-3348-96a4-27f566d8f1e7"],
-Cell[2563134, 43387, 67704, 1133, 59, "Output",ExpressionUUID->"7074f78a-ca01-3d48-889c-d0aa471ed214"]
-}, Open  ]],
-Cell[CellGroupData[{
-Cell[2630875, 44525, 618, 14, 81, "ExternalLanguage",ExpressionUUID->"8728714a-9f4d-5b4d-8b2f-6a2423f2a168"],
-Cell[2631496, 44541, 183, 3, 32, "Output",ExpressionUUID->"c7df55ba-7168-6d4f-b391-4ad63f4bd587"]
-}, Open  ]],
-Cell[CellGroupData[{
-Cell[2631716, 44549, 646, 16, 111, "ExternalLanguage",ExpressionUUID->"c3f87371-0f46-4e45-9698-d0bf248dbf62"],
-Cell[2632365, 44567, 6761, 133, 59, "Output",ExpressionUUID->"7ab2fc21-7e2e-ec47-a897-81295bcff45b"]
-}, Open  ]],
-Cell[CellGroupData[{
-Cell[2639163, 44705, 711, 18, 141, "ExternalLanguage",ExpressionUUID->"e9c8db52-3200-3a49-b757-88ab4bbc10ab"],
-Cell[2639877, 44725, 6583, 137, 81, "Output",ExpressionUUID->"9ed9f56a-6f5d-e746-a105-75729d7e54af"]
-}, Open  ]],
-Cell[CellGroupData[{
-Cell[2646497, 44867, 198, 6, 23, "ItemParagraph",ExpressionUUID->"cccf9f18-4f93-9943-8758-17f42ac896ba"],
-Cell[CellGroupData[{
-Cell[2646720, 44877, 739, 19, 171, "ExternalLanguage",ExpressionUUID->"7261accc-8ee3-0b49-9f89-05952cb22c86"],
-Cell[2647462, 44898, 6491, 135, 81, "Output",ExpressionUUID->"45d060ab-2d2c-4f4a-b271-211ebab6ee80"]
-}, Open  ]],
-Cell[CellGroupData[{
-Cell[2653990, 45038, 717, 19, 171, "ExternalLanguage",ExpressionUUID->"d66bb955-2d84-1b4b-b970-f6fcaf04f074"],
-Cell[2654710, 45059, 203946, 3366, 59, "Output",ExpressionUUID->"e4b7fce0-df8f-9c48-941f-e79e8451b581"]
-}, Open  ]]
+Cell[2038229, 34648, 537, 10, 66, "ExternalLanguage",ExpressionUUID->"cd7a0007-b45b-a348-95b6-b341fd6049f0"],
+Cell[2038769, 34660, 522931, 8687, 165, "Output",ExpressionUUID->"7811eb6a-1247-bb42-b482-69d849484728"]
 }, Open  ]]
 }, Open  ]]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[2858729, 48433, 188, 4, 61, "Subsection",ExpressionUUID->"ffc4a08c-778f-644f-8da4-532aa6ede217"],
-Cell[2858920, 48439, 417, 11, 33, "Text",ExpressionUUID->"11b9ffcb-8540-ba4c-a08b-1ab8351c5019"],
+Cell[2561761, 43354, 399, 12, 30, "Item",ExpressionUUID->"99d85c00-26b2-374f-a4d2-f5e73c9f0368"],
 Cell[CellGroupData[{
-Cell[2859362, 48454, 3095, 64, 458, "Input",ExpressionUUID->"f0832e03-beb7-5649-b0c5-1e6d11019965"],
-Cell[2862460, 48520, 5189, 105, 290, "Output",ExpressionUUID->"b680c1c5-2dba-bf44-90d8-71546734e4a5"]
+Cell[2562185, 43370, 647, 14, 81, "ExternalLanguage",ExpressionUUID->"8d809acd-9de8-3348-96a4-27f566d8f1e7"],
+Cell[2562835, 43386, 67704, 1133, 59, "Output",ExpressionUUID->"7074f78a-ca01-3d48-889c-d0aa471ed214"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[2630576, 44524, 617, 14, 81, "ExternalLanguage",ExpressionUUID->"8728714a-9f4d-5b4d-8b2f-6a2423f2a168"],
+Cell[2631196, 44540, 183, 3, 32, "Output",ExpressionUUID->"c7df55ba-7168-6d4f-b391-4ad63f4bd587"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[2631416, 44548, 645, 16, 111, "ExternalLanguage",ExpressionUUID->"c3f87371-0f46-4e45-9698-d0bf248dbf62"],
+Cell[2632064, 44566, 6761, 133, 59, "Output",ExpressionUUID->"7ab2fc21-7e2e-ec47-a897-81295bcff45b"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[2638862, 44704, 710, 18, 141, "ExternalLanguage",ExpressionUUID->"e9c8db52-3200-3a49-b757-88ab4bbc10ab"],
+Cell[2639575, 44724, 6583, 137, 81, "Output",ExpressionUUID->"9ed9f56a-6f5d-e746-a105-75729d7e54af"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[2646195, 44866, 198, 6, 23, "ItemParagraph",ExpressionUUID->"cccf9f18-4f93-9943-8758-17f42ac896ba"],
+Cell[CellGroupData[{
+Cell[2646418, 44876, 738, 19, 171, "ExternalLanguage",ExpressionUUID->"7261accc-8ee3-0b49-9f89-05952cb22c86"],
+Cell[2647159, 44897, 6491, 135, 81, "Output",ExpressionUUID->"45d060ab-2d2c-4f4a-b271-211ebab6ee80"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[2653687, 45037, 716, 19, 171, "ExternalLanguage",ExpressionUUID->"d66bb955-2d84-1b4b-b970-f6fcaf04f074"],
+Cell[2654406, 45058, 203946, 3366, 59, "Output",ExpressionUUID->"e4b7fce0-df8f-9c48-941f-e79e8451b581"]
+}, Open  ]]
+}, Open  ]]
+}, Open  ]]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[2858425, 48432, 188, 4, 61, "Subsection",ExpressionUUID->"ffc4a08c-778f-644f-8da4-532aa6ede217"],
+Cell[2858616, 48438, 417, 11, 33, "Text",ExpressionUUID->"11b9ffcb-8540-ba4c-a08b-1ab8351c5019"],
+Cell[CellGroupData[{
+Cell[2859058, 48453, 11615, 269, 638, "Input",ExpressionUUID->"f0832e03-beb7-5649-b0c5-1e6d11019965"],
+Cell[2870676, 48724, 3815, 91, 199, "Output",ExpressionUUID->"019f897e-4ac8-b948-8849-7483f69dba96"]
 }, {2}]],
-Cell[2867661, 48628, 8584, 208, 35, "Text",ExpressionUUID->"3f658f84-3c7b-8f44-959d-355c43c35690"]
+Cell[2874503, 48818, 8654, 210, 35, "Text",ExpressionUUID->"3f658f84-3c7b-8f44-959d-355c43c35690"]
 }, Open  ]]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[2876294, 48842, 89, 1, 66, "Section",ExpressionUUID->"230bcc4a-39f2-9844-b1b5-aaf97067f598"],
-Cell[2876386, 48845, 254, 5, 33, "Text",ExpressionUUID->"4c4d19b4-2bf2-5245-8fa3-38bbcaaf40ed"],
-Cell[2876643, 48852, 131, 1, 33, "Text",ExpressionUUID->"b2d03249-026e-1f42-b0a9-76820bbde080"],
-Cell[2876777, 48855, 366, 10, 30, "Item",ExpressionUUID->"e22634cd-243c-fa47-bc4a-a9423b8bc4f0"],
-Cell[2877146, 48867, 575, 17, 30, "Item",ExpressionUUID->"b2766341-385e-d94d-b8b7-3681ea0d0e99"],
-Cell[2877724, 48886, 1118, 35, 30, "Item",ExpressionUUID->"f1c6220d-8700-cf45-9142-d1d0578bd9ba"],
-Cell[2878845, 48923, 150, 3, 30, "Item",ExpressionUUID->"d479f94c-5a1b-364f-80a6-45958a47bf69"],
-Cell[2878998, 48928, 147, 3, 33, "Text",ExpressionUUID->"0ef9c1c1-e7bc-9447-903c-fd9ef6280cb5"],
-Cell[2879148, 48933, 520, 9, 99, "Text",ExpressionUUID->"7d044b58-a98d-f743-8217-adbbfc7fb829"],
-Cell[2879671, 48944, 17361, 419, 122, "Text",ExpressionUUID->"c57aa6ab-f637-5e4f-b134-450eb77ebce9"],
-Cell[2897035, 49365, 8527, 205, 57, "Text",ExpressionUUID->"5a0e2d9e-7528-a44d-b53b-a8774e6b887a"],
-Cell[2905565, 49572, 185, 4, 33, "Text",ExpressionUUID->"c790e3c2-f0d8-2a41-8b02-753f5a24b9d0"],
-Cell[2905753, 49578, 165, 4, 30, "Item",ExpressionUUID->"e4ccbd18-a613-2447-a3a6-91ecd1364f95"],
-Cell[2905921, 49584, 453, 13, 30, "Item",ExpressionUUID->"055316e1-4df9-9443-8145-a6a6306b2a48"],
-Cell[2906377, 49599, 525, 15, 30, "Item",ExpressionUUID->"3d61964b-2145-6048-af51-b05caeeb71a2"],
-Cell[2906905, 49616, 443, 10, 50, "Item",ExpressionUUID->"cfd886de-7a91-0c45-acac-458283fc02d4"],
-Cell[2907351, 49628, 387, 8, 50, "Item",ExpressionUUID->"3bf03cc1-2443-3945-90d6-d399dadaf66c"],
-Cell[2907741, 49638, 259, 5, 55, "Text",ExpressionUUID->"ff24b649-56de-5149-abce-7e25aa13f0d3"]
+Cell[2883206, 49034, 89, 1, 66, "Section",ExpressionUUID->"230bcc4a-39f2-9844-b1b5-aaf97067f598"],
+Cell[2883298, 49037, 254, 5, 33, "Text",ExpressionUUID->"4c4d19b4-2bf2-5245-8fa3-38bbcaaf40ed"],
+Cell[2883555, 49044, 131, 1, 33, "Text",ExpressionUUID->"b2d03249-026e-1f42-b0a9-76820bbde080"],
+Cell[2883689, 49047, 366, 10, 30, "Item",ExpressionUUID->"e22634cd-243c-fa47-bc4a-a9423b8bc4f0"],
+Cell[2884058, 49059, 575, 17, 30, "Item",ExpressionUUID->"b2766341-385e-d94d-b8b7-3681ea0d0e99"],
+Cell[2884636, 49078, 1118, 35, 30, "Item",ExpressionUUID->"f1c6220d-8700-cf45-9142-d1d0578bd9ba"],
+Cell[2885757, 49115, 150, 3, 30, "Item",ExpressionUUID->"d479f94c-5a1b-364f-80a6-45958a47bf69"],
+Cell[2885910, 49120, 147, 3, 33, "Text",ExpressionUUID->"0ef9c1c1-e7bc-9447-903c-fd9ef6280cb5"],
+Cell[2886060, 49125, 520, 9, 99, "Text",ExpressionUUID->"7d044b58-a98d-f743-8217-adbbfc7fb829"],
+Cell[2886583, 49136, 17361, 419, 122, "Text",ExpressionUUID->"c57aa6ab-f637-5e4f-b134-450eb77ebce9"],
+Cell[2903947, 49557, 8527, 205, 57, "Text",ExpressionUUID->"5a0e2d9e-7528-a44d-b53b-a8774e6b887a"],
+Cell[2912477, 49764, 185, 4, 70, "Text",ExpressionUUID->"c790e3c2-f0d8-2a41-8b02-753f5a24b9d0"],
+Cell[2912665, 49770, 165, 4, 70, "Item",ExpressionUUID->"e4ccbd18-a613-2447-a3a6-91ecd1364f95"],
+Cell[2912833, 49776, 453, 13, 70, "Item",ExpressionUUID->"055316e1-4df9-9443-8145-a6a6306b2a48"],
+Cell[2913289, 49791, 525, 15, 70, "Item",ExpressionUUID->"3d61964b-2145-6048-af51-b05caeeb71a2"],
+Cell[2913817, 49808, 443, 10, 70, "Item",ExpressionUUID->"cfd886de-7a91-0c45-acac-458283fc02d4"],
+Cell[2914263, 49820, 387, 8, 70, "Item",ExpressionUUID->"3bf03cc1-2443-3945-90d6-d399dadaf66c"],
+Cell[2914653, 49830, 259, 5, 55, "Text",ExpressionUUID->"ff24b649-56de-5149-abce-7e25aa13f0d3"]
 }, Open  ]]
 }
 ]
