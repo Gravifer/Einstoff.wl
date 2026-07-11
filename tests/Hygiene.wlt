@@ -266,26 +266,18 @@ VerificationTest[
   TestID -> "hyg-reject-reason-structural"
 ];
 
-(* A repeated/shared inferred LHS axis must repeat the blank spelling (`a_ ... a_`).
-   The old blank-then-bare spelling (`a_ ... a`) is native-WL literal syntax, not a
-   pattern reference, and is rejected before lowering. *)
+(* The whole LHS is one scope, but a bare LHS symbol is always ambient: it is not
+   localized merely because another occurrence uses a binder with the same text. *)
 VerificationTest[
-  StringContainsQ[
-    Quiet[
-      Einstoff`EinstoffShapes[{{a_, a}} :> {{}}, {{3, 3}}]["Reason"],
-      {Einstoff::unsupp}],
-    "write a_"],
-  True,
-  TestID -> "hyg-reject-lhs-bare-repeated-axis"
+  Einstoff`EinstoffShapes[{{a_, a}} :> {{a}}, {{3, 5}}]["OutputShapes"],
+  {{3}},
+  TestID -> "hyg-lhs-bare-not-localized-by-binder"
 ];
 VerificationTest[
-  StringContainsQ[
-    Quiet[
-      Einstoff`EinstoffShapes[{{a_, b_}, {b, c_}} :> {{a, c}}, {{2, 3}, {3, 4}}]["Reason"],
-      {Einstoff::unsupp}],
-    "write b_"],
-  True,
-  TestID -> "hyg-reject-lhs-bare-shared-axis"
+  Einstoff`EinstoffShapes[
+    {{a_, b_}, {b, c_}} :> {{a, c}}, {{2, 3}, {9, 4}}]["OutputShapes"],
+  {{2, 4}},
+  TestID -> "hyg-lhs-bare-cross-operand-is-ambient"
 ];
 
 (* 19. Diagnostic strings show the USER's axis name, not the internal fresh identity

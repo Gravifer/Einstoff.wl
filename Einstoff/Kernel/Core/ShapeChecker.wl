@@ -11,9 +11,10 @@
 PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
   withAxisScopeDeCanon, validAxisNameQ, axisSymbol, axisDisplayName,
   descFailReturn, descFailReason, purgeAxisContext, $axisFresh, $descRejectReason,
-  $axisFallbackMemo, $inlineBindingFacts,
+  $axisFallbackMemo, $inlineBindingFacts, $axisKind,
   normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, firstDuplicateAxis,
+  inlineSizedAxis, prepareInlineHeld, inlineHeldSpecs, inlineSpecInfo,
   distinctAxesQ, bracketWrapperQ, hasCirclePlus, einAxisCatch, $einAxisFail}]
 
 (* --- desc-boundary evaluation hygiene: axis-identity canonicalization ------------ *)
@@ -190,6 +191,25 @@ prepareInlineHeld[h_Hold] :=
     <|"Held" -> hn, "Specs" -> specs|>
   ];
 
+(* Protect plain, unbound bare symbols on the LHS from the established-name rewrite.
+   The complete LHS is one native-pattern-like scope: only Pattern binders and explicit
+   targeted/string/inline declarations are localized.  A plain LHS `a` remains an
+   ambient expression even when another LHS occurrence is `a_`; RHS `a` still resolves
+   to that completed binder.  Encode an unbound ambient symbol as character codes during
+   the single canonicalization pass so neither symbol nor string axis rules can touch it. *)
+protectLhsAmbient[p : Verbatim[Pattern][_Symbol, _]] := p;
+protectLhsAmbient[t_ /; bracketWrapperQ[t]] := t;
+protectLhsAmbient[t_inlineSizedAxis] := t;
+protectLhsAmbient[s_String] := s;
+protectLhsAmbient[s_Symbol] /; Context[Unevaluated[s]] =!= "System`" :=
+  lhsAmbientSymbol[ToCharacterCode[Context[Unevaluated[s]]],
+    ToCharacterCode[SymbolName[Unevaluated[s]]]];
+protectLhsAmbient[e_?AtomQ] := e;
+protectLhsAmbient[e_] := Map[protectLhsAmbient, e];
+
+restoreLhsAmbient[e_] := e /. lhsAmbientSymbol[ctx_List, name_List] :>
+  Symbol[FromCharacterCode[ctx] <> FromCharacterCode[name]];
+
 (* All axis-name strings appearing anywhere in a held-or-plain expression (blanks,
    bare symbols, slot symbols/strings, string terms), hygienically.  Over-collects
    across kinds — used only for the composite-factor / on-LHS membership questions. *)
@@ -305,26 +325,9 @@ Framed[...] for blank/bare targeted axis " <> First[badSlotNames]},
 the string \"" <> First[mish] <> "\"; use one spelling consistently"},
         $descRejectReason = r; Message[Einstoff::unsupp, r]];
       Return[$Failed]];
-    (* WL pattern semantics are load-bearing for the desc surface: a repeated inferred
-       input axis is written a_ ... a_, not a_ ... a.  A bare symbol on the LHS is a
-       literal/env-capture position unless it is inside Slot; if its name has already
-       been established by a blank/target/string in this desc, accepting it as an axis
-       reference would silently teach the wrong RuleDelayed spelling. *)
-    lhs = Extract[h, {1, 1}, Hold];
-    lhs = lhs /. inlineSizedAxis[___] :> Null;
-    lhsNoSlot = lhs /. (Slot | Highlighted | Framed)[___] :> Null;
-    lhsNoBinder = lhsNoSlot /. Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> Null;
-    lhsBare = DeleteDuplicates @ Cases[lhsNoBinder,
-      s_Symbol /; Context[s] =!= "System`" :> SymbolName[Unevaluated[s]], {0, Infinity}];
-    lhsBareEstablished = Intersection[lhsBare,
-      DeleteDuplicates @ Join[blankNames, slotNames, stringNames, inlineNames]];
-    If[lhsBareEstablished =!= {},
-      With[{r = "bare axis " <> First[lhsBareEstablished] <> " appears on the LHS after \
-that name is established; write " <> First[lhsBareEstablished] <>
-              "_ for each inferred input occurrence (e.g. repeated/contracted axes use \
-a_ ... a_), or use targeted notation for targeted axes"},
-        $descRejectReason = r; Message[Einstoff::unsupp, r]];
-      Return[$Failed]];
+    (* Plain bare LHS symbols remain ambient even when their textual name is established
+       by a blank elsewhere.  canonHeld protects those occurrences positionally; name
+       collection records the spelling only for diagnostics and mishmash validation. *)
     DeleteDuplicates @ Join[blankNames, slotNames, stringNames, inlineNames]];
 
 (* Rewrite the held desc: every established name -> its fresh Temporary symbol, at
@@ -333,8 +336,8 @@ a_ ... a_), or use targeted notation for targeted axes"},
    pass: the fresh symbols carry a distinct name ("a$nn"), so no rule re-fires on them.
    Assumes an open axis scope (via withAxisScope). *)
 canonHeld[h_Hold] :=
-  Module[{prepared, hp, specs, estab, rules, hc, facts = {}, spec,
-          info, key, size},
+  Module[{prepared, hp, hpProtected, lhsProtected, specs, estab, rules, hc,
+          facts = {}, spec, info, key, size},
     (* Fresh per parse: clear any reject reason left by a PRIOR (re-entrant) parse in the
        same scope, so a reason is never stale.  collectEstablished sets it only on reject. *)
     $descRejectReason = None;
@@ -357,7 +360,9 @@ canonHeld[h_Hold] :=
          s_Symbol /; Context[s] =!= "System`" &&
             SymbolName[Unevaluated[s]] === name :> fr}],
       {nm, estab}];
-    hc = hp /. rules;
+    lhsProtected = protectLhsAmbient @ Extract[hp, {1, 1}];
+    hpProtected = ReplacePart[hp, {1, 1} -> lhsProtected];
+    hc = restoreLhsAmbient[hpProtected /. rules];
     (* Build canonical binding facts from the ORIGINAL captured size expression and the
        canonicalized axis spec.  The general axis rewrite may also traverse the marker's
        size field; that rewritten copy is deliberately ignored and stripped below. *)
@@ -373,7 +378,7 @@ canonHeld[h_Hold] :=
         "Key" -> key, "Size" -> size, "Name" -> info["Name"],
         "Kind" -> info["Kind"], "Binder" -> info["Binder"],
         "TargetHead" -> info["TargetHead"], "Source" -> spec["Source"],
-        "SourceExpression" -> HoldComplete[spec]
+        "SourceExpression" -> spec
       |>],
       {sp, specs}];
     $inlineBindingFacts = facts;

@@ -213,7 +213,8 @@ irInternAxis[name_String, metadata_Association, state_Association] :=
     id = Einstoff`Internal`IR`AxisId[n];
     names = Append[state["NameToAxisId"], name -> id];
     table = Append[state["AxisMetadata"],
-      id -> Einstoff`Internal`IR`AxisInfo[name, metadata]];
+      id -> Einstoff`Internal`IR`AxisInfo[
+        Lookup[metadata, "DisplayName", name], KeyDrop[metadata, "DisplayName"]]];
     {id, Join[state, <|
       "NameToAxisId" -> names,
       "AxisMetadata" -> table,
@@ -276,4 +277,3 @@ irValidQ[_] := False;
 irValidate[expr_] := If[TrueQ[irValidQ[expr]], expr,
   irFailure["InvalidIR", Head[Unevaluated[expr]],
     <|"Expression" -> HoldComplete[expr]|>]];
-
