@@ -6,7 +6,8 @@
 PackageScoped[{
   compileDescIR, compileHeldDescIR, captureDescIR, normalizeCapturedDesc,
   compileTargetPolicy, normalizedDescAssociation, declarativeRhsQ,
-  compileDeclarativeRhsSurface
+  compileDeclarativeRhsSurface, surfaceAxisKey, capturedBinder,
+  capturedLogicalAxis, capturedAmbientAxis, capturedNamedSequence
 }]
 
 iri[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
@@ -112,33 +113,35 @@ captureSurfaceHeld[h_Hold, side_String, established_List] :=
   h /. {
     inlineSizedAxis[s_String, _, _] :> capturedLogicalAxis[s, "String"],
     inlineSizedAxis[s_Symbol, _, _] /; Context[Unevaluated[s]] =!= "System`" :>
-      capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"],
+      RuleCondition[capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"]],
     inlineSizedAxis[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]], _, _] :>
-      capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"],
+      RuleCondition[capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"]],
     Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :>
-      capturedBinder[SymbolName[Unevaluated[s]]],
+      RuleCondition[capturedBinder[SymbolName[Unevaluated[s]]]],
     Verbatim[Pattern][s_Symbol, Verbatim[BlankSequence[]]] :>
-      capturedNamedSequence[SymbolName[Unevaluated[s]], 1, Blank[]],
+      RuleCondition[capturedNamedSequence[SymbolName[Unevaluated[s]], 1, Blank[]]],
     Verbatim[Pattern][s_Symbol, Verbatim[BlankNullSequence[]]] :>
-      capturedNamedSequence[SymbolName[Unevaluated[s]], 0, Blank[]],
+      RuleCondition[capturedNamedSequence[SymbolName[Unevaluated[s]], 0, Blank[]]],
     (head : (Slot | Highlighted | Framed))[s_String] :>
       head[capturedLogicalAxis[s, "String"]],
     (head : (Slot | Highlighted | Framed))[s_Symbol] /;
         Context[Unevaluated[s]] =!= "System`" :>
-      head[capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"]],
+      RuleCondition[head[capturedLogicalAxis[
+        SymbolName[Unevaluated[s]], "Symbol"]]],
     s_String :> capturedLogicalAxis[s, "String"],
     s_Symbol /; Context[Unevaluated[s]] =!= "System`" &&
         Unevaluated[s] =!= sequenceZipSurface &&
         Unevaluated[s] =!= inlineSizedAxis &&
         MemberQ[established, SymbolName[Unevaluated[s]]] :>
-      capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"],
+      RuleCondition[capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"]],
     s_Symbol /; Context[Unevaluated[s]] =!= "System`" &&
         Unevaluated[s] =!= sequenceZipSurface &&
         Unevaluated[s] =!= inlineSizedAxis && ValueQ[s] :> s,
     s_Symbol /; Context[Unevaluated[s]] =!= "System`" &&
         Unevaluated[s] =!= sequenceZipSurface &&
         Unevaluated[s] =!= inlineSizedAxis :>
-      capturedAmbientAxis[Context[Unevaluated[s]], SymbolName[Unevaluated[s]]]
+      RuleCondition[capturedAmbientAxis[Context[Unevaluated[s]],
+        SymbolName[Unevaluated[s]]]]
   };
 
 surfaceBinderNames[h_Hold] := DeleteDuplicates @ Cases[h,

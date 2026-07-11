@@ -10,6 +10,7 @@
 
 PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
   withAxisScopeDeCanon, validAxisNameQ, axisSymbol, axisDisplayName,
+  holdPublicBindingKeys,
   descFailReturn, descFailReason, purgeAxisContext, $axisFresh, $descRejectReason,
   $axisFallbackMemo, $inlineBindingFacts, $axisKind,
   normUnitTerms, flattenDirectSum,

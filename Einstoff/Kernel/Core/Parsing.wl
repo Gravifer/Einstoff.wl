@@ -49,65 +49,37 @@ with \"ok\" and either \"env\" or \"reason\".";
 (* ------------------------------------------------------------------ *)
 
 SetAttributes[EinstoffParse, HoldFirst];
-EinstoffParse[desc_] := withAxisScopeDeCanon @ parseDesc[Hold[desc]];
+EinstoffParse[desc_] :=
+  Module[{compiled, captured, a, result},
+    compiled = compileHeldDescIR[Hold[desc], HoldComplete[{}], "Parse", <||>];
+    captured = Lookup[compiled, "Captured", None];
+    If[Head[captured] =!= Einstoff`Internal`IR`CapturedDesc,
+      <|"LHS" -> $Failed, "RHS" -> $Failed|>,
+      a = Replace[captured, Einstoff`Internal`IR`CapturedDesc[x_Association] :> x];
+      result = <|"LHS" -> displayCapturedSurface[a["CanonicalLHS"]],
+        "RHS" -> displayCapturedSurface[a["CanonicalRHS"]]|>;
+      If[MatchQ[Lookup[compiled, "Surface", None],
+          Einstoff`Internal`IR`SurfaceDesc[HoldComplete[_Rule], ___]],
+        Append[result, "Warning" -> "prefer :> (RuleDelayed) over -> for desc"],
+        result]
+    ]
+  ];
 
-(* Both desc-boundary canonicalizers (normShapes released, normHeldShapes held) and
-   canonHeld are shared through ShapeChecker.wl.  parseDesc is the held-RHS
-   twin of descParts: it keeps the RHS held so EinstoffParse returns a normalized desc
-   whose (fresh-canonicalized) axis symbols are not released before their sizes are
-   substituted (evalOutShape releases it later under env).  Same {} -> 1 + CirclePlus-
-   flatten policy as descParts; the LHS is flattened so the matcher (solveComposite) sees
-   a flat summand list.  canonHeld rewrites every established axis name — blank `a_`,
-   targeted #a/Highlighted/Framed, string "a" — to a fresh Temporary identity shared
-   across its occurrences, so a shadowed global symbol cannot leak its value into an
-   axis (and targeted strings are context-safe). *)
-parseDesc[h : Hold[_RuleDelayed]] :=
-  Module[{hr = canonHeld[h], rhs},
-    If[hr === $Failed, <|"LHS" -> $Failed, "RHS" -> $Failed|>,
-      rhs = normHeldShapes @ Extract[hr, {1, 2}, Hold];
-      If[! declarativeRhsQ[compileDeclarativeRhsSurface[rhs]],
-        $descRejectReason = "the descriptor RHS contains non-declarative WL computation";
-        <|"LHS" -> $Failed, "RHS" -> $Failed|>,
-        <|"LHS" -> normShapes @ Extract[hr, {1, 1}], "RHS" -> rhs|>]]];
-parseDesc[h : Hold[_Rule]] :=
-  Module[{hr = canonHeld[h], rhs},
-    If[hr === $Failed, <|"LHS" -> $Failed, "RHS" -> $Failed|>,
-      rhs = normHeldShapes @ Extract[hr, {1, 2}, Hold];
-      If[! declarativeRhsQ[compileDeclarativeRhsSurface[rhs]],
-        $descRejectReason = "the descriptor RHS contains non-declarative WL computation";
-        <|"LHS" -> $Failed, "RHS" -> $Failed|>,
-        <|"LHS" -> normShapes @ Extract[hr, {1, 1}], "RHS" -> rhs,
-          "Warning" -> "prefer :> (RuleDelayed) over -> for desc"|>]]];
-(* a structurally-malformed desc (not lhs :> rhs): no canonHeld ran, so clear any stale
-   reject reason from a prior re-entrant parse (P3a) — EinstoffShapes' Reason must fall
-   back to the generic desc-shape reason, not a stale invalid-name reason. *)
-parseDesc[_] := ($descRejectReason = None; <|"LHS" -> $Failed, "RHS" -> $Failed|>);
-
-(* Names that appear inside a target wrapper anywhere in lhs. By the time this
-   runs the desc has been through canonHeld, so #name is Slot[freshSym] and a targeted
-   blank is Highlighted[fresh_]/Framed[fresh_]. Used only for the informational
-   "Targeted" field (§5.2); the fresh symbols are mapped back
-   to the user's names by deCanon on the public output. *)
-targetedNames[lhs_] :=
-  DeleteDuplicates @ Flatten @
-    Cases[lhs,
-      s_ /; bracketWrapperQ[s] :>
-        Cases[s, n_Symbol /; Context[n] =!= "System`" :> n, {0, Infinity}],
-      {0, Infinity}];
-
-rawSlotAxisNames[expr_] := DeleteDuplicates @ Flatten @ Cases[expr,
-  sl_Slot :> Join[
-    Cases[sl,
-      Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> SymbolName[Unevaluated[s]],
-      {0, Infinity}],
-    Cases[sl,
-      s_Symbol /; Context[s] =!= "System`" :> SymbolName[Unevaluated[s]],
-      {0, Infinity}],
-    Cases[sl,
-      str_String /; validAxisNameQ[str] :> str,
-      {0, Infinity}]],
-  {0, Infinity}];
-
+displayCapturedSurface[expr_] := expr /. {
+  capturedBinder[name_String] :>
+    RuleCondition[With[{s = axisSymbol[name]}, Pattern[s, Blank[]]]],
+  capturedNamedSequence[name_String, 1, Verbatim[Blank[]]] :>
+    RuleCondition[With[{s = axisSymbol[name]}, Pattern[s, BlankSequence[]]]],
+  capturedNamedSequence[name_String, 0, Verbatim[Blank[]]] :>
+    RuleCondition[With[{s = axisSymbol[name]}, Pattern[s, BlankNullSequence[]]]],
+  capturedNamedSequence[name_String, 1, body_] :>
+    RuleCondition[With[{s = axisSymbol[name]}, Pattern[s, Repeated[body]]]],
+  capturedNamedSequence[name_String, 0, body_] :>
+    RuleCondition[With[{s = axisSymbol[name]}, Pattern[s, RepeatedNull[body]]]],
+  capturedLogicalAxis[name_String, _] :> RuleCondition[axisSymbol[name]],
+  capturedAmbientAxis[context_String, name_String] :>
+    RuleCondition[Symbol[context <> name]]
+};
 (* Axis-name identities used by one shape term, for the within-shape uniqueness
    check.  A blank (name_), a bare reference, and a targeted string (Slot["name"])
    are all the axis `name`; integer immediates and the anonymous ellipses
@@ -144,7 +116,8 @@ firstDuplicateAxis[shapes_List] :=
 
 SetAttributes[EinstoffMatch, HoldFirst];
 EinstoffMatch[lhsShapes_, inputShapes_, bindingsIn_ : {}] :=
-  withAxisScopeDeCanon @ Catch[
+  (purgeAxisContext[];
+  Catch[
     Module[{compiled, normalized, solvedBundle, solved, solvedAssoc, axes, env},
       compiled = Quiet[compileMatchIR[lhsShapes, bindingsIn], {Einstoff::unsupp}];
       normalized = Lookup[compiled, "Normalized", Missing["Normalized"]];
@@ -164,15 +137,16 @@ EinstoffMatch[lhsShapes_, inputShapes_, bindingsIn_ : {}] :=
         KeySelect[solvedAssoc["AxisSizes"],
           MatchQ[#, Einstoff`Internal`IR`AxisId[_Integer]] &]];
       <|"ok" -> True, "env" -> env|>
-    ], publicMatchTag];
+    ], publicMatchTag]);
 
 SetAttributes[compileMatchIR, HoldFirst];
 compileMatchIR[lhs_, bindings_] :=
   compileHeldDescIR[Hold[lhs :> {}], HoldComplete[bindings], "Match", <||>];
 
 SetAttributes[EinstoffShapes, HoldFirst];
-EinstoffShapes[desc_, inputShapes_, bindings_ : {}] := withAxisScopeDeCanon @
-  Catch[Module[{compiled, normalized, normalizedAssoc, axes, targetedIds,
+EinstoffShapes[desc_, inputShapes_, bindings_ : {}] :=
+  (purgeAxisContext[];
+  holdPublicBindingKeys @ Catch[Module[{compiled, normalized, normalizedAssoc, axes, targetedIds,
           targeted, duplicate, solvedBundle, solved, solvedAssoc, bindingsOut},
     compiled = compileHeldDescIR[Hold[desc], HoldComplete[bindings], "Shapes", <||>];
     normalized = Lookup[compiled, "Normalized", Missing["Normalized"]];
@@ -206,7 +180,7 @@ EinstoffShapes[desc_, inputShapes_, bindings_ : {}] := withAxisScopeDeCanon @
         MatchQ[#, Einstoff`Internal`IR`AxisId[_Integer]] &]];
     <|"Satisfiable" -> True, "OutputShapes" -> solvedAssoc["OutputShapes"],
       "Bindings" -> bindingsOut, "Targeted" -> targeted, "Reason" -> ""|>
-  ], publicShapesTag];
+  ], publicShapesTag]);
 
 publicDuplicateOutputAxis[Einstoff`Internal`IR`Outputs[shapes_List]] :=
   SelectFirst[shapes,
@@ -222,10 +196,7 @@ publicDuplicateOutputAxis[_] := Missing["NoDuplicate"];
 
 publicAxisName[id_, axes_Association] := Replace[Lookup[axes, id, Missing[]],
   Einstoff`Internal`IR`AxisInfo[name_String, _Association] :> name];
-publicAxisKey[id_, axes_Association] :=
-  With[{name = publicAxisName[id, axes]},
-    If[AssociationQ[$axisFresh] && KeyExistsQ[$axisFresh, name],
-      $axisFresh[name], axisSymbol[name]]];
+publicAxisKey[id_, axes_Association] := axisSymbol[publicAxisName[id, axes]];
 
 publicShapesFailure[failure_, normalized_, targeted_List] :=
   <|"Satisfiable" -> False,
