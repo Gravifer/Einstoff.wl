@@ -10,6 +10,7 @@ plan = Symbol["Einstoff`PackageScope`planStructuralIR"];
 execute = Symbol["Einstoff`PackageScope`executeExecutionPlan"];
 render = Symbol["Einstoff`PackageScope`renderExecutionPlan"];
 planReduce = Symbol["Einstoff`PackageScope`planReduceIR"];
+planMap = Symbol["Einstoff`PackageScope`planMapIR"];
 ir[name_] := Symbol["Einstoff`Internal`IR`" <> name];
 
 makePlan[desc_, x_, bindings_ : {}, op_ : "Reshape"] :=
@@ -96,6 +97,49 @@ VerificationTest[
     {Head[held], ReleaseHold[held]}],
   {Hold, Total[ArrayReshape[Range[6], {2, 3}], {2}]},
   TestID -> "plan-public-reduce-trace"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[8], {2, 4}], p},
+    p = planMap[
+      solve[compile[{{a_, Highlighted[b_]}} :> {{a, b}}],
+        {Dimensions[x]}]["Solved"],
+      Reverse, True];
+    execute[p, {x}]],
+  Reverse /@ ArrayReshape[Range[8], {2, 4}],
+  TestID -> "plan-execute-target-block"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[8], {2, 4}], p, held},
+    p = planMap[
+      solve[compile[{{a_, Highlighted[b_]}} :> {{a, b}}],
+        {Dimensions[x]}]["Solved"],
+      Reverse, True];
+    held = render[p, {x}];
+    {Head[held], ReleaseHold[held] === execute[p, {x}]}],
+  {HoldComplete, True},
+  TestID -> "plan-render-target-block-parity"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[8], {2, 4}], p},
+    p = planMap[
+      solve[compile[{{a_, Highlighted[b_]}} :> {{a, b}}],
+        {Dimensions[x]}]["Solved"],
+      Total, True];
+    Head @ execute[p, {x}]],
+  ir["FailureRecord"],
+  TestID -> "plan-target-block-shape-failure"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[8], {2, 4}], calls = 0, held},
+    held = Einstoff[Operate][(calls++; Reverse[#]) &][
+      {{a_, Highlighted[b_]}} :> {{a, b}}, {x}, {}, TraceAction -> Hold];
+    {calls, Head[held], ReleaseHold[held]; calls}],
+  {2, Hold, 4},
+  TestID -> "plan-target-block-trace-evaluation-count"
 ];
 
 EndTestSection[];

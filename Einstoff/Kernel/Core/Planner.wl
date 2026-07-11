@@ -4,8 +4,9 @@
    execution and held TraceAction rendering interpret the same ExecutionPlan. *)
 
 PackageScoped[{
-  planStructuralIR, planReduceIR, executeExecutionPlan, renderExecutionPlan,
-  tryStructuralIRPlan, tryReduceIRPlan
+  planStructuralIR, planReduceIR, planMapIR, executeExecutionPlan,
+  renderExecutionPlan, tryStructuralIRPlan, tryReduceIRPlan, tryMapIRPlan,
+  plannerFailureQ
 }]
 
 irp[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
@@ -136,6 +137,76 @@ planReduceIR[solved : irp["SolvedDesc"][a_Association], reducer_] :=
 planReduceIR[other_, reducer_] := plannerFailure["ExpectedSolvedDesc", <|
   "Expression" -> HoldComplete[other], "Reducer" -> HoldComplete[reducer]|>];
 
+planMapIR[solved : irp["SolvedDesc"][a_Association], f_, strictQ_] :=
+  Catch[Module[{normalized, na, inShapes, outShapes, axisSizes, inTerms, outTerms,
+          inAtoms, outAtoms, inKeys, outKeys, targetAtoms, vmapAtoms, currentAtoms,
+          currentKeys, order, perm, steps = {}, dropped, broadcastResult, key, size},
+    normalized = a["Normalized"];
+    na = Replace[normalized, irp["NormalizedDesc"][x_Association] :> x];
+    inShapes = Replace[na["Inputs"], irp["Inputs"][x_List] :> x];
+    outShapes = Replace[na["Outputs"], irp["Outputs"][x_List] :> x];
+    If[Length[inShapes] =!= 1 || Length[outShapes] =!= 1,
+      Throw[plannerFailure["MapArity", <|
+        "Inputs" -> Length[inShapes], "Outputs" -> Length[outShapes]|>], plannerTag]];
+    axisSizes = a["AxisSizes"];
+    inTerms = Replace[First[inShapes], irp["Shape"][x_List] :> x];
+    outTerms = Replace[First[outShapes], irp["Shape"][x_List] :> x];
+    inAtoms = flattenPlanTerms[inTerms, axisSizes];
+    outAtoms = flattenPlanTerms[outTerms, axisSizes];
+    If[plannerFailureQ[inAtoms], Throw[inAtoms, plannerTag]];
+    If[plannerFailureQ[outAtoms], Throw[outAtoms, plannerTag]];
+    inKeys = planAtomKey /@ inAtoms; outKeys = planAtomKey /@ outAtoms;
+    If[! DuplicateFreeQ[inKeys] || ! DuplicateFreeQ[outKeys],
+      Throw[plannerFailure["RepeatedMapAtom", <|
+        "InputKeys" -> inKeys, "OutputKeys" -> outKeys|>], plannerTag]];
+    targetAtoms = Select[inAtoms, TrueQ[Lookup[#, "Targeted", False]] &];
+    vmapAtoms = Select[inAtoms, ! TrueQ[Lookup[#, "Targeted", False]] &];
+    If[TrueQ[strictQ] && targetAtoms === {},
+      Throw[plannerFailure["TargetRequired", <||>], plannerTag]];
+    (* The first map-plan increment owns only statically shape-preserving blocks.
+       Shape-changing target blocks remain on the compatibility path until the
+       declarative RHS projection IR can name their produced dimensions. *)
+    dropped = Select[inAtoms,
+      ! MemberQ[outKeys, planAtomKey[#]] && planAtomSize[#] > 1 &];
+    If[dropped =!= {} ||
+        AnyTrue[targetAtoms, ! MemberQ[outKeys, planAtomKey[#]] &] ||
+        (targetAtoms === {} && Complement[outKeys, inKeys] =!= {}),
+      Throw[plannerFailure["ShapeChangingMap", <|"Dropped" -> dropped|>], plannerTag]];
+    AppendTo[steps, irp["ReshapeStep"][planAtomSize /@ inAtoms]];
+    order = Join[vmapAtoms, targetAtoms];
+    perm = Flatten[FirstPosition[inKeys, planAtomKey[#]] & /@ order];
+    If[Length[perm] > 1 && perm =!= Range[Length[perm]],
+      AppendTo[steps, irp["TransposeStep"][InversePermutation[perm]]]];
+    AppendTo[steps, irp["TargetBlockStep"][f, Length[vmapAtoms],
+      Join[planAtomSize /@ vmapAtoms, planAtomSize /@ targetAtoms]]];
+    currentAtoms = Select[order,
+      MemberQ[outKeys, planAtomKey[#]] || planAtomSize[#] > 1 &];
+    If[Length[currentAtoms] =!= Length[order],
+      AppendTo[steps, irp["ReshapeStep"][planAtomSize /@ currentAtoms]]];
+    currentKeys = planAtomKey /@ currentAtoms;
+    broadcastResult = Catch[
+      Do[
+        key = planAtomKey[atom]; size = planAtomSize[atom];
+        If[! MemberQ[currentKeys, key],
+          AppendTo[steps, irp["BroadcastStep"][size, key]];
+          currentKeys = Prepend[currentKeys, key]],
+        {atom, outAtoms}];
+      Null,
+      planBroadcastTag];
+    If[plannerFailureQ[broadcastResult], Throw[broadcastResult, plannerTag]];
+    perm = InversePermutation @ Flatten[FirstPosition[currentKeys, #] & /@ outKeys];
+    If[perm =!= Range[Length[perm]],
+      AppendTo[steps, irp["TransposeStep"][perm]]];
+    AppendTo[steps, irp["RecomposeStep"][a["OutputShapes"][[1]]]];
+    irp["ExecutionPlan"][steps, <|
+      "Operator" -> If[TrueQ[strictQ], "Operate", "Map"],
+      "InputCount" -> 1, "OutputShapes" -> a["OutputShapes"],
+      "Solved" -> solved|>]
+  ], plannerTag];
+planMapIR[other_, f_, strictQ_] := plannerFailure["ExpectedSolvedDesc", <|
+  "Expression" -> HoldComplete[other], "Function" -> HoldComplete[f],
+  "Strict" -> strictQ|>];
+
 flattenPlanTerms[terms_List, sizes_Association] :=
   Catch[Module[{out = {}, r},
     Do[
@@ -146,12 +217,14 @@ flattenPlanTerms[terms_List, sizes_Association] :=
     out
   ], plannerTag];
 
-flattenPlanTerm[irp["AxisOccurrence"][occ_, id_, _], sizes_Association] :=
+flattenPlanTerm[irp["AxisOccurrence"][occ_, id_, meta_Association], sizes_Association] :=
   {<|"Key" -> id, "Occurrence" -> occ, "Size" -> sizes[id],
-    "Kind" -> "Axis"|>};
-flattenPlanTerm[irp["LiteralAxis"][occ_, n_Integer, _], _] :=
+    "Kind" -> "Axis", "Targeted" -> (meta["TargetHead"] =!= None),
+    "TargetHead" -> meta["TargetHead"]|>};
+flattenPlanTerm[irp["LiteralAxis"][occ_, n_Integer, meta_Association], _] :=
   {<|"Key" -> {"Literal", occ}, "Occurrence" -> occ, "Size" -> n,
-    "Kind" -> "Literal"|>};
+    "Kind" -> "Literal", "Targeted" -> (meta["TargetHead"] =!= None),
+    "TargetHead" -> meta["TargetHead"]|>};
 flattenPlanTerm[irp["ProductAxis"][_, children_List, _], sizes_Association] :=
   flattenPlanTerms[children, sizes];
 flattenPlanTerm[other_, _] := plannerFailure["UnsupportedPlanTerm", <|
@@ -181,6 +254,12 @@ executePlanStep[value_, irp["ReshapeStep"][dims_List]] := reshapeTo[value, dims]
 executePlanStep[value_, irp["BroadcastStep"][n_Integer, _]] := ConstantArray[value, n];
 executePlanStep[value_, irp["ReduceStep"][reducer_, pos_List]] :=
   ArrayReduce[reducer, value, pos];
+executePlanStep[value_, irp["TargetBlockStep"][f_, level_Integer, expected_List]] :=
+  Module[{mapped = If[level === 0, f[value], Map[f, value, {level}]]},
+    If[Dimensions[mapped] === expected, mapped,
+      plannerFailure["TargetBlockShape", <|
+        "Expected" -> expected, "Actual" -> Dimensions[mapped]|>]]
+  ];
 executePlanStep[value_, irp["TransposeStep"][perm_List]] := Transpose[value, perm];
 executePlanStep[value_, irp["RecomposeStep"][dims_List]] := reshapeTo[value, dims];
 executePlanStep[_, other_] := plannerFailure["UnsupportedPlanStep", <|
@@ -209,6 +288,9 @@ renderPlanStep[held_HoldComplete, irp["BroadcastStep"][n_Integer, _]] :=
   heldConstantArray[held, n];
 renderPlanStep[held_HoldComplete, irp["ReduceStep"][reducer_, pos_List]] :=
   heldArrayReduce[held, reducer, pos];
+renderPlanStep[held_HoldComplete,
+    irp["TargetBlockStep"][f_, level_Integer, _List]] :=
+  If[level === 0, heldApply[held, f], heldMapAt[held, f, level]];
 renderPlanStep[held_HoldComplete, irp["TransposeStep"][perm_List]] :=
   heldTranspose[held, perm];
 renderPlanStep[held_HoldComplete, irp["RecomposeStep"][dims_List]] :=
@@ -277,6 +359,32 @@ tryReduceIRPlan[h_Hold, tensors_List, bindings_List, reducer_, targeting_,
       If[plannerFailureQ[held], Missing["UnsupportedIR"],
         traceReturnHeld[held, traceAction]],
       executeExecutionPlan[plan, tensors]]
+  ], plannerFallbackTag];
+
+tryMapIRPlan[h_Hold, tensors_List, bindings_List, f_, strictQ_, traceAction_] :=
+  Catch[Module[{operator, compiled, solvedBundle, solved, analysis, plan,
+          executed, held},
+    operator = If[TrueQ[strictQ], "Operate", "Map"];
+    compiled = compileHeldDescIR[h, HoldComplete[bindings], operator, <||>];
+    If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
+      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
+    solved = solvedBundle["Solved"];
+    If[Head[solved] =!= irp["SolvedDesc"],
+      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    analysis = analyzeSolvedDesc[solved, operator, Automatic];
+    If[Head[analysis] =!= irp["OperationAnalysis"] ||
+        ! TrueQ[Replace[analysis,
+          irp["OperationAnalysis"][a_Association] :> a["Valid"]]],
+      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    plan = planMapIR[solved, f, strictQ];
+    If[plannerFailureQ[plan], Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    executed = executeExecutionPlan[plan, tensors];
+    If[plannerFailureQ[executed], executed,
+      If[traceActionEnabledQ[traceAction],
+        held = renderExecutionPlan[plan, tensors];
+        If[plannerFailureQ[held], held, traceReturnHeld[held, traceAction]],
+        executed]]
   ], plannerFallbackTag];
 
 plannerFailure[tag_, details_Association] :=

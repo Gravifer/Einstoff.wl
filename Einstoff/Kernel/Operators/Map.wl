@@ -105,7 +105,7 @@ rhsProducedTerms[terms_List, vmapAtoms_, blockDims_, env_] :=
       True, t];
     {replace /@ terms, env2, produced}];
 
-mapCore[fSpec_, desc_, tensors_, bindings_List, traceAction_, strictQ_] :=
+mapLegacyCore[fSpec_, desc_, tensors_, bindings_List, traceAction_, strictQ_] :=
   withAxisScope @
   Module[{parts, lhs, rhs, inShapes, m, env, f, x, decomp, rhsTerms,
           lhsTagged, lhsAtoms, lhsBr, rhsAtoms, brAtoms, vmapAtoms,
@@ -270,6 +270,22 @@ target block shape"];
         "an output axis size is unbound (a repeated axis needs a binding)"];
       Return[$Failed]];
     result
+  ];
+
+mapCore[fSpec_, desc_, tensors_, bindings_List, traceAction_, strictQ_] :=
+  Module[{f = mapFunction[fSpec], planned},
+    planned = If[MissingQ[f], Missing["UnsupportedIR"],
+      tryMapIRPlan[Hold[desc], tensors, bindings, f, strictQ, traceAction]];
+    Which[
+      MissingQ[planned],
+        mapLegacyCore[fSpec, desc, tensors, bindings, traceAction, strictQ],
+      plannerFailureQ[planned],
+        Message[Einstoff::unsupp,
+          "the operation function did not return the statically expected target block shape"];
+        $Failed,
+      True,
+        planned
+    ]
   ];
 
 (* Curried operators, like EinstoffReduce[reducer][…]. *)
