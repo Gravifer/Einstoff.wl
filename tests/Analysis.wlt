@@ -63,5 +63,20 @@ VerificationTest[
   TestID -> "analysis-target-policy-triple"
 ];
 
-EndTestSection[];
+VerificationTest[
+  Replace[
+    analysis[{{a_, Highlighted[b_]}} :> {{a}}, {{2, 3}}, {}, "Map"],
+    ir["OperationAnalysis"][x_Association] :> x["Valid"]],
+  True,
+  TestID -> "analysis-map-allows-target-block-collapse"
+];
 
+VerificationTest[
+  Replace[
+    analysis[{{a_, b_, Highlighted[c_]}} :> {{a, c}}, {{2, 4, 3}}, {}, "Map"],
+    ir["OperationAnalysis"][x_Association] :> x["Valid"]],
+  False,
+  TestID -> "analysis-map-rejects-untargeted-disappearance"
+];
+
+EndTestSection[];

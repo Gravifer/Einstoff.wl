@@ -289,6 +289,27 @@ VerificationTest[
 ];
 
 VerificationTest[
+  Module[{x = ArrayReshape[Range[8], {2, 4}], solved, p},
+    solved = solve[compile[
+      {{a_, Highlighted[b_]}} :> {{a}}], {Dimensions[x]}]["Solved"];
+    p = planMap[solved, Total, False];
+    {Head[p], execute[p, {x}]}],
+  {ir["ExecutionPlan"], Total /@ ArrayReshape[Range[8], {2, 4}]},
+  TestID -> "plan-execute-shape-changing-map-collapse"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[6], {2, 3}], solved, p, held},
+    solved = solve[compile[
+      {{a_, b_}} :> {{a, b, 2}}], {Dimensions[x]}]["Solved"];
+    p = planMap[solved, {#, 2} &, False];
+    held = render[p, {x}];
+    {Head[p], Head[held], ReleaseHold[held] === execute[p, {x}]}],
+  {ir["ExecutionPlan"], HoldComplete, True},
+  TestID -> "plan-render-shape-changing-scalar-map-parity"
+];
+
+VerificationTest[
   Module[{x = ArrayReshape[Range[16], {2, 2, 2, 2}], p},
     p = planContract[
       solve[compile[{{a_, b_, a_, c_}} :> {{c, b}}],
