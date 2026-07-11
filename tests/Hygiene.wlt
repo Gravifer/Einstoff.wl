@@ -405,13 +405,13 @@ VerificationTest[
   TestID -> "hyg-private-context-fallback-identity-stable"
 ];
 
-(* 23. A duplicate binding-key reason names the user's axis, not the fresh identity. *)
+(* 23. A conflicting binding reason names the user's axis, not the fresh identity. *)
 VerificationTest[
   StringContainsQ[
-    Einstoff`EinstoffShapes[{{"a"}} :> {{"a", "c"}}, {{3}}, {"c" -> 2, "c" -> 2}]["Reason"],
-    "key(s) {c};"],
+    Einstoff`EinstoffShapes[{{"a"}} :> {{"a", "c"}}, {{3}}, {"c" -> 2, "c" -> 4}]["Reason"],
+    "axis c"],
   True,
-  TestID -> "hyg-duplicate-key-reason-user-name"
+  TestID -> "hyg-conflicting-key-reason-user-name"
 ];
 
 (* 24. A previously returned result must NOT decay when a later operation runs: the

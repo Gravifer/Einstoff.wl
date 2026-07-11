@@ -382,19 +382,111 @@ VerificationTest[
   TestID -> "bindings-ruledelayed-ok"
 ];
 
-(* A duplicate key is rejected rather than resolved order-dependently (Association would
-   silently keep the last value: {c -> 2, c -> 99} vs {c -> 99, c -> 2}). *)
+(* Equal facts coalesce; conflicting values reject without order-dependent Association
+   overwrite semantics. *)
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2, c -> 2}],
+  {{3, 2}},
+  TestID -> "bindings-coalesce-equal-key"
+];
 VerificationTest[
   sat @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2, c -> 99}],
   False,
-  TestID -> "bindings-reject-duplicate-key"
+  TestID -> "bindings-reject-conflicting-key"
 ];
 VerificationTest[
   StringContainsQ[
     Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2, c -> 99}]["Reason"],
-    "duplicate binding key"],
+    "conflicting sizes for axis c"],
   True,
-  TestID -> "bindings-reject-duplicate-key-reason"
+  TestID -> "bindings-reject-conflicting-key-reason"
+];
+
+(* ===================== inline axis sizes ================================ *)
+
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[{{Annotation[a, 3]}} :> {{a}}, {{3}}],
+  {{3}},
+  TestID -> "inline-annotation-lhs-sized-axis"
+];
+
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[{{Labeled[3, a]}} :> {{a}}, {{3}}],
+  {{3}},
+  TestID -> "inline-labeled-lhs-sized-axis"
+];
+
+VerificationTest[
+  sat @ Einstoff`EinstoffShapes[{{Annotation[a_, 3]}} :> {{a}}, {{4}}],
+  False,
+  TestID -> "inline-sized-blank-check-mismatch"
+];
+
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[{{a_}} :> {{a, Annotation[c, 2]}}, {{3}}],
+  {{3, 2}},
+  TestID -> "inline-annotation-rhs-broadcast-shape"
+];
+
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[{{a_}} :> {{a, Labeled[2, "c"]}}, {{3}}],
+  {{3, 2}},
+  TestID -> "inline-labeled-rhs-string-axis"
+];
+
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[
+    {{Annotation[Framed[b_], 3]}} :> {{Framed[b]}}, {{3}}],
+  {{3}},
+  TestID -> "inline-target-sizing-outside"
+];
+
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[
+    {{Framed[Annotation[b_, 3]]}} :> {{Framed[b]}}, {{3}}],
+  {{3}},
+  TestID -> "inline-target-sizing-inside"
+];
+
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[
+    {{Slot[Annotation["b", 3]]}} :> {{Slot["b"]}}, {{3}}],
+  {{3}},
+  TestID -> "inline-slot-composition"
+];
+
+VerificationTest[
+  out @ Einstoff`EinstoffShapes[
+    {{a_}} :> {{a, Annotation[c, 2]}}, {{3}}, {c -> 2}],
+  {{3, 2}},
+  TestID -> "inline-external-equal-coalesce"
+];
+
+VerificationTest[
+  StringContainsQ[
+    Einstoff`EinstoffShapes[
+      {{a_}} :> {{a, Annotation[c, 2]}}, {{3}}, {c -> 4}]["Reason"],
+    "conflicting sizes for axis c"],
+  True,
+  TestID -> "inline-external-conflict"
+];
+
+VerificationTest[
+  sat @ Quiet[
+    Einstoff`EinstoffShapes[
+      {{a_}} :> {{a, Annotation[CircleTimes[c, d], 2]}}, {{3}}],
+    {Einstoff::unsupp}],
+  False,
+  TestID -> "inline-reject-composite-axis"
+];
+
+VerificationTest[
+  sat @ Quiet[
+    Einstoff`EinstoffShapes[
+      {{a_}} :> {{a, Annotation[c, 2, "key"]}}, {{3}}],
+    {Einstoff::unsupp}],
+  False,
+  TestID -> "inline-reject-annotation-arity"
 ];
 
 (* ===================== named axis-sequence resolver (§5.3) ============== *)

@@ -500,6 +500,30 @@ EinstoffMatch[lhsShapes_, inputShapes_, bindingsIn_ : {}] :=
         <|"ok" -> False, "reason" -> "the internal Einstoff`Fallback` axis-identity \
 context is compromised (a Protected+Locked generated symbol); cannot resolve"|>]]];
 
+inlineBindingRules[] :=
+  If[ListQ[$inlineBindingFacts],
+    Table[fact["Key"] -> fact["Size"], {fact, $inlineBindingFacts}],
+    {}];
+
+(* Merge external and inline binding facts by canonical axis identity.  Equal facts are
+   idempotent; conflicting values are an error.  This runs before scalar/sequence
+   partitioning so the same rule applies to every source. *)
+mergeBindingFacts[bindings_List] :=
+  Catch[
+    Module[{groups, out = {}, vals, key},
+      groups = GatherBy[bindings, First];
+      Do[
+        key = First[First[group]];
+        vals = DeleteDuplicates[Last /@ group, SameQ];
+        If[Length[vals] > 1,
+          Throw["conflicting sizes for axis " <> axisDisplayName[key] <> ": " <>
+            StringRiffle[ToString[#, InputForm] & /@ vals, " versus "],
+            mergeBindingTag]];
+        AppendTo[out, key -> First[vals]],
+        {group, groups}];
+      out],
+    mergeBindingTag];
+
 einstoffMatchCore[lhsShapes_, inputShapes_, bindingsIn_] :=
   Module[{bindings, scalarBindings, sequenceBindings, env0, seq0, res, sown,
           slotNames, badSlotKey},
@@ -534,6 +558,8 @@ einstoffMatchCore[lhsShapes_, inputShapes_, bindingsIn_] :=
       If[AssociationQ[$axisFresh], "Scoped", "Raw"]];
     If[StringQ[bindings],
       Return[<|"ok" -> False, "reason" -> bindings|>]];
+    If[AssociationQ[$axisFresh],
+      bindings = Join[bindings, inlineBindingRules[]]];
     (* Validate `bindings` at the entrance so a malformed spec fails locally here, rather
        than degrading into a deeper, less-obvious unsat message (or an unevaluated
        Association[...] leaking through matchTerms).  A binding is an axis-name -> size
@@ -545,18 +571,9 @@ einstoffMatchCore[lhsShapes_, inputShapes_, bindingsIn_] :=
       Return[<|"ok" -> False,
         "reason" -> "bindings must be a list of axis-name -> size rules \
 (e.g. {n -> 8}); got " <> ToString[bindings, InputForm]|>]];
-    (* An axis may be bound at most once.  Association silently keeps the LAST value, so
-       {c -> 2, c -> 99} and {c -> 99, c -> 2} would mean different things with no
-       diagnostic — reject a duplicate key outright rather than pick order-dependently. *)
-    If[! DuplicateFreeQ[First /@ bindings],
-      (* Keys here are canonical (fresh / axisSymbol) identities; render them through
-         axisDisplayName so the reason names the user's axis (e.g. {c}) not the internal
-         {c$15}. *)
-      Return[<|"ok" -> False,
-        "reason" -> "duplicate binding key(s) {" <>
-          StringRiffle[
-            axisDisplayName /@ Keys @ Select[Counts[First /@ bindings], # > 1 &], ", "] <>
-          "}; each axis may be bound at most once"|>]];
+    bindings = mergeBindingFacts[bindings];
+    If[StringQ[bindings],
+      Return[<|"ok" -> False, "reason" -> bindings|>]];
     sequenceBindings = Select[bindings,
       ! MissingQ[sequenceBindingValue[Last[#]]] &];
     scalarBindings = Select[bindings,

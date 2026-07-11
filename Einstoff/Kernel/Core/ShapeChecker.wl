@@ -11,7 +11,7 @@
 PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
   withAxisScopeDeCanon, validAxisNameQ, axisSymbol, axisDisplayName,
   descFailReturn, descFailReason, purgeAxisContext, $axisFresh, $descRejectReason,
-  $axisFallbackMemo,
+  $axisFallbackMemo, $inlineBindingFacts,
   normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, firstDuplicateAxis,
   distinctAxesQ, bracketWrapperQ, hasCirclePlus, einAxisCatch, $einAxisFail}]
@@ -48,6 +48,8 @@ $axisFallbackMemo = <||>;  (* name -> fresh identity, used ONLY when the private
                               EinstoffMatch), so occurrences unify within one op; the
                               Temporary fallback symbols are eligible for GC once the op's
                               result is dropped (best effort, not guaranteed). *)
+$inlineBindingFacts = {};  (* canonical axis-size facts extracted from Annotation/Labeled
+                              in the most recently captured desc inside this scope *)
 
 (* Open a per-parse identity scope around an operator body.  Re-entrant: a nested call
    (an operator's own EinstoffShapes/EinstoffMatch) reuses the already-open scope, so
@@ -56,7 +58,7 @@ SetAttributes[withAxisScope, HoldFirst];
 withAxisScope[body_] :=
   If[AssociationQ[$axisFresh], body,
     Block[{$axisFresh = <||>, $axisKind = <||>, $descRejectReason = None,
-           $axisFallbackMemo = <||>},
+           $axisFallbackMemo = <||>, $inlineBindingFacts = {}},
       purgeAxisContext[]; einAxisCatch[body, $Failed]]];
 
 (* Like withAxisScope, but for the user-facing public entries (EinstoffShapes,
@@ -69,7 +71,7 @@ SetAttributes[withAxisScopeDeCanon, HoldFirst];
 withAxisScopeDeCanon[body_] :=
   If[AssociationQ[$axisFresh], body,
     Block[{$axisFresh = <||>, $axisKind = <||>, $descRejectReason = None,
-           $axisFallbackMemo = <||>},
+           $axisFallbackMemo = <||>, $inlineBindingFacts = {}},
       purgeAxisContext[]; einAxisCatch[holdPublicBindingKeys @ deCanon[body], $Failed]]];
 
 holdBindingKey[k_Symbol] :=
@@ -123,6 +125,71 @@ recordKind[name_String, kind_String] :=
 
 bracketWrapperQ[expr_] := MemberQ[{Slot, Highlighted, Framed}, Head[Unevaluated[expr]]];
 
+(* --- inline axis-size wrappers --------------------------------------------------- *)
+(* Annotation[axis,n] and Labeled[n,axis] are surface-only binding forms.  Normalize
+   both targeting/sizing nesting orders to one private marker before name collection.
+   Explicit rules (not anonymous Functions) are required because Slot[...] may occur in
+   the captured axis specification. *)
+inlineSizedNormalize[h_Hold] := FixedPoint[inlineSizedNormalizeStep, h];
+inlineSizedNormalizeStep[e_] := e /. {
+  Annotation[x_, n_] :> inlineSizedAxis[x, n, Annotation],
+  Labeled[n_, x_] :> inlineSizedAxis[x, n, Labeled],
+  Framed[inlineSizedAxis[x_, n_, src_]] :>
+    inlineSizedAxis[Framed[x], n, src],
+  Highlighted[inlineSizedAxis[x_, n_, src_]] :>
+    inlineSizedAxis[Highlighted[x], n, src],
+  Slot[inlineSizedAxis[x_, n_, src_]] :>
+    inlineSizedAxis[Slot[x], n, src]
+};
+
+inlineSpecInfo[HoldComplete[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]]]] :=
+  <|"Name" -> SymbolName[Unevaluated[s]], "Kind" -> "blank",
+    "TargetHead" -> None, "Binder" -> True|>;
+inlineSpecInfo[HoldComplete[s_Symbol]] /; Context[Unevaluated[s]] =!= "System`" :=
+  <|"Name" -> SymbolName[Unevaluated[s]], "Kind" -> "bare",
+    "TargetHead" -> None, "Binder" -> False|>;
+inlineSpecInfo[HoldComplete[s_String]] /; validAxisNameQ[s] :=
+  <|"Name" -> s, "Kind" -> "string", "TargetHead" -> None,
+    "Binder" -> False|>;
+inlineSpecInfo[HoldComplete[Highlighted[x_]]] :=
+  inlineTargetInfo[Highlighted, inlineSpecInfo[HoldComplete[x]]];
+inlineSpecInfo[HoldComplete[Framed[x_]]] :=
+  inlineTargetInfo[Framed, inlineSpecInfo[HoldComplete[x]]];
+inlineSpecInfo[HoldComplete[Slot[x_String]]] :=
+  inlineTargetInfo[Slot, inlineSpecInfo[HoldComplete[x]]];
+inlineSpecInfo[_] := $Failed;
+
+inlineTargetInfo[_, $Failed] := $Failed;
+inlineTargetInfo[head_, info_Association] :=
+  Append[info, "TargetHead" -> head];
+
+inlineHeldSpecs[h_Hold] := Cases[h,
+  inlineSizedAxis[x_, n_, src_] :>
+    <|"Spec" -> HoldComplete[x], "Size" -> HoldComplete[n], "Source" -> src|>,
+  {0, Infinity}];
+
+stripInlineSized[e_] := e /. inlineSizedAxis[x_, _, _] :> x;
+
+prepareInlineHeld[h_Hold] :=
+  Module[{hn = inlineSizedNormalize[h], specs, bad, info},
+    (* Any remaining Annotation/Labeled has unsupported arity/nesting, or an inline
+       wrapper was nested inside another inline axis specification. *)
+    If[! FreeQ[hn, _Annotation | _Labeled, {0, Infinity}, Heads -> True],
+      $descRejectReason = "Annotation/Labeled axis sizes use exactly the forms " <>
+        "Annotation[axis, positiveInteger] or Labeled[positiveInteger, axis]";
+      Message[Einstoff::unsupp, $descRejectReason]; Return[$Failed]];
+    specs = inlineHeldSpecs[hn];
+    bad = SelectFirst[specs,
+      (info = inlineSpecInfo[# ["Spec"]]; info === $Failed) &,
+      Missing["NotFound"]];
+    If[! MissingQ[bad],
+      $descRejectReason = "inline axis size wrapper has an unsupported axis " <>
+        ToString[bad["Spec"], InputForm] <>
+        "; use one named bare/string/blank axis, optionally targeted";
+      Message[Einstoff::unsupp, $descRejectReason]; Return[$Failed]];
+    <|"Held" -> hn, "Specs" -> specs|>
+  ];
+
 (* All axis-name strings appearing anywhere in a held-or-plain expression (blanks,
    bare symbols, slot symbols/strings, string terms), hygienically.  Over-collects
    across kinds — used only for the composite-factor / on-LHS membership questions. *)
@@ -130,7 +197,9 @@ axisNamesOf[e_] := DeleteDuplicates @ Join[
   Cases[e, Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> SymbolName[Unevaluated[s]], {0, Infinity}],
   Cases[e, Slot[s_Symbol] :> SymbolName[Unevaluated[s]], {0, Infinity}],
   Cases[e, str_String :> str, {0, Infinity}],
-  Cases[e, s_Symbol /; Context[s] =!= "System`" :> SymbolName[Unevaluated[s]], {0, Infinity}]];
+  Cases[e, s_Symbol /; Context[s] =!= "System`" &&
+      Unevaluated[s] =!= inlineSizedAxis :> SymbolName[Unevaluated[s]],
+    {0, Infinity}]];
 
 (* Collect axis-name kinds from the held desc without evaluating any symbol (names via
    SymbolName[Unevaluated[…]]).  Detect a spelling-kind "mishmash" (a name spelled BOTH
@@ -140,18 +209,26 @@ axisNamesOf[e_] := DeleteDuplicates @ Join[
 collectEstablished[h_Hold] :=
   Module[{slotNames, targetStringNames, symbolBracketNames, badSlotNames, hNoBracket,
           blankNames, hNoBlank, bareNames, stringNames, stringTierNames, allStr, bad,
-          symslot, mish, lhs, lhsNoSlot, lhsNoBinder, lhsBare, lhsBareEstablished},
+          symslot, mish, lhs, lhsNoSlot, lhsNoBinder, lhsBare, lhsBareEstablished,
+          inlineSpecs, inlineInfos, inlineNames, hNames},
+    inlineSpecs = inlineHeldSpecs[h];
+    inlineInfos = inlineSpecInfo[# ["Spec"]] & /@ inlineSpecs;
+    inlineNames = DeleteDuplicates[Lookup[inlineInfos, "Name", {}]];
+    (* Inline sizes are captured expressions, not shape syntax.  Remove them from the
+       tree used for all axis-name collection so a string/value in the size position is
+       never mistaken for an axis name. *)
+    hNames = h /. inlineSizedAxis[x_, _, src_] :> inlineSizedAxis[x, src];
     (* Every axis name inside ANY target wrapper is targeted. Slot["a"] is the targeted
        string spelling; Highlighted/Framed carry the blank/bare spelling inside them.
        Collect ALL names inside the wrapper (do NOT drop the whole wrapper, which would
        miss composite factors and leave them un-canonicalized). *)
     slotNames = DeleteDuplicates @ Flatten @
-      Cases[h, (Slot | Highlighted | Framed)[xs___] :> axisNamesOf[Hold[xs]], {0, Infinity}];
+      Cases[hNames, (Slot | Highlighted | Framed)[xs___] :> axisNamesOf[Hold[xs]], {0, Infinity}];
     targetStringNames = DeleteDuplicates @ Flatten @
-      Cases[h, (Slot | Highlighted | Framed)[xs___] :>
+      Cases[hNames, (Slot | Highlighted | Framed)[xs___] :>
         Cases[Hold[xs], str_String :> str, {0, Infinity}], {0, Infinity}];
     symbolBracketNames = Complement[slotNames, targetStringNames];
-    badSlotNames = DeleteDuplicates @ Flatten @ Cases[h,
+    badSlotNames = DeleteDuplicates @ Flatten @ Cases[hNames,
       Slot[xs___] :> Join[
         Cases[Hold[xs],
           Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> SymbolName[Unevaluated[s]],
@@ -166,18 +243,19 @@ Framed[...] for blank/bare targeted axis " <> First[badSlotNames]},
         $descRejectReason = r; Message[Einstoff::unsupp, r]];
       Return[$Failed]];
     (* Blanks anywhere — including inside a targeted composite. *)
-    blankNames = Cases[h,
+    blankNames = Cases[hNames,
       Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> SymbolName[Unevaluated[s]],
       {0, Infinity}];
     (* Bare strings / bare symbols OUTSIDE any target wrapper (plain string and bare
        refs); names inside wrappers were already taken as targeted axes above. *)
-    hNoBracket = h /. (Slot | Highlighted | Framed)[___] :> Null;
+    hNoBracket = hNames /. (Slot | Highlighted | Framed)[___] :> Null;
     hNoBlank = hNoBracket /. Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> Null;
     bareNames = Cases[hNoBlank,
-      s_Symbol /; Context[s] =!= "System`" :> SymbolName[Unevaluated[s]], {0, Infinity}];
+      s_Symbol /; Context[s] =!= "System`" && Unevaluated[s] =!= inlineSizedAxis :>
+        SymbolName[Unevaluated[s]], {0, Infinity}];
     stringNames = Cases[hNoBracket, str_String :> str, {0, Infinity}];
     (* validate every string-sourced name (targeted or bare) *)
-    allStr = DeleteDuplicates @ Cases[h, str_String :> str, {0, Infinity}];
+    allStr = DeleteDuplicates @ Cases[hNames, str_String :> str, {0, Infinity}];
     bad = Select[allStr, ! validAxisNameQ[#] &];
     If[bad =!= {},
       With[{r = "invalid axis name string(s): " <> ToString[bad, InputForm] <>
@@ -189,27 +267,34 @@ Framed[...] for blank/bare targeted axis " <> First[badSlotNames]},
     Scan[recordKind[#, "slot"] &, slotNames];
     stringTierNames = DeleteDuplicates @ Join[stringNames, targetStringNames];
     Scan[recordKind[#, "string"] &, stringTierNames];
+    Do[
+      recordKind[info["Name"], info["Kind"]];
+      recordKind[info["Name"], "inline-sized"];
+      If[info["TargetHead"] =!= None,
+        recordKind[info["Name"], "target:" <>
+          SymbolName[info["TargetHead"]]]],
+      {info, inlineInfos}];
     Scan[recordKind[#, "target:Slot"] &, DeleteDuplicates @ Flatten @
-      Cases[h, Slot[xs___] :> Cases[Hold[xs], str_String :> str, {0, Infinity}],
+      Cases[hNames, Slot[xs___] :> Cases[Hold[xs], str_String :> str, {0, Infinity}],
         {0, Infinity}]];
     Scan[recordKind[#, "target:Highlighted"] &, DeleteDuplicates @ Flatten @
-      Cases[h, Highlighted[xs___] :> Cases[Hold[xs], str_String :> str, {0, Infinity}],
+      Cases[hNames, Highlighted[xs___] :> Cases[Hold[xs], str_String :> str, {0, Infinity}],
         {0, Infinity}]];
     Scan[recordKind[#, "target:Framed"] &, DeleteDuplicates @ Flatten @
-      Cases[h, Framed[xs___] :> Cases[Hold[xs], str_String :> str, {0, Infinity}],
+      Cases[hNames, Framed[xs___] :> Cases[Hold[xs], str_String :> str, {0, Infinity}],
         {0, Infinity}]];
     Scan[recordKind[#, "target:Highlighted"] &, DeleteDuplicates @ Flatten @
-      Cases[h, Highlighted[xs___] :> axisNamesOf[Hold[xs]], {0, Infinity}]];
+      Cases[hNames, Highlighted[xs___] :> axisNamesOf[Hold[xs]], {0, Infinity}]];
     Scan[recordKind[#, "target:Framed"] &, DeleteDuplicates @ Flatten @
-      Cases[h, Framed[xs___] :> axisNamesOf[Hold[xs]], {0, Infinity}]];
+      Cases[hNames, Framed[xs___] :> axisNamesOf[Hold[xs]], {0, Infinity}]];
     (* A name appearing inside a CircleTimes / CirclePlus is a composite factor. Blank
        composite factors are still infer-only; externally supplied split factors should
        be spelled bare or string.  (SPEC 7.2: Cases patterns, no Slot in a `&`.) *)
     Scan[recordKind[#, "composite"] &,
-      DeleteDuplicates @ Flatten @ Cases[h,
+      DeleteDuplicates @ Flatten @ Cases[hNames,
         (CircleTimes | CirclePlus)[xs___] :> axisNamesOf[Hold[xs]], {0, Infinity}]];
     (* A name appearing anywhere in the LHS shapes is inferable from a tensor. *)
-    Scan[recordKind[#, "onlhs"] &, axisNamesOf @ Extract[h, {1, 1}, Hold]];
+    Scan[recordKind[#, "onlhs"] &, axisNamesOf @ Extract[hNames, {1, 1}, Hold]];
     (* mishmash: string spelling (a bare string term or #a = Slot["a"]) mixed with the
        symbol spelling for one name. Highlighted/Framed add targetedness, not a new
        spelling kind; Slot["a"] is targeted string. *)
@@ -226,12 +311,13 @@ the string \"" <> First[mish] <> "\"; use one spelling consistently"},
        been established by a blank/target/string in this desc, accepting it as an axis
        reference would silently teach the wrong RuleDelayed spelling. *)
     lhs = Extract[h, {1, 1}, Hold];
+    lhs = lhs /. inlineSizedAxis[___] :> Null;
     lhsNoSlot = lhs /. (Slot | Highlighted | Framed)[___] :> Null;
     lhsNoBinder = lhsNoSlot /. Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :> Null;
     lhsBare = DeleteDuplicates @ Cases[lhsNoBinder,
       s_Symbol /; Context[s] =!= "System`" :> SymbolName[Unevaluated[s]], {0, Infinity}];
     lhsBareEstablished = Intersection[lhsBare,
-      DeleteDuplicates @ Join[blankNames, slotNames, stringNames]];
+      DeleteDuplicates @ Join[blankNames, slotNames, stringNames, inlineNames]];
     If[lhsBareEstablished =!= {},
       With[{r = "bare axis " <> First[lhsBareEstablished] <> " appears on the LHS after \
 that name is established; write " <> First[lhsBareEstablished] <>
@@ -239,7 +325,7 @@ that name is established; write " <> First[lhsBareEstablished] <>
 a_ ... a_), or use targeted notation for targeted axes"},
         $descRejectReason = r; Message[Einstoff::unsupp, r]];
       Return[$Failed]];
-    DeleteDuplicates @ Join[blankNames, slotNames, stringNames]];
+    DeleteDuplicates @ Join[blankNames, slotNames, stringNames, inlineNames]];
 
 (* Rewrite the held desc: every established name -> its fresh Temporary symbol, at
    blank / targeted / string / bare-reference positions.  Bare names that are NOT
@@ -247,11 +333,16 @@ a_ ... a_), or use targeted notation for targeted axes"},
    pass: the fresh symbols carry a distinct name ("a$nn"), so no rule re-fires on them.
    Assumes an open axis scope (via withAxisScope). *)
 canonHeld[h_Hold] :=
-  Module[{estab, rules},
+  Module[{prepared, hp, specs, estab, rules, hc, facts = {}, spec,
+          info, key, size},
     (* Fresh per parse: clear any reject reason left by a PRIOR (re-entrant) parse in the
        same scope, so a reason is never stale.  collectEstablished sets it only on reject. *)
     $descRejectReason = None;
-    estab = collectEstablished[h];
+    $inlineBindingFacts = {};
+    prepared = prepareInlineHeld[h];
+    If[prepared === $Failed, Return[$Failed]];
+    hp = prepared["Held"]; specs = prepared["Specs"];
+    estab = collectEstablished[hp];
     If[estab === $Failed, Return[$Failed]];
     Scan[mkFresh, estab];
     (* Table, not `&`/Map: the rule bodies contain Slot[...], which an anonymous
@@ -266,7 +357,27 @@ canonHeld[h_Hold] :=
          s_Symbol /; Context[s] =!= "System`" &&
             SymbolName[Unevaluated[s]] === name :> fr}],
       {nm, estab}];
-    h /. rules];
+    hc = hp /. rules;
+    (* Build canonical binding facts from the ORIGINAL captured size expression and the
+       canonicalized axis spec.  The general axis rewrite may also traverse the marker's
+       size field; that rewritten copy is deliberately ignored and stripped below. *)
+    Do[
+      spec = sp;
+      info = inlineSpecInfo[spec["Spec"]];
+      (* All accepted inline specs establish exactly one named axis.  Key the fact from
+         the canonical name table rather than destructuring Pattern[a_,…], whose nested
+         Pattern binder is surface syntax rather than the desired binding key. *)
+      key = $axisFresh[info["Name"]];
+      size = Quiet @ Check[ReleaseHold[spec["Size"]], $Failed];
+      AppendTo[facts, <|
+        "Key" -> key, "Size" -> size, "Name" -> info["Name"],
+        "Kind" -> info["Kind"], "Binder" -> info["Binder"],
+        "TargetHead" -> info["TargetHead"], "Source" -> spec["Source"],
+        "SourceExpression" -> HoldComplete[spec]
+      |>],
+      {sp, specs}];
+    $inlineBindingFacts = facts;
+    stripInlineSized[hc]];
 
 (* Map fresh internal axis symbols back to symbols of their original user names, for
    user-facing output (EinstoffParse's normalized desc, EinstoffShapes' Bindings /

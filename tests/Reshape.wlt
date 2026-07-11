@@ -596,4 +596,17 @@ VerificationTest[
   TestID -> "traceaction-defer-head"
 ];
 
+(* Inline bindings are consumed by the same scoped parser used by operators. *)
+VerificationTest[
+  Einstoff["Massage"][{{a_}} :> {{a, Annotation[c, 2]}}, {Range[3]}],
+  ConstantArray[Range[3], {2}] // Transpose,
+  TestID -> "inline-annotation-operator-broadcast"
+];
+
+VerificationTest[
+  Einstoff[ArrayReshape][{{Annotation[a_, 3]}} :> {{a}}, {Range[3]}],
+  Range[3],
+  TestID -> "inline-sized-blank-operator-check"
+];
+
 EndTestSection[];
