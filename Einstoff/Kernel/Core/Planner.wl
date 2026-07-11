@@ -733,8 +733,8 @@ renderPlanStep[held_HoldComplete, irp["RecomposeStep"][dims_List]] :=
 renderPlanStep[_, other_] := plannerFailure["UnsupportedPlanStep", <|
   "Step" -> HoldComplete[other]|>];
 
-(* Compatibility entrance: Missing means the legacy lowering owns this description.
-   It intentionally emits no public message on fallback. *)
+(* Public planning entrances compile, solve, analyze, plan, and execute exactly once.
+   Failures remain structured until the operator boundary translates them. *)
 tryStructuralIRPlan[h_Hold, tensors_List, bindings_List, operator_String,
     targeting_, traceAction_] :=
   Catch[Module[{compiled, solvedBundle, solved, analysis, plan, held,

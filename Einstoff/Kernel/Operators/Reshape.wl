@@ -17,14 +17,9 @@
    backend parallel to this univalent engine is sketched as EinstoffTandem (see SPEC §9
    / the design note).
 
-   Sizing uses EinstoffMatch directly rather than EinstoffShapes: a within-tensor
-   repeated index must be allowed here (unification binds it once and enforces equality),
-   and EinstoffMatch is the bare resolver with no operator policy.  EinstoffShapes only
-   adds the universal output-axis-uniqueness invariant, which this path does not need —
-   the reduce / map / pure-reshape paths that cannot handle a repeated INPUT axis reject it
-   themselves (distinctAxesQ), so that policy no longer lives in EinstoffShapes.  Shared
-   shape helpers (descParts, distinctAxesQ) live in ShapeChecker.wl; runtime helpers
-   (rearrangeAtoms, atomSize, selfContract, materializeOutput) live in Lowering.wl. *)
+   Every entrance compiles to the shared structured IR and execution-plan engine.
+   Operation policy, rather than a separate matcher/lowerer, decides which structural
+   effects are admitted. *)
 
 PackageExported[{EinstoffMassage, EinstoffReshape, EinstoffContract}]
 
@@ -82,136 +77,27 @@ EinstoffContract[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :
 
 (* desc is NOT held (uniform convention): Pattern holds each binding `name_` and `:>`
    holds the RHS, so only a bare reference to a globally bound symbol is substituted. *)
-massageCore[desc_, tensors_, bindings_List, policy_, traceAction_, targeting_] := withAxisScope @
-  Module[{parts, lhs, rhs, m, env, decomp, rhsTerms, lhsAtoms, rhsAtoms, sc,
-          lhsBr, xc, atomsc, result, outOnly, repeated, contracted, targetingMode,
-          planned, planOperator},
-    targetingMode = einCatch[validateTargetingOption[targeting]];
-    If[targetingMode === $Failed, Return[$Failed]];
-    parts = descParts[Hold[desc]];
-    If[parts === $Failed, Return[descFailReturn[]]];
-    {lhs, rhs} = parts;
-    (* Direct sum: einx folds `+` into id. CirclePlus on the RHS is concatenation, on
-       the LHS splitting.  Only the permissive engine admits it; the bijective / contract
-       guards treat a direct sum as a structural join/split that belongs elsewhere. *)
-    If[hasCirclePlus[rhs] || hasCirclePlus[lhs],
-      If[policy =!= All,
-        Message[Einstoff::unsupp,
-          "a direct sum (CirclePlus) is a structural join/split, not a " <>
-          If[policy === "Reshape", "bijective reshape", "within-tensor contraction"] <>
-          "; use Einstoff[Join]/[Split] or the permissive Einstoff[\"Massage\"]"];
-        Return[$Failed]];
-      If[hasCirclePlus[rhs],
-        Return[directSumConcat[desc, tensors, bindings, traceAction]]];
-      Return[directSumSplit[desc, tensors, bindings, traceAction]]];
-    If[! MatchQ[tensors, {__}],
-      Message[Einstoff::unsupp,
-        "tensors must be a non-empty list of arrays"]; Return[$Failed]];
-    If[! MatchQ[lhs, {_List}] || ! MatchQ[rhs, {_List}] || Length[tensors] =!= 1,
-      Message[Einstoff::unsupp,
-        "Massage lowering takes exactly one input and one output tensor \
-(cross-tensor contraction is a separate path)"];
-      Return[$Failed]];
-
-    (* The staged compiler owns the structural subset.  Unsupported sequence/direct-
-       sum/contraction cases return Missing without messages and continue through the
-       legacy lowering until their corresponding plan steps are migrated. *)
-    planOperator = Which[
-      policy === "Reshape", "Reshape",
-      policy === "Contract", "Contract",
-      True, "Massage"];
-    planned = tryStructuralIRPlan[Hold[desc], tensors, bindings, planOperator,
-      targetingMode, traceAction];
-    If[plannerFailureQ[planned], Return[reportPlannerFailure[planned]]];
-    Return[planned];
-
-    (* Bind axis sizes.  EinstoffMatch (not EinstoffShapes) so a within-tensor
-       repeated index is allowed — unify binds it from the first occurrence and
-       enforces equality on the second (which is exactly the contraction's validity). *)
-    m = EinstoffMatch[lhs, Dimensions /@ tensors, bindings];
-    If[! TrueQ[m["ok"]],
-      Message[Einstoff::unsat, m["reason"]]; Return[$Failed]];
-    env = m["env"];
-
-    decomp = einCatch[
-      targetDecomposeTerms[First[lhs], Dimensions[First[tensors]], env,
-        Lookup[m, "seq", <||>]]];
-    If[decomp === $Failed,
-      Message[Einstoff::unsat, "an input axis size is unbound or inconsistent"];
-      Return[$Failed]];
-    lhsAtoms = decomp["Tagged"][[All, 1]];
-    lhsBr = decomp["Tagged"][[All, 2]];
-    env = decomp["Env"];
-    If[plainSequenceCount[First[rhs]] > 0 && plainSequenceCount[First[lhs]] == 0,
-      Message[Einstoff::unsupp,
-        "a plain anonymous sequence (__ / ___) on the output needs a corresponding \
-plain sequence in the input shape"];
-      Return[$Failed]];
-    rhsTerms = einCatch[
-      expandAnonymousTargetRhs[First[rhs], decomp["AnonymousTargetAtoms"],
-        decomp["NamedSequenceAtoms"]]];
-    If[rhsTerms === $Failed, Return[$Failed]];
-    rhsAtoms = einCatch[Join @@ (rearrangeAtoms /@ rhsTerms)];
-    If[lhsAtoms === $Failed || rhsAtoms === $Failed, Return[$Failed]];
-    (* An axis name may not repeat on the output (no einsum spelling for it). *)
-    If[! DuplicateFreeQ[DeleteCases[rhsAtoms, _Integer]],
-      Message[Einstoff::unsupp,
-        "an axis name repeats on the output; output axes must be distinct"];
-      Return[$Failed]];
-
-    (* Self-contract a within-tensor repeated (dropped) index; identity otherwise. *)
-    sc = einCatch[selfContract[First[tensors], lhsAtoms, rhsAtoms, env,
-      targetingMode, lhsBr]];
-    If[sc === $Failed, Return[$Failed]];
-    {xc, atomsc} = sc;
-
-    (* Policy gate for the guarded entrances.  With `atomsc` (the surviving input atoms
-       after any within-tensor contraction) and the raw output atoms known, classify the
-       two non-bijective features and reject those the policy forbids — before the shared
-       drop-check / materialization, so the message names the guard, not the lowering:
-         contracted — selfContract removed a repeated, dropped input axis (atomsc shrank);
-                      forbidden by "Reshape" (bijective), admitted by "Contract".
-         repeated   — an output-only atom (not carried from the input) whose size is > 1
-                      (or unbound); that is repetition / broadcast, forbidden by both
-                      guards.  A size-1 output-only axis is a unit-axis insert (still an
-                      element-count-preserving reindexing), so it is NOT flagged. *)
-    If[policy =!= All,
-      contracted = atomsc =!= lhsAtoms;
-      outOnly = Select[rhsAtoms, ! MemberQ[atomsc, #] &];
-      repeated = AnyTrue[outOnly,
-        With[{s = If[IntegerQ[#], #, Lookup[env, #, Missing[]]]},
-          MissingQ[s] || TrueQ[s > 1]] &];
-      If[policy === "Reshape" && contracted,
-        Message[Einstoff::unsupp,
-          "a within-tensor repeated axis is contracted; this is not a bijective reshape. Use \
-Einstoff[\"ArrayContract\"] or the permissive Einstoff[\"Massage\"]"];
-        Return[$Failed]];
-      If[repeated,
-        Message[Einstoff::unsupp,
-          "an output-only axis of size > 1 is repetition (broadcast), not a " <>
-          If[policy === "Reshape", "bijective reshape", "contraction"] <>
-          "; use the permissive Einstoff[\"Massage\"]"];
-        Return[$Failed]]];
-
-    (* Every surviving (non-contracted) input axis must be carried to the output.  A
-       named axis is carried iff it appears on the RHS.  A literal input axis of size > 1
-       cannot be carried (output literals are fresh broadcast axes — cf. einx rejecting
-       'a 2 -> a 2'), so a surviving size-(>1) input literal is a drop.  A size-1 literal
-       is a unit axis (squeezed by materializeOutput), so it is allowed.  A dropped
-       size-(>1) axis is reduce, not rearrange/contract. *)
-    If[AnyTrue[atomsc, ! MemberQ[rhsAtoms, #] && atomSize[#, env] > 1 &],
-      Message[Einstoff::unsupp,
-        "an input axis of size > 1 is dropped on the output; that is reduce, not \
-rearrange/contract (a size-1 unit axis is squeezed; a literal size > 1 axis has no \
-carryable identity; name it); use Einstoff[ArrayReduce]"];
-      Return[$Failed]];
-
-    With[{xc0 = xc, atomsc0 = atomsc, rhs0 = rhsTerms, env0 = env},
-      result = einCatch[materializeOutputTrace[xc0, atomsc0, rhs0, env0, traceAction]]];
-    If[result === $Failed,
-      Message[Einstoff::unsat,
-        "an output axis size is unbound or not a positive integer (a repeated axis \
-needs a positive binding)"];
-      Return[$Failed]];
-    result
-  ];
+massageCore[desc_, tensors_, bindings_List, policy_, traceAction_, targeting_] :=
+  withAxisScope @ Catch[
+    Module[{parts, lhs, rhs, targetingMode, planned, planOperator},
+      targetingMode = einCatch[validateTargetingOption[targeting]];
+      If[targetingMode === $Failed, Throw[$Failed, massageCoreTag]];
+      parts = descParts[Hold[desc]];
+      If[parts === $Failed, Throw[descFailReturn[], massageCoreTag]];
+      {lhs, rhs} = parts;
+      If[hasCirclePlus[rhs] || hasCirclePlus[lhs],
+        If[policy =!= All,
+          Message[Einstoff::unsupp,
+            "a direct sum (CirclePlus) is a structural join/split; use Einstoff[Join]/[Split]"];
+          Throw[$Failed, massageCoreTag]];
+        Throw[If[hasCirclePlus[rhs],
+          directSumConcat[desc, tensors, bindings, traceAction],
+          directSumSplit[desc, tensors, bindings, traceAction]], massageCoreTag]];
+      planOperator = Which[
+        policy === "Reshape", "Reshape",
+        policy === "Contract", "Contract",
+        True, "Massage"];
+      planned = tryStructuralIRPlan[Hold[desc], tensors, bindings, planOperator,
+        targetingMode, traceAction];
+      If[plannerFailureQ[planned], reportPlannerFailure[planned], planned]
+    ], massageCoreTag];
