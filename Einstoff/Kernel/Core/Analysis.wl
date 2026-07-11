@@ -1,0 +1,149 @@
+(* ::Package:: *)
+
+(* Operator-neutral effect classification over a concrete SolvedDesc. *)
+
+PackageScoped[{analyzeSolvedDesc, operationSpec}]
+
+ira[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
+
+operationSpec["Massage"] := ira["OperationSpec"][<|
+  "Broadcast" -> True, "Reduce" -> True, "WithinContract" -> True,
+  "CrossContract" -> False, "DirectSum" -> True|>];
+operationSpec["Reshape"] := ira["OperationSpec"][<|
+  "Broadcast" -> "UnitOnly", "Reduce" -> False, "WithinContract" -> False,
+  "CrossContract" -> False, "DirectSum" -> False|>];
+operationSpec["Contract"] := ira["OperationSpec"][<|
+  "Broadcast" -> "UnitOnly", "Reduce" -> False, "WithinContract" -> True,
+  "CrossContract" -> False, "DirectSum" -> False|>];
+operationSpec["Reduce"] := ira["OperationSpec"][<|
+  "Broadcast" -> True, "Reduce" -> True, "WithinContract" -> False,
+  "CrossContract" -> False, "DirectSum" -> False|>];
+operationSpec["Map"] := ira["OperationSpec"][<|
+  "Broadcast" -> True, "Reduce" -> False, "WithinContract" -> False,
+  "CrossContract" -> False, "DirectSum" -> False|>];
+operationSpec["Operate"] := operationSpec["Map"];
+operationSpec["Dot"] := ira["OperationSpec"][<|
+  "Broadcast" -> True, "Reduce" -> False, "WithinContract" -> False,
+  "CrossContract" -> True, "DirectSum" -> False|>];
+operationSpec["Inner"] := operationSpec["Dot"];
+operationSpec["Join"] := ira["OperationSpec"][<|
+  "Broadcast" -> True, "Reduce" -> False, "WithinContract" -> False,
+  "CrossContract" -> False, "DirectSum" -> True|>];
+operationSpec["Split"] := operationSpec["Join"];
+operationSpec[other_] := ira["FailureRecord"]["UnknownOperatorSpec", "Analysis",
+  <|"Operator" -> other|>];
+
+analyzeSolvedDesc[solved : ira["SolvedDesc"][a_Association], operator_, targeting_] :=
+  Module[{normalized, na, inputs, outputs, axisSizes, inRecords, outRecords,
+          inputIds, outputIds, carriedIds, droppedIds, broadcastIds, effects = {},
+          directSums, units, targetInputs, targetOutputs, spec, policy, violations},
+    normalized = a["Normalized"];
+    na = Replace[normalized, ira["NormalizedDesc"][x_Association] :> x];
+    inputs = Replace[na["Inputs"], ira["Inputs"][x_List] :> x];
+    outputs = Replace[na["Outputs"], ira["Outputs"][x_List] :> x];
+    axisSizes = a["AxisSizes"];
+    inRecords = occurrenceRecords[inputs, "Input"];
+    outRecords = occurrenceRecords[outputs, "Output"];
+    inputIds = DeleteDuplicates @ Cases[inRecords, r_Association :> r["Axis"]];
+    outputIds = DeleteDuplicates @ Cases[outRecords, r_Association :> r["Axis"]];
+    carriedIds = Intersection[inputIds, outputIds];
+    droppedIds = Complement[inputIds, outputIds];
+    broadcastIds = Complement[outputIds, inputIds];
+    Do[AppendTo[effects, ira["Carried"][id,
+      Select[inRecords, # ["Axis"] === id &],
+      Select[outRecords, # ["Axis"] === id &]]], {id, carriedIds}];
+    Do[AppendTo[effects, classifyDropped[id, inRecords]], {id, droppedIds}];
+    Do[AppendTo[effects, ira["Broadcast"][id, axisSizes[id],
+      Select[outRecords, # ["Axis"] === id &]]], {id, broadcastIds}];
+    (* A kept axis may still have a targeted pair contracted while an untargeted
+       occurrence carries the result (Einstoff's within-tensor extension). *)
+    Do[
+      With[{effect = classifyKeptTargetPair[id, inRecords, outRecords]},
+        If[effect =!= None, AppendTo[effects, effect]]],
+      {id, carriedIds}];
+    directSums = Join[
+      Cases[inputs, d : ira["DirectSumAxis"][___] :> d, Infinity],
+      Cases[outputs, d : ira["DirectSumAxis"][___] :> d, Infinity]];
+    Do[AppendTo[effects, ira["DirectSumGroup"][d]], {d, directSums}];
+    units = Join[
+      Cases[inputs, u : ira["LiteralAxis"][_, 1, _] :> u, Infinity],
+      Cases[outputs, u : ira["LiteralAxis"][_, 1, _] :> u, Infinity]];
+    Do[AppendTo[effects, ira["UnitAxis"][u]], {u, units}];
+    targetInputs = Select[inRecords, TrueQ[# ["Targeted"]] &];
+    targetOutputs = Select[outRecords, TrueQ[# ["Targeted"]] &];
+    If[targetInputs =!= {} || targetOutputs =!= {},
+      AppendTo[effects, ira["TargetBlock"][targetInputs, targetOutputs]]];
+    spec = operationSpec[operator];
+    If[analysisFailureQ[spec], Return[spec]];
+    policy = compileTargetPolicy[targeting];
+    If[analysisFailureQ[policy], Return[policy]];
+    violations = validateEffects[effects, spec, axisSizes];
+    ira["OperationAnalysis"][<|
+      "Solved" -> solved, "Operator" -> operator, "Spec" -> spec,
+      "TargetPolicy" -> policy, "Effects" -> ira["Effects"][effects],
+      "Violations" -> violations, "Valid" -> (violations === {})
+    |>]
+  ];
+analyzeSolvedDesc[other_, operator_, targeting_] :=
+  ira["FailureRecord"]["ExpectedSolvedDesc", "Analysis",
+    <|"Expression" -> HoldComplete[other], "Operator" -> operator,
+      "Targeting" -> targeting|>];
+
+occurrenceRecords[shapes_List, side_String] :=
+  Module[{out = {}, occs},
+    Do[
+      occs = Cases[shapes[[i]],
+        node : ira["AxisOccurrence"][occ_, id_, meta_Association] :>
+          <|"Axis" -> id, "Occurrence" -> occ, "Tensor" -> i,
+            "Side" -> side, "Targeted" -> (meta["TargetHead"] =!= None),
+            "TargetHead" -> meta["TargetHead"], "Node" -> node|>,
+        Infinity];
+      out = Join[out, occs],
+      {i, Length[shapes]}];
+    out
+  ];
+
+classifyDropped[id_, records_] :=
+  Module[{occs = Select[records, # ["Axis"] === id &], tensors},
+    tensors = DeleteDuplicates[Lookup[occs, "Tensor"]];
+    If[Length[occs] === 1,
+      ira["Reduced"][id, occs],
+      ira["Contracted"][id,
+        If[Length[tensors] === 1, "Within", "Cross"], occs]]
+  ];
+
+classifyKeptTargetPair[id_, in_, out_] :=
+  Module[{ins, targeted, untargetedOut},
+    ins = Select[in, # ["Axis"] === id &];
+    targeted = Select[ins, TrueQ[# ["Targeted"]] &];
+    untargetedOut = Select[out,
+      # ["Axis"] === id && ! TrueQ[# ["Targeted"]] &];
+    If[Length[targeted] === 2 && untargetedOut =!= {},
+      ira["Contracted"][id, "WithinTargetPair", targeted], None]
+  ];
+
+validateEffects[effects_List, ira["OperationSpec"][spec_Association], _] :=
+  Module[{violations = {}, broadcasts, reduced, within, cross, sums},
+    broadcasts = Cases[effects, b : ira["Broadcast"][___] :> b];
+    reduced = Cases[effects, r : ira["Reduced"][___] :> r];
+    within = Cases[effects,
+      c : ira["Contracted"][_, "Within" | "WithinTargetPair", _] :> c];
+    cross = Cases[effects, c : ira["Contracted"][_, "Cross", _] :> c];
+    sums = Cases[effects, s : ira["DirectSumGroup"][___] :> s];
+    If[spec["Broadcast"] === False && broadcasts =!= {},
+      AppendTo[violations, ira["Violation"]["Broadcast", broadcasts]]];
+    If[spec["Broadcast"] === "UnitOnly" &&
+        AnyTrue[broadcasts, Replace[#, ira["Broadcast"][_, n_, _] :> n > 1] &],
+      AppendTo[violations, ira["Violation"]["NonUnitBroadcast", broadcasts]]];
+    If[! TrueQ[spec["Reduce"]] && reduced =!= {},
+      AppendTo[violations, ira["Violation"]["Reduce", reduced]]];
+    If[! TrueQ[spec["WithinContract"]] && within =!= {},
+      AppendTo[violations, ira["Violation"]["WithinContract", within]]];
+    If[! TrueQ[spec["CrossContract"]] && cross =!= {},
+      AppendTo[violations, ira["Violation"]["CrossContract", cross]]];
+    If[! TrueQ[spec["DirectSum"]] && sums =!= {},
+      AppendTo[violations, ira["Violation"]["DirectSum", sums]]];
+    violations
+  ];
+
+analysisFailureQ[expr_] := Head[Unevaluated[expr]] === ira["FailureRecord"];
