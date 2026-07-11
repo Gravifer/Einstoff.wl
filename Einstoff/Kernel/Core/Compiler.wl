@@ -32,41 +32,41 @@ compileDescIR[desc_, bindings_ : {}, operator_ : None, options_ : <||>] :=
   compileHeldDescIR[Hold[desc], HoldComplete[bindings], operator, options];
 
 compileHeldDescIR[h_Hold, hb_HoldComplete, operator_, options_] :=
-  withAxisScope @ Module[{surface, sourceDesc, captured, normalized},
+  withAxisScope @ Catch[Module[{surface, sourceDesc, captured, normalized},
     sourceDesc = h /. Hold[x_] :> HoldComplete[x];
     surface = iri["SurfaceDesc"][sourceDesc, hb, operator,
       If[AssociationQ[options], options, <||>]];
     captured = captureDescIR[h, hb, surface];
-    If[compilerFailureQ[captured], Return[<|"Surface" -> surface,
-      "Captured" -> captured, "Normalized" -> captured|>]];
+    If[compilerFailureQ[captured], Throw[<|"Surface" -> surface,
+      "Captured" -> captured, "Normalized" -> captured|>, compilerTag]];
     normalized = normalizeCapturedDesc[captured];
     <|"Surface" -> surface, "Captured" -> captured,
       "Normalized" -> normalized|>
-  ];
+  ], compilerTag];
 
 captureDescIR[h_Hold, hb_HoldComplete, surface_] :=
-  Module[{hc, lhs, rhsHeld, rawBindings, externalBindings},
+  Catch[Module[{hc, lhs, rhsHeld, rawBindings, externalBindings},
     If[! MatchQ[h, Hold[_Rule | _RuleDelayed]],
-      Return[compilerFailure["MalformedDescription", "Capture",
-        <|"Source" -> surface|>]]];
+      Throw[compilerFailure["MalformedDescription", "Capture",
+        <|"Source" -> surface|>], compilerTag]];
     hc = canonHeld[h];
     If[hc === $Failed,
-      Return[compilerFailure["CaptureRejected", "Capture",
-        <|"Reason" -> descFailReason[], "Source" -> surface|>]]];
+      Throw[compilerFailure["CaptureRejected", "Capture",
+        <|"Reason" -> descFailReason[], "Source" -> surface|>], compilerTag]];
     lhs = normShapes @ Extract[hc, {1, 1}];
     rhsHeld = normHeldShapes @ Extract[hc, {1, 2}, Hold];
     If[! declarativeRhsQ[rhsHeld],
-      Return[compilerFailure["NonDeclarativeRHS", "Capture",
+      Throw[compilerFailure["NonDeclarativeRHS", "Capture",
         <|"Source" -> With[{held = rhsHeld},
-          iri["SourceRef"][{2}, HoldComplete[held]]]|>]]];
+          iri["SourceRef"][{2}, HoldComplete[held]]]|>], compilerTag]];
     rawBindings = Quiet @ Check[ReleaseHold[hb], $Failed];
     If[rawBindings === $Failed,
-      Return[compilerFailure["InvalidBindings", "Capture",
-        <|"Source" -> surface|>]]];
+      Throw[compilerFailure["InvalidBindings", "Capture",
+        <|"Source" -> surface|>], compilerTag]];
     externalBindings = canonBindingList[rawBindings, "Scoped"];
     If[StringQ[externalBindings],
-      Return[compilerFailure["InvalidBindings", "Capture",
-        <|"Reason" -> externalBindings, "Source" -> surface|>]]];
+      Throw[compilerFailure["InvalidBindings", "Capture",
+        <|"Reason" -> externalBindings, "Source" -> surface|>], compilerTag]];
     iri["CapturedDesc"][<|
       "Surface" -> surface,
       "CanonicalLHS" -> lhs,
@@ -77,7 +77,7 @@ captureDescIR[h_Hold, hb_HoldComplete, surface_] :=
       "ExternalBindings" -> externalBindings,
       "Bindings" -> hb
     |>]
-  ];
+  ], compilerTag];
 
 (* Inspect held compound heads before releasing the RHS.  Only the declarative shape
    vocabulary is allowed; atoms (including axis symbols and strings) contribute no
@@ -93,22 +93,22 @@ declarativeRhsQ[h_Hold] :=
   ];
 
 normalizeCapturedDesc[iri["CapturedDesc"][captured_Association]] :=
-  Module[{lhs, rhs, state, in, out, r, facts, axisTable, normalized},
+  Catch[Module[{lhs, rhs, state, in, out, r, facts, axisTable, normalized},
     lhs = captured["CanonicalLHS"];
     rhs = Quiet @ Check[ReleaseHold[captured["CanonicalRHS"]], $Failed];
     If[rhs === $Failed || ! MatchQ[rhs, {___List}],
-      Return[compilerFailure["InvalidOutputShapes", "Normalize",
-        <|"Source" -> captured["Surface"]|>]]];
+      Throw[compilerFailure["InvalidOutputShapes", "Normalize",
+        <|"Source" -> captured["Surface"]|>], compilerTag]];
     state = compilerState[captured];
     r = compileShapeList[lhs, "LHS", state];
-    If[compilerResultFailureQ[r], Return[First[r]]];
+    If[compilerResultFailureQ[r], Throw[First[r], compilerTag]];
     {in, state} = r;
     r = compileShapeList[rhs, "RHS", state];
-    If[compilerResultFailureQ[r], Return[First[r]]];
+    If[compilerResultFailureQ[r], Throw[First[r], compilerTag]];
     {out, state} = r;
     facts = compileBindingFacts[captured["InlineBindingFacts"],
       captured["ExternalBindings"], state];
-    If[compilerFailureQ[facts], Return[facts]];
+    If[compilerFailureQ[facts], Throw[facts, compilerTag]];
     axisTable = iri["AxisTable"][irAxisMetadata[state["IRState"]]];
     normalized = iri["NormalizedDesc"][<|
       "Inputs" -> iri["Inputs"][in],
@@ -120,7 +120,7 @@ normalizeCapturedDesc[iri["CapturedDesc"][captured_Association]] :=
     If[TrueQ[normalizedIRValidQ[normalized]], normalized,
       compilerFailure["InvalidNormalizedIR", "Normalize",
         <|"Expression" -> normalized|>]]
-  ];
+  ], compilerTag];
 normalizeCapturedDesc[other_] :=
   compilerFailure["ExpectedCapturedDesc", "Normalize",
     <|"Expression" -> HoldComplete[other]|>];
@@ -251,7 +251,7 @@ compileNamedSequence[s_Symbol, side_, min_, body_, target_, state_] :=
     If[MatchQ[Unevaluated[body], Verbatim[Blank[]]],
       child = None,
       r = compileTerm[body, side, None, st];
-      If[compilerResultFailureQ[r], Return[r]];
+      If[compilerResultFailureQ[r], Throw[r, compilerTag]];
       child = First[r]; st = Last[r]];
     {iri["SequenceAxis"][occ, id,
       <|"Side" -> side, "Minimum" -> min, "Pattern" -> child,
@@ -268,7 +268,7 @@ compileLeaf[head_, payload_, side_, target_, state_] :=
 compileComposite[head_, children_List, side_, target_, state_] :=
   Module[{r, occ, st},
     r = compileTerms[children, side, state];
-    If[compilerResultFailureQ[r], Return[r]];
+    If[compilerResultFailureQ[r], Throw[r, compilerTag]];
     st = Last[r]; {occ, st} = compilerOccurrence[st];
     {iri[head][occ, First[r],
       <|"Side" -> side, "TargetHead" -> target|>], st}
@@ -277,7 +277,7 @@ compileComposite[head_, children_List, side_, target_, state_] :=
 compileRepeated[body_, side_, min_, target_, state_] :=
   Module[{r, occ, st},
     r = compileTerm[body, side, None, state];
-    If[compilerResultFailureQ[r], Return[r]];
+    If[compilerResultFailureQ[r], Throw[r, compilerTag]];
     st = Last[r]; {occ, st} = compilerOccurrence[st];
     {iri["RepeatedGroup"][occ, First[r],
       <|"Side" -> side, "Minimum" -> min, "TargetHead" -> target|>], st}

@@ -34,7 +34,7 @@ operationSpec[other_] := ira["FailureRecord"]["UnknownOperatorSpec", "Analysis",
   <|"Operator" -> other|>];
 
 analyzeSolvedDesc[solved : ira["SolvedDesc"][a_Association], operator_, targeting_] :=
-  Module[{normalized, na, inputs, outputs, axisSizes, inRecords, outRecords,
+  Catch[Module[{normalized, na, inputs, outputs, axisSizes, inRecords, outRecords,
           inputIds, outputIds, carriedIds, droppedIds, broadcastIds, effects = {},
           directSums, units, targetInputs, targetOutputs, spec, policy, violations},
     normalized = a["Normalized"];
@@ -74,16 +74,16 @@ analyzeSolvedDesc[solved : ira["SolvedDesc"][a_Association], operator_, targetin
     If[targetInputs =!= {} || targetOutputs =!= {},
       AppendTo[effects, ira["TargetBlock"][targetInputs, targetOutputs]]];
     spec = operationSpec[operator];
-    If[analysisFailureQ[spec], Return[spec]];
+    If[analysisFailureQ[spec], Throw[spec, analysisTag]];
     policy = compileTargetPolicy[targeting];
-    If[analysisFailureQ[policy], Return[policy]];
+    If[analysisFailureQ[policy], Throw[policy, analysisTag]];
     violations = validateEffects[effects, spec, axisSizes];
     ira["OperationAnalysis"][<|
       "Solved" -> solved, "Operator" -> operator, "Spec" -> spec,
       "TargetPolicy" -> policy, "Effects" -> ira["Effects"][effects],
       "Violations" -> violations, "Valid" -> (violations === {})
     |>]
-  ];
+  ], analysisTag];
 analyzeSolvedDesc[other_, operator_, targeting_] :=
   ira["FailureRecord"]["ExpectedSolvedDesc", "Analysis",
     <|"Expression" -> HoldComplete[other], "Operator" -> operator,
