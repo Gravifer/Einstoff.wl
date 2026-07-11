@@ -3,7 +3,9 @@
 Einstoff is an experimental Wolfram Language package for writing tensor and
 array-axis transformations as Wolfram expressions instead of string mini-languages.
 It uses native pattern objects such as `a_`, `_`, `__`, `___`, `CircleTimes` (`⊗`),
-`CirclePlus` (`⊕`), `Slot`, `Highlighted`, and `Framed` as the shape description AST.
+`CirclePlus` (`⊕`), `Slot`, `Highlighted`, and `Framed` as surface notation. A held
+description is compiled into a private staged IR; native patterns are not the semantic
+AST after capture.
 
 The planned destination is `ResourceFunction["Einstoff"]`. For now this repository is
 an unreleased development tree.

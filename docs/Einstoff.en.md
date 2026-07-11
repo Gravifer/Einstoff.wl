@@ -80,6 +80,8 @@ related_functions:
 ## Details and Options
 
 - `desc` is normally a `RuleDelayed` expression of the form `{in1, in2, ...} :> {out1, out2, ...}`.
+- `Rule` is warned best-effort compatibility because its right-hand side may evaluate
+  before Einstoff receives it.
 - Each input or output shape is a list of dimension terms.
 - `tensors` is a list of tensors.
 - `bindings` is a list of rules such as `{"channels" -> 3}` or `{c -> 3}`.
@@ -106,8 +108,26 @@ Dimension terms include:
 | `#a`(`Slot["a"]`), `Highlighted["a"]`, `Framed["a"]` | targeted string axis |
 | `Highlighted[a_]`, `Framed[a_]` | targeted blank axis |
 | `Highlighted[a]`, `Framed[a]` | targeted bare axis |
+| `Annotation[a, n]`, `Labeled[n, a]` | axis `a` with inline positive-integer size `n` |
 | `#2`(`Slot[2]`), `Highlighted[2]`, `Framed[2]` | targeted literal axis |
 | `##` | targeted anonymous axis sequence |
+
+The complete left-hand side is one binding scope. Repeating `a_` repeats the same
+logical axis and requires equal dimensions. A bare `a` on the left remains an ambient
+expression even if another left-hand occurrence is `a_`; only a bare right-hand `a`
+references the completed binder. Thus `{{a_, a_}} :> {{a}}` has one repeated logical
+axis, while `{{a_, a}} :> {{a}}` has one binder and one unrelated ambient term.
+
+Inline sizing is valid on either side. `Annotation[a_, 3]` and `Labeled[3, a_]`
+infer `a` from the input and check that its size is three. Sizing commutes with valid
+target wrappers, for example `Annotation[Framed[a], 3]` and
+`Framed[Annotation[a, 3]]`. Only the two-argument `Annotation` and `Labeled` forms are
+part of the shape grammar.
+
+Descriptions are captured under hold and compiled through private immutable stages:
+surface capture, normalized IR, constraints, solved shapes, operation analysis, and an
+execution plan. Native WL pattern matching and rule evaluation do not derive semantics
+after capture. Immediate execution and `TraceAction` render the same plan.
 
 The following options can be given:
 

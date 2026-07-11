@@ -343,9 +343,7 @@ expecting contexts to carry semantic identity.
 operation-local identity such as ``Einstoff`Internal`IR`AxisId[1]``. The axis table
 stores display name, spelling kind, and provenance; targeting stays per occurrence.
 No `Unique`, symbol value, downvalue, clearing, or temporary-symbol lifecycle is part
-of semantic identity. The compatibility parser may still use temporary symbols while
-legacy paths are being retired, but they may not escape `CapturedDesc` or shape any
-normalized/later-stage invariant. A string name must be a valid identifier. Public
+of semantic identity or capture. A string name must be a valid identifier. Public
 results recover display names from the axis metadata/source map.
 
 ### 5.7 Binding-key grammar
@@ -426,11 +424,11 @@ after that for brevity.
 7. **Named ellipsis, cross-tensor zip (Kronecker product)** —
    `einx.multiply("a..., b... -> (a b)...", x, y)`
    ```
-   {{a__}, {b__}} :> {MapThread[CircleTimes, {{a}, {b}}]}
+   {{a__}, {b__}} :> {{CircleTimes[a, b]..}}
    ```
-   This legacy surface spelling is recognized narrowly and compiles to a
-   declarative sequence-zip node (§7.1); `MapThread` is not executed as
-   arbitrary RHS code. Cross-group length consistency is a solver constraint.
+   The repeated product schema compiles to a declarative sequence-zip node (§7.1).
+   `MapThread` is rejected like all other arbitrary RHS computation. Cross-group
+   length consistency is a solver constraint.
 
 8. **Named ellipsis with internal structure (pooling)** —
    `einx.sum("b (s [ds])... c", x, ds=(2, 2))`
@@ -567,18 +565,14 @@ invariants / maintainability smells. Retained here as a record of the hardening:
   `$Context` no longer broke bracket matching. Demonstrated by
   `bracket-context-robust`. env stays symbol-keyed, so the CAS/`Solve` layer is
   untouched.
-  **Superseded again by the staged IR (§5.6):** `canonHeld` remains a compatibility
-  capture aid for legacy lowering, but normalized semantic identity is an operation-local
-  integer-backed `AxisId`. Temporary symbols cannot escape capture or shape later-stage
-  invariants. Contexts intentionally do not contribute to logical axis identity.
-- ✅ **Duplicated desc normalization** across `descParts` (Lowering.wl) and `parseDesc`
-  (Parsing.wl) — *fixed.* The `{} -> 1` unit policy and the CirclePlus-flatten rule (which
-  were written out three times: `flattenDirectSum`, `normHeldRhs`, and inline in
-  `descParts`) are now single shared canonicalizers in the hub: `flattenDirectSum` +
-  `normShapes` (released) / `normHeldShapes` (held, `{} -> 1` at levels `>= 3`). Both desc
-  boundaries route through them, so the two forms differ only in held (parseDesc) vs
-  released (descParts) RHS and cannot drift. `normHeldRhs`/`flattenDirectSum` no longer
-  live in Parsing.wl. Suite unchanged (246 green).
+  **Superseded again by the staged IR (§5.6):** capture now interns names directly into
+  operation-local integer-backed `AxisId` values. `canonHeld`, temporary symbols, and
+  reserved-context clearing have been removed. Contexts intentionally do not contribute
+  to logical axis identity.
+- ✅ **Duplicated desc normalization** across the former `descParts` and `parseDesc`
+  boundaries — *fixed.* One held compiler entry performs unit-axis and `CirclePlus`
+  normalization, and public parsing/shape APIs project from the same captured/normalized
+  stages used by operators. The duplicate parser and lowerer paths have been removed.
 - ✅ **Untagged `Throw[$Failed]`/`Catch`** in shared lowering — *fixed.* Several paths run
   *user-supplied* functions inside a caught region (Inner's `mul`/`add`, ArrayReduce's
   reducer, Map's `f`), so a user function that threw untagged would be swallowed by our bare
@@ -684,7 +678,7 @@ appears:
 
 - **Concatenation** (CirclePlus on the RHS, `{op1, …, opk} :> {{… a ⊕ b …}}`; ex4):
   each operand is aligned to the output shape with its own direct-sum summand
-  combination (reusing `materializeOutput`, so a scalar operand / integer summand
+  combination (the shared execution plan broadcasts a scalar operand / integer summand
   broadcasts — einx's `b c, -> b (c + 1)` with 42) and the blocks are `Join`'d
   along the direct-sum axes. Multiple top-level direct-sum axes enumerate their
   Cartesian product, matching einx's positional order (last axis fastest).
@@ -697,17 +691,16 @@ appears:
 `Einstoff[Join]` (RHS-only) and `Einstoff[Split]` (LHS-only) are the same machinery
 under a directional guard. **Nested** direct sums are canonicalized by associativity
 (`a ⊕ (b ⊕ c)` → `a ⊕ b ⊕ c`, order preserved since CirclePlus is not Orderless;
-`flattenDirectSum` in the shape layer + `descParts`), so both directions accept them.
+the held compiler performs this normalization once), so both directions accept them.
 
 **Composite summands** (a `CircleTimes` block inside the direct sum, e.g.
-`(a⊗b) ⊕ c`) are supported in **both** directions. The matcher
-(`solveComposite` in Parsing.wl) builds the factor-size equation `op[…] == d` and
-hands it to the Mathematica CAS — `Solve` over positive integers — so a unique
-solution binds the axes, multiple solutions are reported underdetermined, and none
-is a mismatch. This both subsumes the old single-unknown analytic logic and lets us
+`(a⊗b) ⊕ c`) are supported in **both** directions. The staged constraint builder
+emits restricted product/sum size equations and the solver hands only those generated
+positive-integer equations to `Solve`, so a unique solution binds the axes, multiple
+solutions are reported underdetermined, and none is a mismatch. This lets us
 *uniquely resolve systems einx rejects* (e.g. `m (a + b)` with an axis of size 2
 forces `a = b = 1`). On concat the block is just another term aligned by
-`materializeOutput` and `Join`'d; on split the block size is the product over its
+the execution plan and `Join`'d; on split the block size is the product over its
 atoms (`Take` slice, then reshape). Targeted direct sums
 (`Highlighted[CirclePlus[…]]` / `Framed[CirclePlus[…]]`, and `Slot[CirclePlus[…]]`
 for string-only summands) are rejected by `Einstoff[ArrayReduce]` and the
@@ -744,13 +737,13 @@ in `Einstoff[Dot]`.
 **Within-tensor contraction — pairwise core implemented.** A name repeated in one
 operand and dropped on the output is summed over its coincident slots (GR-style traces,
 e.g. Ricci `R^a{}_{bad}`), which einx cannot express but `einops.einsum`/`np.einsum` and
-WL can. Lowered by `selfContract` (Lowering.wl) via
+WL can. Lowered by a self-contraction execution-plan step via
 `ResourceFunction["ArrayContract"][x, pairs, Plus, ArrayDepth[x]]` (the explicit depth is
 required — the 3-arg form mis-levels). Exposed two ways:
 - `Einstoff["Massage"]` / `EinstoffMassage` (Reshape.wl) — the **univalent** (single-
   tensor) structural engine: rearrange + repeat + direct sum **and** within-tensor
-  contraction. It sizes via `EinstoffMatch` (not `EinstoffShapes`) so a within-tensor
-  repeat is allowed, while the shape-layer uniqueness check still protects reduce/map.
+  contraction. The staged solver permits a within-tensor repeat while operation
+  analysis still enforces the stricter reduce/map policies.
 - `Einstoff["einsum"]` / `EinstoffEinsum` (Einsum.wl) — the pairwise-contraction subset:
   1 tensor → Massage, ≥2 → the `Dot` cross-tensor fold; rejects repetition and the mixed
   multi-operand case (deferred). Cross-validated against `einops.einsum`.

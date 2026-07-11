@@ -1,6 +1,6 @@
 # Within-tensor contraction (traces & diagonals) — semantics & design note
 
-> Status: **pairwise core implemented** (2026-06; `selfContract` in Lowering.wl,
+> Status: **pairwise core implemented** (2026-06; staged self-contraction plan step,
 > `Einstoff["Massage"]`, `Einstoff["einsum"]`). The combiner generalization, diagonal-
 > keep, `>2` super-diagonals, and mixed within+cross multi-operand einsum remain deferred
 > per §7. Captures how the ein* / NumPy / Wolfram ecosystem treats a *repeated index*,
