@@ -56,7 +56,7 @@ Einstoff::evalkey = "`1`";
    the argument, whose value backticks are rendered literally, not re-parsed. *)
 Einstoff::privctx =
   "the internal axis symbol `1` carries an external value that cannot be cleared (it is \
-Protected and Locked); using a fresh internal identity instead. Do not assign to symbols \
+Protected and Locked); using an inert display identity instead. Do not assign to symbols \
 in Einstoff's reserved internal axis-identity context.";
 
 PackageScoped[{atomSize, heldReshape, heldArrayReduce, heldTranspose,

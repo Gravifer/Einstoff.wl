@@ -25,6 +25,14 @@ compileTargetPolicy[other_] :=
   iri["FailureRecord"]["InvalidTargetPolicy", iri["OperationAnalysis"],
     <|"Value" -> HoldComplete[other]|>];
 
+normalizeUnitTerms[shapes_] :=
+  Replace[shapes, shape_List :> If[shape === {}, {}, shape /. {} -> 1], {1}];
+flattenDirectSums[expr_] :=
+  expr //. CirclePlus[x___, CirclePlus[y___], z___] :> CirclePlus[x, y, z];
+normShapes[shapes_] := flattenDirectSums @ normalizeUnitTerms @ shapes;
+normHeldShapes[h_Hold] :=
+  flattenDirectSums @ Replace[h, {} -> 1, {3, Infinity}];
+
 SetAttributes[compileDescIR, HoldAllComplete];
 compileDescIR[desc_, bindings_ : {}, operator_ : None, options_ : <||>] :=
   compileHeldDescIR[Hold[desc], HoldComplete[bindings], operator, options];
@@ -43,24 +51,24 @@ compileHeldDescIR[h_Hold, hb_HoldComplete, operator_, options_] :=
   ], compilerTag];
 
 captureDescIR[h_Hold, hb_HoldComplete, surface_] :=
-  Block[{$axisFresh = <||>, $axisKind = <||>, $descRejectReason = None,
-      $axisFallbackMemo = <||>, $inlineBindingFacts = {}},
-  Catch[Module[{prepared, hp, specs, established, lhsRaw, rhsRaw, lhs, rhsHeld,
-          rawBindings, externalBindings, inlineFacts},
+  Catch[Module[{prepared, hp, specs, policy, established, axisKinds, lhsRaw,
+          rhsRaw, lhs, rhsHeld, rawBindings, bindingCapture, externalBindings,
+          inlineFacts},
     If[! MatchQ[h, Hold[_Rule | _RuleDelayed]],
       Throw[compilerFailure["MalformedDescription", "Capture",
         <|"Source" -> surface|>], compilerTag]];
     prepared = prepareInlineHeld[h];
-    If[prepared === $Failed,
+    If[FailureQ[prepared],
       Throw[compilerFailure["CaptureRejected", "Capture",
-        <|"Reason" -> descFailReason[], "Source" -> surface|>], compilerTag]];
+        <|"Reason" -> prepared[[2, "Reason"]], "Source" -> surface|>], compilerTag]];
     hp = prepared["Held"]; specs = prepared["Specs"];
-    established = collectEstablished[hp];
-    If[established === $Failed,
+    policy = collectSurfacePolicy[hp];
+    If[FailureQ[policy],
       Throw[compilerFailure["CaptureRejected", "Capture",
-        <|"Reason" -> descFailReason[], "Source" -> surface|>], compilerTag]];
+        <|"Reason" -> policy[[2, "Reason"]], "Source" -> surface|>], compilerTag]];
+    established = policy["EstablishedNames"];
+    axisKinds = policy["AxisKinds"];
     established = DeleteDuplicates @ Join[established, surfaceBinderNames[hp]];
-    $axisFresh = AssociationMap[surfaceAxisKey, established];
     lhsRaw = normShapes @ Extract[hp, {1, 1}];
     rhsRaw = compileDeclarativeRhsSurface[
       normHeldShapes @ Extract[hp, {1, 2}, Hold]];
@@ -78,10 +86,12 @@ captureDescIR[h_Hold, hb_HoldComplete, surface_] :=
         "Reason" -> "bindings must be a list of axis-name -> size rules " <>
           "(e.g. {n -> 8}); got " <> ToString[rawBindings, InputForm],
         "Source" -> surface|>], compilerTag]];
-    externalBindings = canonBindingList[rawBindings, "Scoped"];
-    If[StringQ[externalBindings],
+    bindingCapture = captureBindingCandidates[rawBindings, established, axisKinds];
+    If[compilerFailureQ[bindingCapture],
       Throw[compilerFailure["InvalidBindings", "Capture",
-        <|"Reason" -> externalBindings, "Source" -> surface|>], compilerTag]];
+        <|"Reason" -> compilerFailureDetails[bindingCapture]["Reason"],
+          "Source" -> surface|>], compilerTag]];
+    externalBindings = bindingCapture["Bindings"];
     inlineFacts = captureInlineFacts[specs];
     If[compilerFailureQ[inlineFacts], Throw[inlineFacts, compilerTag]];
     iri["CapturedDesc"][<|
@@ -89,12 +99,13 @@ captureDescIR[h_Hold, hb_HoldComplete, surface_] :=
       "CanonicalLHS" -> lhs,
       "CanonicalRHS" -> rhsHeld,
       "EstablishedNames" -> established,
-      "AxisKinds" -> Association[$axisKind],
+      "AxisKinds" -> axisKinds,
       "InlineBindingFacts" -> inlineFacts,
       "ExternalBindings" -> externalBindings,
+      "CaptureDiagnostics" -> bindingCapture["Diagnostics"],
       "Bindings" -> hb
     |>]
-  ], compilerTag]];
+  ], compilerTag];
 
 captureInlineFacts[specs_List] :=
   Catch[Map[Function[spec,
@@ -108,6 +119,82 @@ captureInlineFacts[specs_List] :=
         "Binder" -> info["Binder"], "TargetHead" -> info["TargetHead"],
         "Source" -> spec["Source"], "SourceExpression" -> spec|>]], specs],
     compilerTag];
+
+captureBindingCandidates[bindings_List, established_List, axisKinds_Association] :=
+  Catch[Module[{out = {}, diagnostics = {}, k, v, kn, kk, kinds, hasBlank,
+      hasSlot, hasStr, targetKinds, targetKeyQ, hit, reason},
+    Do[
+      k = First[binding]; v = Last[binding];
+      Which[
+        MatchQ[k, Verbatim[Pattern][_Symbol, Verbatim[Blank[]]]],
+          kn = Replace[k, Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :>
+            SymbolName[Unevaluated[s]]];
+          kk = "pattern",
+        MatchQ[k, (_Slot | _Highlighted | _Framed)] && Length[k] === 1,
+          kn = Replace[First[k], {s_Symbol :> SymbolName[Unevaluated[s]],
+            str_String :> str, _ :> $Failed}];
+          kk = "target:" <> SymbolName[Head[k]],
+        StringQ[k], kn = k; kk = "string",
+        Head[k] === Symbol && Context[Evaluate[k]] === "System`",
+          kn = $Failed; kk = "junk",
+        Head[k] === Symbol, kn = SymbolName[k]; kk = "bare",
+        True, kn = $Failed; kk = "junk"];
+      Which[
+        kk === "pattern",
+          reason = "a Pattern key " <> kn <>
+            "_ -> … is not a binding key; blank " <> kn <>
+            "_ is inferred from the tensor; use a string, bare, or matching targeted key";
+          Throw[compilerFailure["InvalidBindingKey", "Capture",
+            <|"Reason" -> reason, "Expression" -> HoldComplete[binding]|>],
+            bindingCaptureTag],
+        kn === $Failed,
+          hit = SelectFirst[established, axisCurrentValue[#] === k &];
+          reason = If[MissingQ[hit],
+            "binding key " <> ToString[k, InputForm] <>
+              " is not an axis name; ignoring it",
+            "binding key " <> ToString[k, InputForm] <>
+              " is the current value of axis " <> hit <>
+              " (probably a shadowed symbol); write #" <> hit <> " -> … or \"" <>
+              hit <> "\" -> …; ignoring it"];
+          AppendTo[diagnostics, <|"Tag" -> "EvaluatedBindingKey",
+            "Reason" -> reason, "Expression" -> HoldComplete[binding]|>];
+          Message[Einstoff::evalkey, reason],
+        MemberQ[established, kn],
+          kinds = Lookup[axisKinds, kn, {}];
+          hasBlank = MemberQ[kinds, "blank"];
+          hasSlot = MemberQ[kinds, "slot"];
+          hasStr = MemberQ[kinds, "string"];
+          targetKinds = Select[kinds, StringStartsQ[#, "target:"] &];
+          targetKeyQ = StringStartsQ[kk, "target:"];
+          reason = Which[
+            MemberQ[kinds, "onlhs"] && hasBlank,
+              "axis " <> kn <> " is inferred from the tensor (blank " <> kn <>
+                "_); to supply a size, spell the factor as a string \"" <> kn <>
+                "\" or as a bare symbol " <> kn,
+            kk === "target:Slot" && ! hasStr,
+              "Slot[...] binding keys only target string-kind axes; use " <> kn <>
+                " -> … or the matching Highlighted/Framed key for symbol-kind axes",
+            targetKeyQ && ! MemberQ[targetKinds, kk],
+              "axis " <> kn <> " is not targeted with " <>
+                StringDelete[kk, "target:"] <> "[...] in the desc; bind it with " <>
+                If[hasStr, "\"" <> kn <> "\"", kn] <>
+                " -> … or the matching target head",
+            hasStr && kk =!= "string" && ! targetKeyQ,
+              "axis \"" <> kn <> "\" is a string axis; bind it with \"" <> kn <>
+                "\" -> …, not " <> ToString[k, InputForm],
+            hasSlot && ! hasStr && kk === "string",
+              "axis " <> kn <> " is a targeted symbol-kind axis; bind it with " <>
+                kn <> " -> … or the matching target-head key, not a string key",
+            True, None];
+          If[StringQ[reason],
+            Throw[compilerFailure["InvalidBindingKey", "Capture",
+              <|"Reason" -> reason, "Expression" -> HoldComplete[binding]|>],
+              bindingCaptureTag],
+            AppendTo[out, surfaceAxisKey[kn] -> v]],
+        True, AppendTo[out, k -> v]],
+      {binding, bindings}];
+    <|"Bindings" -> out, "Diagnostics" -> diagnostics|>
+  ], bindingCaptureTag];
 
 captureSurfaceHeld[h_Hold, side_String, established_List] :=
   h /. {
@@ -523,7 +610,7 @@ compileBindingFacts[inline_List, external_List, state_Association] :=
       id = compilerBindingAxisId[First[bd], state];
       If[! MissingQ[id],
         AppendTo[out, iri["BindingFact"][id, Last[bd],
-          <|"Kind" -> "Argument", "Key" -> axisDisplayName[First[bd]]|>]]],
+          <|"Kind" -> "Argument", "Key" -> bindingKeyDisplayName[First[bd]]|>]]],
       {bd, external}];
     grouped = GatherBy[out, bindingFactAxisId];
     out = {};
@@ -548,6 +635,10 @@ compilerBindingAxisId[key_Symbol, state_Association] :=
     Missing["UnknownAxis"]];
 compilerBindingAxisId[_, _] := Missing["UnknownAxis"];
 
+bindingKeyDisplayName[surfaceAxisKey[name_String]] := name;
+bindingKeyDisplayName[key_Symbol] := SymbolName[Unevaluated[key]];
+bindingKeyDisplayName[key_] := ToString[key, InputForm];
+
 bindingFactAxisId[iri["BindingFact"][id_, _, _]] := id;
 bindingFactSize[iri["BindingFact"][_, size_, _]] := size;
 
@@ -568,5 +659,6 @@ normalizedIRValidQ[_] := False;
 compilerFailure[tag_, stage_String, details_Association] :=
   iri["FailureRecord"][tag, stage, details];
 compilerFailureQ[expr_] := Head[Unevaluated[expr]] === iri["FailureRecord"];
+compilerFailureDetails[iri["FailureRecord"][_, _, details_Association]] := details;
 compilerResultFailureQ[{expr_, _}] := compilerFailureQ[expr];
 compilerResultFailureQ[_] := True;

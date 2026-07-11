@@ -116,7 +116,6 @@ firstDuplicateAxis[shapes_List] :=
 
 SetAttributes[EinstoffMatch, HoldFirst];
 EinstoffMatch[lhsShapes_, inputShapes_, bindingsIn_ : {}] :=
-  (purgeAxisContext[];
   Catch[
     Module[{compiled, normalized, solvedBundle, solved, solvedAssoc, axes, env},
       compiled = Quiet[compileMatchIR[lhsShapes, bindingsIn], {Einstoff::unsupp}];
@@ -137,7 +136,7 @@ EinstoffMatch[lhsShapes_, inputShapes_, bindingsIn_ : {}] :=
         KeySelect[solvedAssoc["AxisSizes"],
           MatchQ[#, Einstoff`Internal`IR`AxisId[_Integer]] &]];
       <|"ok" -> True, "env" -> env|>
-    ], publicMatchTag]);
+    ], publicMatchTag];
 
 SetAttributes[compileMatchIR, HoldFirst];
 compileMatchIR[lhs_, bindings_] :=
@@ -145,7 +144,6 @@ compileMatchIR[lhs_, bindings_] :=
 
 SetAttributes[EinstoffShapes, HoldFirst];
 EinstoffShapes[desc_, inputShapes_, bindings_ : {}] :=
-  (purgeAxisContext[];
   holdPublicBindingKeys @ Catch[Module[{compiled, normalized, normalizedAssoc, axes, targetedIds,
           targeted, duplicate, solvedBundle, solved, solvedAssoc, bindingsOut},
     compiled = compileHeldDescIR[Hold[desc], HoldComplete[bindings], "Shapes", <||>];
@@ -180,7 +178,7 @@ EinstoffShapes[desc_, inputShapes_, bindings_ : {}] :=
         MatchQ[#, Einstoff`Internal`IR`AxisId[_Integer]] &]];
     <|"Satisfiable" -> True, "OutputShapes" -> solvedAssoc["OutputShapes"],
       "Bindings" -> bindingsOut, "Targeted" -> targeted, "Reason" -> ""|>
-  ], publicShapesTag]);
+  ], publicShapesTag];
 
 publicDuplicateOutputAxis[Einstoff`Internal`IR`Outputs[shapes_List]] :=
   SelectFirst[shapes,

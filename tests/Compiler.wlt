@@ -87,6 +87,28 @@ VerificationTest[
 ];
 
 VerificationTest[
+  Module[{before, after},
+    before = Sort @ Join[
+      Names["Einstoff`Axis`*"], Names["Einstoff`Internal`DisplayAxis`*"]];
+    Do[compile[{{"compilegrowthaxis"}} :> {{"compilegrowthaxis"}}], {20}];
+    after = Sort @ Join[
+      Names["Einstoff`Axis`*"], Names["Einstoff`Internal`DisplayAxis`*"]];
+    after === before],
+  True,
+  TestID -> "compiler-does-not-create-axis-symbols"
+];
+
+VerificationTest[
+  FreeQ[
+    DownValues /@ {compile,
+      Symbol["Einstoff`PackageScope`captureDescIR"],
+      Symbol["Einstoff`PackageScope`normalizeCapturedDesc"]},
+    _Unique | _Temporary, Infinity, Heads -> True],
+  True,
+  TestID -> "compiler-does-not-use-temporary-symbol-identities"
+];
+
+VerificationTest[
   MatchQ[
     compile[{{Framed[Annotation["a", 3]]}} :> {{Framed["a"]}}]["Normalized"],
     _?(Head[#] === ir["NormalizedDesc"] &)],
