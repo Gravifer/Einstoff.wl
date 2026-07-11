@@ -51,5 +51,22 @@ VerificationTest[
   TestID -> "ir-context-not-public"
 ];
 
-EndTestSection[];
+VerificationTest[
+  FreeQ[
+    DownValues /@ {
+      Einstoff`Private`irInternAxis,
+      Einstoff`Private`compileHeldDescIR,
+      Einstoff`Private`solveDescIR,
+      Einstoff`Private`analyzeSolvedDesc,
+      Einstoff`Private`planStructuralIR,
+      Einstoff`Private`planReduceIR
+    },
+    _Return,
+    Infinity,
+    Heads -> True
+  ],
+  True,
+  TestID -> "staged-core-does-not-use-return"
+];
 
+EndTestSection[];

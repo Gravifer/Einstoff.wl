@@ -220,18 +220,20 @@ irAxisMetadata[state_Association] := state["AxisMetadata"];
 irInternAxis[name_String, metadata_Association, state_Association] :=
   Module[{known = Lookup[state["NameToAxisId"], name, Missing["NotInterned"]],
           n, id, names, table},
-    If[! MissingQ[known], Return[{known, state}]];
-    n = state["NextAxisId"];
-    id = Einstoff`Internal`IR`AxisId[n];
-    names = Append[state["NameToAxisId"], name -> id];
-    table = Append[state["AxisMetadata"],
-      id -> Einstoff`Internal`IR`AxisInfo[
-        Lookup[metadata, "DisplayName", name], KeyDrop[metadata, "DisplayName"]]];
-    {id, Join[state, <|
-      "NameToAxisId" -> names,
-      "AxisMetadata" -> table,
-      "NextAxisId" -> n + 1
-    |>]}
+    If[! MissingQ[known],
+      {known, state},
+      n = state["NextAxisId"];
+      id = Einstoff`Internal`IR`AxisId[n];
+      names = Append[state["NameToAxisId"], name -> id];
+      table = Append[state["AxisMetadata"],
+        id -> Einstoff`Internal`IR`AxisInfo[
+          Lookup[metadata, "DisplayName", name], KeyDrop[metadata, "DisplayName"]]];
+      {id, Join[state, <|
+        "NameToAxisId" -> names,
+        "AxisMetadata" -> table,
+        "NextAxisId" -> n + 1
+      |>]}
+    ]
   ];
 
 irInternAxis[name_String, state_Association] := irInternAxis[name, <||>, state];
