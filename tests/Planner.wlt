@@ -10,6 +10,7 @@ plan = Symbol["Einstoff`PackageScope`planStructuralIR"];
 planContract = Symbol["Einstoff`PackageScope`planSelfContractIR"];
 execute = Symbol["Einstoff`PackageScope`executeExecutionPlan"];
 render = Symbol["Einstoff`PackageScope`renderExecutionPlan"];
+validatePlan = Symbol["Einstoff`PackageScope`validateExecutionPlan"];
 planReduce = Symbol["Einstoff`PackageScope`planReduceIR"];
 planMap = Symbol["Einstoff`PackageScope`planMapIR"];
 planInner = Symbol["Einstoff`PackageScope`planInnerIR"];
@@ -392,6 +393,44 @@ VerificationTest[
     {Einstoff::unsupp}],
   $Failed,
   TestID -> "plan-public-rejects-nondeclarative-rhs-without-fallback"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[6], {2, 3}], p},
+    p = makePlan[{{a_, b_}} :> {{b, a}}, x];
+    validatePlan[p] === p],
+  True,
+  TestID -> "plan-validator-accepts-generated-plan"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[6], {2, 3}], p},
+    p = makePlan[{{a_, b_}} :> {{b, a}}, x];
+    {
+      ! FreeQ[p, ir["InputValue"][_Integer], Infinity],
+      ! FreeQ[p, ir["IntermediateValue"][_Integer], Infinity],
+      FreeQ[p, ir["MassageStep"][___], Infinity]
+    }],
+  {True, True, True},
+  TestID -> "plan-records-explicit-value-flow"
+];
+
+VerificationTest[
+  Head @ validatePlan[ir["ExecutionPlan"][{
+      ir["TransposeStep"][{1, 1}]},
+    <|"Operator" -> "Bad", "InputCount" -> 1,
+      "OutputShapes" -> {{2, 2}}|>]],
+  ir["FailureRecord"],
+  TestID -> "plan-validator-rejects-invalid-permutation"
+];
+
+VerificationTest[
+  Head @ validatePlan[ir["ExecutionPlan"][{
+      ir["ReshapeStep"][{2, 0}]},
+    <|"Operator" -> "Bad", "InputCount" -> 1,
+      "OutputShapes" -> {{2, 0}}|>]],
+  ir["FailureRecord"],
+  TestID -> "plan-validator-rejects-nonpositive-shape"
 ];
 
 EndTestSection[];

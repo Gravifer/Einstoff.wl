@@ -7,6 +7,7 @@ ClearAll[a, b, c];
 compile = Symbol["Einstoff`PackageScope`compileDescIR"];
 solve = Symbol["Einstoff`PackageScope`solveDescIR"];
 analyze = Symbol["Einstoff`PackageScope`analyzeSolvedDesc"];
+spec = Symbol["Einstoff`PackageScope`operationSpec"];
 ir[name_] := Symbol["Einstoff`Internal`IR`" <> name];
 
 analysis[desc_, shapes_, bindings_, op_, targeting_ : Automatic] :=
@@ -77,6 +78,24 @@ VerificationTest[
     ir["OperationAnalysis"][x_Association] :> x["Valid"]],
   False,
   TestID -> "analysis-map-rejects-untargeted-disappearance"
+];
+
+VerificationTest[
+  Module[{s = Replace[spec["Map"], ir["OperationSpec"][a_Association] :> a]},
+    KeyTake[s, {"InputArity", "OutputArity", "RepeatedInputPolicy",
+      "ShapePreservation", "UserFunctionContract"}]],
+  <|"InputArity" -> {1, 1}, "OutputArity" -> {1, 1},
+    "RepeatedInputPolicy" -> False, "ShapePreservation" -> "TargetBlock",
+    "UserFunctionContract" -> "MapFunction"|>,
+  TestID -> "analysis-operation-spec-declares-capabilities"
+];
+
+VerificationTest[
+  ! FreeQ[
+    analysis[{{a_}} :> {{a}}, {{2}}, {}, "Dot"],
+    ir["Violation"]["InputArity", _Association], Infinity],
+  True,
+  TestID -> "analysis-validates-operator-arity"
 ];
 
 EndTestSection[];

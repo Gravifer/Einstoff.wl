@@ -5,7 +5,7 @@
 
 PackageScoped[{
   planStructuralIR, planSelfContractIR, planReduceIR, planMapIR, planInnerIR,
-  planDirectSumIR,
+  planDirectSumIR, validateExecutionPlan,
   executeExecutionPlan,
   renderExecutionPlan, tryStructuralIRPlan, tryReduceIRPlan, tryMapIRPlan,
   tryInnerIRPlan, tryInnerCompiledIRPlan, tryDirectSumIRPlan, tryStructuralCompiledIRPlan,
@@ -14,14 +14,6 @@ PackageScoped[{
 }]
 
 irp[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
-
-rejectNonDeclarativePlanInput[compiled_Association] :=
-  If[MatchQ[compiled["Normalized"],
-      irp["FailureRecord"]["NonDeclarativeRHS", _, _Association]],
-    Message[Einstoff::unsupp,
-      "the descriptor RHS must use the declarative shape/sequence grammar; arbitrary WL computation is not executed"];
-    True,
-    False];
 
 planStructuralIR[solved : irp["SolvedDesc"][a_Association], operator_] :=
   Catch[Module[{normalized, na, inputs, outputs, axisSizes, inShapes, outShapes,
@@ -84,7 +76,7 @@ planStructuralIR[solved : irp["SolvedDesc"][a_Association], operator_] :=
        plan canonical, this preserves the public TraceAction contract whose structural
        lowering is headed by ArrayReshape. *)
     AppendTo[steps, irp["RecomposeStep"][finalDims]];
-    irp["ExecutionPlan"][steps, <|
+    validatedExecutionPlan[steps, <|
       "Operator" -> operator, "InputCount" -> 1,
       "OutputShapes" -> a["OutputShapes"], "Solved" -> solved|>]
   ], plannerTag];
@@ -153,7 +145,7 @@ planSelfContractIR[solved : irp["SolvedDesc"][a_Association], operator_,
     tailSteps = planAtomTransformSteps[currentAtoms, outAtoms,
       a["OutputShapes"][[1]], operator === "Massage"];
     If[plannerFailureQ[tailSteps], Throw[tailSteps, plannerTag]];
-    irp["ExecutionPlan"][Join[
+    validatedExecutionPlan[Join[
       {irp["ReshapeStep"][planAtomSize /@ inAtoms],
        irp["ContractStep"][groups]},
       tailSteps], <|
@@ -218,7 +210,7 @@ planReduceIR[solved : irp["SolvedDesc"][a_Association], reducer_] :=
       AppendTo[steps, irp["TransposeStep"][perm]]];
     finalDims = a["OutputShapes"][[1]];
     AppendTo[steps, irp["RecomposeStep"][finalDims]];
-    irp["ExecutionPlan"][steps, <|
+    validatedExecutionPlan[steps, <|
       "Operator" -> "Reduce", "InputCount" -> 1,
       "OutputShapes" -> a["OutputShapes"], "Solved" -> solved|>]
   ], plannerTag];
@@ -304,7 +296,7 @@ planMapIR[solved : irp["SolvedDesc"][a_Association], f_, strictQ_] :=
     If[perm =!= Range[Length[perm]],
       AppendTo[steps, irp["TransposeStep"][perm]]];
     AppendTo[steps, irp["RecomposeStep"][a["OutputShapes"][[1]]]];
-    irp["ExecutionPlan"][steps, <|
+    validatedExecutionPlan[steps, <|
       "Operator" -> If[TrueQ[strictQ], "Operate", "Map"],
       "InputCount" -> 1, "OutputShapes" -> a["OutputShapes"],
       "Solved" -> solved|>]
@@ -386,7 +378,7 @@ planInnerIR[solved : irp["SolvedDesc"][a_Association], mul_, add_, targeting_] :
     If[perm =!= Range[Length[perm]],
       AppendTo[steps, irp["TransposeStep"][perm]]];
     AppendTo[steps, irp["RecomposeStep"][a["OutputShapes"][[1]]]];
-    irp["ExecutionPlan"][steps, <|
+    validatedExecutionPlan[steps, <|
       "Operator" -> If[mul === Times && add === Plus, "Dot", "Inner"],
       "InputCount" -> Length[inputKeys], "OutputShapes" -> a["OutputShapes"],
       "Solved" -> solved|>]
@@ -455,11 +447,11 @@ planDirectSumJoin[solved_, inShapes_List, outShapes_List, sizes_Association] :=
         Throw[First @ Select[finalDims, plannerFailureQ], plannerTag]];
       steps = planAtomTransformSteps[inputAtoms, targetAtoms, finalDims, True];
       If[plannerFailureQ[steps], Throw[steps, plannerTag]];
-      irp["ExecutionPlan"][steps, <|
+      validatedExecutionPlan[steps, <|
         "Operator" -> "JoinBlock", "InputCount" -> 1,
         "OutputShapes" -> {finalDims}|>],
       {i, k}];
-    irp["ExecutionPlan"][
+    validatedExecutionPlan[
       {irp["ConcatenateStep"][sumPositions, counts, blockPlans]},
       <|"Operator" -> "Join", "InputCount" -> k,
         "OutputShapes" -> Replace[solved,
@@ -518,11 +510,11 @@ planDirectSumSplit[solved_, inShapes_List, outShapes_List, sizes_Association] :=
         irp["SolvedDesc"][sa_Association] :> sa["OutputShapes"][[i]]];
       steps = planAtomTransformSteps[blockAtoms, outputAtoms, finalDims, True];
       If[plannerFailureQ[steps], Throw[steps, plannerTag]];
-      irp["ExecutionPlan"][steps, <|
+      validatedExecutionPlan[steps, <|
         "Operator" -> "SplitBlock", "InputCount" -> 1,
         "OutputShapes" -> {finalDims}|>],
       {i, k}];
-    irp["ExecutionPlan"][
+    validatedExecutionPlan[
       {irp["SliceStep"][specs, blockPlans], irp["AssembleOutputsStep"]},
       <|"Operator" -> "Split", "InputCount" -> 1,
         "OutputShapes" -> Replace[solved,
@@ -632,6 +624,86 @@ mapOutputAtomCorrespondsQ[input_Association, output_Association] :=
     input["Kind"] === "Literal" && output["Kind"] === "Literal" &&
       TrueQ[input["Targeted"]] && TrueQ[output["Targeted"]] &&
       input["Size"] === output["Size"]];
+
+validatedExecutionPlan[steps_List, meta_Association] :=
+  Module[{inputCount = Lookup[meta, "InputCount", 0], flow, result},
+    flow = planValueFlow[steps, inputCount];
+    result = If[steps === {},
+      If[inputCount === 1, irp["InputValue"][1],
+        irp["InputValue"] /@ Range[inputCount]],
+      irp["IntermediateValue"][Length[steps]]];
+    validateExecutionPlan[irp["ExecutionPlan"][steps,
+      Join[meta, <|"ValueFlow" -> flow, "ResultReference" -> result|>]]]
+  ];
+
+planValueFlow[steps_List, inputCount_Integer] :=
+  MapIndexed[Function[{step, index}, With[{i = First[index]}, <|
+      "Step" -> i,
+      "Inputs" -> If[i === 1,
+        irp["InputValue"] /@ Range[inputCount],
+        {irp["IntermediateValue"][i - 1]}],
+      "Output" -> irp["IntermediateValue"][i],
+      "Operation" -> Head[step]
+    |>]], steps];
+
+validateExecutionPlan[plan : irp["ExecutionPlan"][steps_List, meta_Association]] :=
+  If[TrueQ[executionPlanValidQ[steps, meta]], plan,
+    plannerFailure["InvalidExecutionPlan", <|
+      "Expression" -> HoldComplete[plan]|>]];
+validateExecutionPlan[other_] := plannerFailure["ExpectedExecutionPlan", <|
+  "Expression" -> HoldComplete[other]|>];
+
+executionPlanValidQ[steps_List, meta_Association] := And[
+  IntegerQ[Lookup[meta, "InputCount", Missing[]]],
+  Lookup[meta, "InputCount", 0] >= 1,
+  ListQ[Lookup[meta, "OutputShapes", Missing[]]],
+  AllTrue[Lookup[meta, "OutputShapes", {}], ListQ],
+  AllTrue[Lookup[meta, "OutputShapes", {}], concreteDimsQ],
+  planValueFlowValidQ[steps, meta],
+  AllTrue[steps, executionPlanStepValidQ]
+];
+
+planValueFlowValidQ[steps_List, meta_Association] :=
+  Lookup[meta, "ValueFlow", Missing[]] ===
+      planValueFlow[steps, meta["InputCount"]] &&
+    Lookup[meta, "ResultReference", Missing[]] ===
+      If[steps === {},
+        If[meta["InputCount"] === 1, irp["InputValue"][1],
+          irp["InputValue"] /@ Range[meta["InputCount"]]],
+        irp["IntermediateValue"][Length[steps]]];
+
+concreteDimsQ[dims_List] := AllTrue[dims, IntegerQ[#] && # >= 1 &];
+positivePositionsQ[pos_List] :=
+  DuplicateFreeQ[pos] && AllTrue[pos, IntegerQ[#] && # >= 1 &];
+permutationQ[perm_List] := Sort[perm] === Range[Length[perm]];
+
+executionPlanStepValidQ[irp["ReshapeStep"][dims_List]] := concreteDimsQ[dims];
+executionPlanStepValidQ[irp["BroadcastStep"][n_Integer, _]] := n >= 1;
+executionPlanStepValidQ[irp["ReduceStep"][_, pos_List]] := positivePositionsQ[pos];
+executionPlanStepValidQ[irp["ContractStep"][groups_List]] :=
+  AllTrue[groups, Length[#] === 2 && positivePositionsQ[#] &] &&
+    DuplicateFreeQ[Flatten[groups]];
+executionPlanStepValidQ[irp["TargetBlockStep"][_, level_Integer, dims_List]] :=
+  level >= 0 && concreteDimsQ[dims];
+executionPlanStepValidQ[irp["InnerStep"][_, _, labels_List, output_List,
+    sizes_Association]] :=
+  AllTrue[Values[sizes], IntegerQ[#] && # >= 1 &] &&
+    AllTrue[labels, ListQ] && ListQ[output];
+executionPlanStepValidQ[irp["ConcatenateStep"][axes_List, counts_List,
+    plans_List]] :=
+  positivePositionsQ[axes] && ListQ[counts] &&
+    AllTrue[plans, nestedExecutionPlanValidQ];
+executionPlanStepValidQ[irp["SliceStep"][specs_List, plans_List]] :=
+  ListQ[specs] && AllTrue[plans, nestedExecutionPlanValidQ];
+executionPlanStepValidQ[irp["TransposeStep"][perm_List]] := permutationQ[perm];
+executionPlanStepValidQ[irp["RecomposeStep"][dims_List]] := concreteDimsQ[dims];
+executionPlanStepValidQ[irp["AssembleOutputsStep"]] := True;
+executionPlanStepValidQ[_] := False;
+
+nestedExecutionPlanValidQ[
+    irp["ExecutionPlan"][steps_List, meta_Association]] :=
+  executionPlanValidQ[steps, meta];
+nestedExecutionPlanValidQ[_] := False;
 
 executeExecutionPlan[irp["ExecutionPlan"][steps_List, meta_Association],
     tensors_List] :=
@@ -747,8 +819,6 @@ tryStructuralCompiledIRPlan[compiled_Association, tensors_List, operator_String,
     targeting_, traceAction_] :=
   Catch[Module[{solvedBundle, solved, analysis, plan, held,
           normalized, na, inShapes, axisSizes, inAtoms, inKeys},
-    If[rejectNonDeclarativePlanInput[compiled],
-      Throw[$Failed, plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
       Throw[compiled["Normalized"], plannerFallbackTag]];
     solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
@@ -790,8 +860,6 @@ tryReduceIRPlan[h_Hold, tensors_List, bindings_List, reducer_, targeting_,
   Catch[Module[{compiled, solvedBundle, solved, analysis, plan, held, targetIds, reducedIds},
     compiled = compileHeldDescIR[h, HoldComplete[bindings], "Reduce",
       <|"Targeting" -> targeting|>];
-    If[rejectNonDeclarativePlanInput[compiled],
-      Throw[$Failed, plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
       Throw[compiled["Normalized"], plannerFallbackTag]];
     solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
@@ -817,7 +885,8 @@ tryReduceIRPlan[h_Hold, tensors_List, bindings_List, reducer_, targeting_,
         Throw[plannerFailure["ReductionTargetMismatch", <||>], plannerFallbackTag],
       True, Null];
     If[AnyTrue[reducedIds,
-        MatchQ[#, irp["SequenceMemberId"][irp["OccurrenceId"][_], _]] &&
+        Head[#] === irp["SequenceMemberId"] &&
+          Head[First[#]] === irp["OccurrenceId"] &&
           ! MemberQ[targetIds, #] &],
       Throw[plannerFailure["AnonymousReductionTargetRequired", <||>],
         plannerFallbackTag]];
@@ -835,8 +904,6 @@ tryMapIRPlan[h_Hold, tensors_List, bindings_List, f_, strictQ_, traceAction_] :=
           executed, held},
     operator = If[TrueQ[strictQ], "Operate", "Map"];
     compiled = compileHeldDescIR[h, HoldComplete[bindings], operator, <||>];
-    If[rejectNonDeclarativePlanInput[compiled],
-      Throw[$Failed, plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
       Throw[compiled["Normalized"], plannerFallbackTag]];
     solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
@@ -870,8 +937,6 @@ tryInnerCompiledIRPlan[compiled_Association, tensors_List, mul_, add_, targeting
     traceAction_] :=
   Catch[Module[{operator, solvedBundle, solved, analysis, plan, held},
     operator = If[mul === Times && add === Plus, "Dot", "Inner"];
-    If[rejectNonDeclarativePlanInput[compiled],
-      Throw[$Failed, plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
       Throw[compiled["Normalized"], plannerFallbackTag]];
     solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
@@ -903,8 +968,6 @@ tryDirectSumIRPlan[h_Hold, tensors_List, bindings_List, direction_String,
 tryDirectSumCompiledIRPlan[compiled_Association, tensors_List, direction_String,
     traceAction_] :=
   Catch[Module[{solvedBundle, solved, analysis, plan, held},
-    If[rejectNonDeclarativePlanInput[compiled],
-      Throw[$Failed, plannerFallbackTag]];
     If[capturedRepeatedInputQ[Lookup[compiled, "Captured", None]],
       Throw[plannerFailure["RepeatedDirectSumAtom", <||>], plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],

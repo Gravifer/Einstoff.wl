@@ -65,16 +65,23 @@ PackageScoped[{atomSize, heldReshape, heldArrayReduce, heldTranspose,
   einThrowTag, einCatch, traceActionEnabledQ, traceReturnHeld,
   validateTargetingOption}]
 
-(* Internal control-flow tag.  The lowering helpers signal an unsupported / unsatisfiable
-   desc with Throw[$Failed, einThrowTag]; the operator that called them recovers it with
-   einCatch (a Catch scoped to that tag).  The TAG is load-bearing: several paths run
+(* Internal control-flow tag. Boundary helpers throw a structured FailureRecord and the
+   operator-facing einCatch translates it to the established message/$Failed contract.
+   The TAG is load-bearing: several paths run
    *user-supplied* functions inside the caught region — Inner's (mul, add), ArrayReduce's
    reducer, Map's f — and a user function that itself throws (untagged, or with its own
    tag) must propagate OUT rather than be swallowed as our $Failed sentinel.  Scoping every
    internal throw/catch to einThrowTag isolates our control flow from the user's.
    einThrowTag needs no definition — an undefined package symbol is a unique, stable tag. *)
 SetAttributes[einCatch, HoldFirst];
-einCatch[expr_] := Catch[expr, einThrowTag];
+einCatch[expr_] := Catch[expr, einThrowTag,
+  Function[payload,
+    If[Head[payload] === Einstoff`Internal`IR`FailureRecord,
+      reportPlannerFailure[payload], payload]]];
+
+loweringFailure[tag_String, details_Association] :=
+  Einstoff`Internal`IR`FailureRecord[tag, "Boundary",
+    Join[<|"MessageParameters" -> {}|>, details]];
 
 traceActionEnabledQ[None | False | Identity] := False;
 traceActionEnabledQ[_] := True;
@@ -84,13 +91,15 @@ traceReturnHeld[HoldComplete[expr_], action_] :=
 
 validateTargetingOption[mode_] :=
   If[! MatchQ[mode, False | Automatic | True],
-    Message[Einstoff::unsupp,
-      "\"Targeting\" must be False, Automatic, or True"];
-    Throw[$Failed, einThrowTag],
+    Throw[loweringFailure["InvalidTargetPolicy", <|
+      "Reason" -> "\"Targeting\" must be False, Automatic, or True",
+      "Actual" -> HoldComplete[mode],
+      "Expected" -> {False, Automatic, True}|>], einThrowTag],
     mode];
 
 atomSize[n_Integer, _] := n;
-atomSize[s_, env_] := Lookup[env, s, Throw[$Failed, einThrowTag]];
+atomSize[s_, env_] := Lookup[env, s,
+  Throw[loweringFailure["MissingAxisSize", <|"Axis" -> s|>], einThrowTag]];
 
 (* Scalar-safe ArrayReshape: dims === {} means rank-0 (a scalar), where ArrayReshape
    would leak unevaluated — return the lone element instead.  An empty shape {} (a

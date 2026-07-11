@@ -6,34 +6,54 @@ PackageScoped[{analyzeSolvedDesc, operationSpec}]
 
 ira[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
 
-operationSpec["Massage"] := ira["OperationSpec"][<|
-  "Broadcast" -> True, "Reduce" -> True, "WithinContract" -> True,
-  "CrossContract" -> False, "DirectSum" -> True|>];
-operationSpec["Reshape"] := ira["OperationSpec"][<|
-  "Broadcast" -> "UnitOnly", "Reduce" -> False, "WithinContract" -> False,
-  "CrossContract" -> False, "DirectSum" -> False|>];
-operationSpec["Contract"] := ira["OperationSpec"][<|
-  "Broadcast" -> "UnitOnly", "Reduce" -> False, "WithinContract" -> True,
-  "CrossContract" -> False, "DirectSum" -> False|>];
-operationSpec["Reduce"] := ira["OperationSpec"][<|
-  "Broadcast" -> True, "Reduce" -> True, "WithinContract" -> False,
-  "CrossContract" -> False, "DirectSum" -> False|>];
-operationSpec["Map"] := ira["OperationSpec"][<|
-  "Broadcast" -> True, "Reduce" -> False, "WithinContract" -> False,
-  "CrossContract" -> False, "DirectSum" -> False,
-  "TargetDrop" -> True|>];
-operationSpec["Operate"] := ira["OperationSpec"][<|
-  "Broadcast" -> True, "Reduce" -> False, "WithinContract" -> False,
-  "CrossContract" -> False, "DirectSum" -> False,
-  "TargetDrop" -> False|>];
-operationSpec["Dot"] := ira["OperationSpec"][<|
-  "Broadcast" -> True, "Reduce" -> False, "WithinContract" -> False,
-  "CrossContract" -> True, "DirectSum" -> False|>];
+baseOperationSpec[input_, output_, repeated_, preservation_, function_] := <|
+  "InputArity" -> input, "OutputArity" -> output,
+  "RepeatedInputPolicy" -> repeated,
+  "ShapePreservation" -> preservation,
+  "UserFunctionContract" -> function
+|>;
+
+operationSpec["Massage"] := ira["OperationSpec"] @ Join[
+  baseOperationSpec[{1, 1}, {1, Infinity}, "PairwiseOnly", "Structural", None], <|
+    "Broadcast" -> True, "Reduce" -> True, "WithinContract" -> True,
+    "CrossContract" -> False, "DirectSum" -> True|>];
+operationSpec["Reshape"] := ira["OperationSpec"] @ Join[
+  baseOperationSpec[{1, 1}, {1, 1}, False, "Bijective", None], <|
+    "Broadcast" -> "UnitOnly", "Reduce" -> False, "WithinContract" -> False,
+    "CrossContract" -> False, "DirectSum" -> False|>];
+operationSpec["Contract"] := ira["OperationSpec"] @ Join[
+  baseOperationSpec[{1, 1}, {1, 1}, "PairwiseOnly", "Contracting", None], <|
+    "Broadcast" -> "UnitOnly", "Reduce" -> False, "WithinContract" -> True,
+    "CrossContract" -> False, "DirectSum" -> False|>];
+operationSpec["Reduce"] := ira["OperationSpec"] @ Join[
+  baseOperationSpec[{1, 1}, {1, 1}, False, "Reducing", "Reducer"], <|
+    "Broadcast" -> True, "Reduce" -> True, "WithinContract" -> False,
+    "CrossContract" -> False, "DirectSum" -> False|>];
+operationSpec["Map"] := ira["OperationSpec"] @ Join[
+  baseOperationSpec[{1, 1}, {1, 1}, False, "TargetBlock", "MapFunction"], <|
+    "Broadcast" -> True, "Reduce" -> False, "WithinContract" -> False,
+    "CrossContract" -> False, "DirectSum" -> False,
+    "TargetDrop" -> True|>];
+operationSpec["Operate"] := ira["OperationSpec"] @ Join[
+  baseOperationSpec[{1, 1}, {1, 1}, False, "ShapePreservingTargetBlock",
+    "MapFunction"], <|
+    "Broadcast" -> True, "Reduce" -> False, "WithinContract" -> False,
+    "CrossContract" -> False, "DirectSum" -> False,
+    "TargetDrop" -> False|>];
+operationSpec["Dot"] := ira["OperationSpec"] @ Join[
+  baseOperationSpec[{2, Infinity}, {1, 1}, "CrossPairwise", "Contracting",
+    "InnerCombiners"], <|
+    "Broadcast" -> True, "Reduce" -> False, "WithinContract" -> False,
+    "CrossContract" -> True, "DirectSum" -> False|>];
 operationSpec["Inner"] := operationSpec["Dot"];
-operationSpec["Join"] := ira["OperationSpec"][<|
-  "Broadcast" -> True, "Reduce" -> True, "WithinContract" -> False,
-  "CrossContract" -> False, "DirectSum" -> True|>];
-operationSpec["Split"] := operationSpec["Join"];
+operationSpec["Join"] := ira["OperationSpec"] @ Join[
+  baseOperationSpec[{1, Infinity}, {1, 1}, False, "DirectSumJoin", None], <|
+    "Broadcast" -> True, "Reduce" -> True, "WithinContract" -> False,
+    "CrossContract" -> False, "DirectSum" -> True|>];
+operationSpec["Split"] := ira["OperationSpec"] @ Join[
+  baseOperationSpec[{1, 1}, {1, Infinity}, False, "DirectSumSplit", None], <|
+    "Broadcast" -> True, "Reduce" -> True, "WithinContract" -> False,
+    "CrossContract" -> False, "DirectSum" -> True|>];
 operationSpec[other_] := ira["FailureRecord"]["UnknownOperatorSpec", "Analysis",
   <|"Operator" -> other|>];
 
@@ -84,13 +104,29 @@ analyzeSolvedDesc[solved : ira["SolvedDesc"][a_Association], operator_, targetin
     If[analysisFailureQ[spec], Throw[spec, analysisTag]];
     policy = compileTargetPolicy[targeting];
     If[analysisFailureQ[policy], Throw[policy, analysisTag]];
-    violations = validateEffects[effects, spec, axisSizes];
+    violations = Join[
+      validateArity[Length[inputs], Length[outputs], spec],
+      validateEffects[effects, spec, axisSizes]];
     ira["OperationAnalysis"][<|
       "Solved" -> solved, "Operator" -> operator, "Spec" -> spec,
       "TargetPolicy" -> policy, "Effects" -> ira["Effects"][effects],
       "Violations" -> violations, "Valid" -> (violations === {})
     |>]
   ], analysisTag];
+
+validateArity[inputCount_Integer, outputCount_Integer,
+    ira["OperationSpec"][spec_Association]] :=
+  Module[{violations = {}, input = spec["InputArity"], output = spec["OutputArity"]},
+    If[! arityContainsQ[input, inputCount],
+      AppendTo[violations, ira["Violation"]["InputArity", <|
+        "Expected" -> input, "Actual" -> inputCount|>]]];
+    If[! arityContainsQ[output, outputCount],
+      AppendTo[violations, ira["Violation"]["OutputArity", <|
+        "Expected" -> output, "Actual" -> outputCount|>]]];
+    violations];
+
+arityContainsQ[{min_Integer, Infinity}, n_Integer] := n >= min;
+arityContainsQ[{min_Integer, max_Integer}, n_Integer] := min <= n <= max;
 analyzeSolvedDesc[other_, operator_, targeting_] :=
   ira["FailureRecord"]["ExpectedSolvedDesc", "Analysis",
     <|"Expression" -> HoldComplete[other], "Operator" -> operator,
