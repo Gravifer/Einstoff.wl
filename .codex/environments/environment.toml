@@ -4,3 +4,8 @@ name = "einstoff.wl"
 
 [setup]
 script = ""
+
+[[actions]]
+name = "git-log"
+icon = "tool"
+command = "git log --graph --oneline --decorate main^..HEAD"
