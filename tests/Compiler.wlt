@@ -49,6 +49,21 @@ VerificationTest[
 ];
 
 VerificationTest[
+  Module[{n = compile[{{a_}} :> {{a, c}}, {c -> 2}]["Normalized"]},
+    Cases[n, ir["BindingFact"][id_, size_, _] :> {id, size}, Infinity]],
+  {{ir["AxisId"][2], 2}},
+  TestID -> "compiler-external-binding-fact"
+];
+
+VerificationTest[
+  Length @ Cases[
+    compile[{{a_}} :> {{a, Annotation[c, 2]}}, {c -> 2}]["Normalized"],
+    ir["BindingFact"][___], Infinity],
+  1,
+  TestID -> "compiler-equal-binding-facts-coalesce"
+];
+
+VerificationTest[
   Head @ compile[{{a__}, {b__}} :>
       {MapThread[CircleTimes, {{a}, {b}}]}]["Normalized"],
   ir["FailureRecord"],

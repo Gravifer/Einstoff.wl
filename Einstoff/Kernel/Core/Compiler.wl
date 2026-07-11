@@ -45,7 +45,7 @@ compileHeldDescIR[h_Hold, hb_HoldComplete, operator_, options_] :=
   ];
 
 captureDescIR[h_Hold, hb_HoldComplete, surface_] :=
-  Module[{hc, lhs, rhsHeld},
+  Module[{hc, lhs, rhsHeld, rawBindings, externalBindings},
     If[! MatchQ[h, Hold[_Rule | _RuleDelayed]],
       Return[compilerFailure["MalformedDescription", "Capture",
         <|"Source" -> surface|>]]];
@@ -59,6 +59,14 @@ captureDescIR[h_Hold, hb_HoldComplete, surface_] :=
       Return[compilerFailure["NonDeclarativeRHS", "Capture",
         <|"Source" -> With[{held = rhsHeld},
           iri["SourceRef"][{2}, HoldComplete[held]]]|>]]];
+    rawBindings = Quiet @ Check[ReleaseHold[hb], $Failed];
+    If[rawBindings === $Failed,
+      Return[compilerFailure["InvalidBindings", "Capture",
+        <|"Source" -> surface|>]]];
+    externalBindings = canonBindingList[rawBindings, "Scoped"];
+    If[StringQ[externalBindings],
+      Return[compilerFailure["InvalidBindings", "Capture",
+        <|"Reason" -> externalBindings, "Source" -> surface|>]]];
     iri["CapturedDesc"][<|
       "Surface" -> surface,
       "CanonicalLHS" -> lhs,
@@ -66,6 +74,7 @@ captureDescIR[h_Hold, hb_HoldComplete, surface_] :=
       "AxisNames" -> Association[$axisFresh],
       "AxisKinds" -> Association[$axisKind],
       "InlineBindingFacts" -> $inlineBindingFacts,
+      "ExternalBindings" -> externalBindings,
       "Bindings" -> hb
     |>]
   ];
@@ -97,7 +106,8 @@ normalizeCapturedDesc[iri["CapturedDesc"][captured_Association]] :=
     r = compileShapeList[rhs, "RHS", state];
     If[compilerResultFailureQ[r], Return[First[r]]];
     {out, state} = r;
-    facts = compileInlineFacts[captured["InlineBindingFacts"], state];
+    facts = compileBindingFacts[captured["InlineBindingFacts"],
+      captured["ExternalBindings"], state];
     If[compilerFailureQ[facts], Return[facts]];
     axisTable = iri["AxisTable"][irAxisMetadata[state["IRState"]]];
     normalized = iri["NormalizedDesc"][<|
@@ -269,8 +279,8 @@ compileRepeated[body_, side_, min_, target_, state_] :=
       <|"Side" -> side, "Minimum" -> min, "TargetHead" -> target|>], st}
   ];
 
-compileInlineFacts[facts_List, state_Association] :=
-  Module[{out = {}, id, source},
+compileBindingFacts[inline_List, external_List, state_Association] :=
+  Module[{out = {}, id, source, grouped, values, fact},
     Do[
       id = Lookup[state["IRState"]["NameToAxisId"], "axis:" <> fact["Name"],
         Missing["UnknownAxis"]];
@@ -281,9 +291,39 @@ compileInlineFacts[facts_List, state_Association] :=
         "SurfaceKind" -> fact["Kind"], "Binder" -> fact["Binder"],
         "TargetHead" -> fact["TargetHead"]|>;
       AppendTo[out, iri["BindingFact"][id, fact["Size"], source]],
-      {fact, facts}];
+      {fact, inline}];
+    Do[
+      id = compilerBindingAxisId[First[bd], state];
+      If[! MissingQ[id],
+        AppendTo[out, iri["BindingFact"][id, Last[bd],
+          <|"Kind" -> "Argument", "Key" -> axisDisplayName[First[bd]]|>]]],
+      {bd, external}];
+    grouped = GatherBy[out, bindingFactAxisId];
+    out = {};
+    Do[
+      values = DeleteDuplicates[bindingFactSize /@ group, SameQ];
+      If[Length[values] > 1,
+        Return[compilerFailure["ConflictingBindingFacts", "Normalize",
+          <|"Axis" -> bindingFactAxisId[First[group]],
+            "Values" -> values|>]]];
+      fact = First[group];
+      AppendTo[out, fact],
+      {group, grouped}];
     out
   ];
+
+compilerBindingAxisId[key_Symbol, state_Association] :=
+  Module[{name, internalKey},
+    name = Lookup[state["FreshToName"], Unevaluated[key], Missing["Ambient"]];
+    internalKey = If[MissingQ[name],
+      "ambient:" <> Context[Unevaluated[key]] <> SymbolName[Unevaluated[key]],
+      "axis:" <> name];
+    Lookup[state["IRState"]["NameToAxisId"], internalKey, Missing["UnknownAxis"]]
+  ];
+compilerBindingAxisId[_, _] := Missing["UnknownAxis"];
+
+bindingFactAxisId[iri["BindingFact"][id_, _, _]] := id;
+bindingFactSize[iri["BindingFact"][_, size_, _]] := size;
 
 normalizedIRValidQ[iri["NormalizedDesc"][a_Association]] :=
   And[
