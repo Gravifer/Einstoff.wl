@@ -73,18 +73,7 @@ mapCore[fSpec_, desc_, tensors_, bindings_List, traceAction_, strictQ_] :=
       Einstoff`Internal`IR`FailureRecord["UnknownMapOp", "Plan",
         <|"Value" -> HoldComplete[fSpec]|>],
       tryMapIRPlan[Hold[desc], tensors, bindings, f, strictQ, traceAction]];
-    Which[
-      plannerFailureQ[planned],
-        If[MatchQ[planned,
-            Einstoff`Internal`IR`FailureRecord[
-              "TargetBlockShape", "Plan", _Association]],
-          Message[Einstoff::unsat,
-            "the map function returned block dimensions that do not match the RHS"];
-          $Failed,
-          reportPlannerFailure[planned]],
-      True,
-        planned
-    ]
+    If[plannerFailureQ[planned], reportPlannerFailure[planned], planned]
   ];
 
 (* Curried operators, like EinstoffReduce[reducer][…]. *)

@@ -79,8 +79,8 @@ EinstoffContract[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :
    holds the RHS, so only a bare reference to a globally bound symbol is substituted. *)
 massageCore[desc_, tensors_, bindings_List, policy_, traceAction_, targeting_] :=
   Module[{targetingMode, planned, planOperator, compiled, sumSides, held = Hold[desc]},
-      targetingMode = Catch[validateTargetingOption[targeting], einThrowTag];
-      If[plannerFailureQ[targetingMode], reportPlannerFailure[targetingMode],
+      targetingMode = einCatch[validateTargetingOption[targeting]];
+      If[targetingMode === $Failed, $Failed,
       planOperator = Which[
         policy === "Reshape", "Reshape",
         policy === "Contract", "Contract",
@@ -88,7 +88,15 @@ massageCore[desc_, tensors_, bindings_List, policy_, traceAction_, targeting_] :
       sumSides = heldDirectSumSides[held];
       compiled = compileHeldDescIR[held, HoldComplete[bindings], planOperator,
         <|"Targeting" -> targetingMode|>];
-      If[TrueQ[sumSides["LHS"]] || TrueQ[sumSides["RHS"]],
+      Which[
+        TrueQ[sumSides["LHS"]] && TrueQ[sumSides["RHS"]],
+          reportPlannerFailure @ Einstoff`Internal`IR`FailureRecord[
+            "DirectSumBothSides", "Analysis", <|
+              "Operator" -> planOperator,
+              "Reason" -> "a direct sum (CirclePlus) may appear on only one side; " <>
+                "split and join must be expressed as separate operations",
+              "MessageParameters" -> {}|>],
+        TrueQ[sumSides["LHS"]] || TrueQ[sumSides["RHS"]],
         If[policy =!= All,
           reportPlannerFailure @ Einstoff`Internal`IR`FailureRecord[
             "DirectSumPolicy", "Analysis", <|
@@ -99,7 +107,8 @@ massageCore[desc_, tensors_, bindings_List, policy_, traceAction_, targeting_] :
           tryDirectSumCompiledIRPlan[compiled, tensors, "Join", traceAction],
           tryDirectSumCompiledIRPlan[compiled, tensors, "Split", traceAction]];
         If[plannerFailureQ[planned], reportPlannerFailure[planned], planned]],
-      planned = tryStructuralCompiledIRPlan[compiled, tensors, planOperator,
-        targetingMode, traceAction];
-      If[plannerFailureQ[planned], reportPlannerFailure[planned], planned]]]
+        True,
+          planned = tryStructuralCompiledIRPlan[compiled, tensors, planOperator,
+            targetingMode, traceAction];
+          If[plannerFailureQ[planned], reportPlannerFailure[planned], planned]]]
     ];

@@ -1138,7 +1138,9 @@ plannerFailureQ[expr_] := Head[Unevaluated[expr]] === irp["FailureRecord"];
 
 reportPlannerFailure[irp["FailureRecord"][tag_, stage_, details_Association]] :=
   Module[{text = Lookup[details, "Reason",
-      "the staged compiler rejected the description (" <> ToString[tag] <> ")"],
+      If[tag === "TargetBlockShape",
+        "the map function returned block dimensions that do not match the RHS",
+        "the staged compiler rejected the description (" <> ToString[tag] <> ")"]],
       numericUnsupported, analysisReduction, unsatQ},
     numericUnsupported = tag === "UnsupportedTerm" &&
       ! FreeQ[Lookup[details, "Expression", HoldComplete[]],
@@ -1148,7 +1150,8 @@ reportPlannerFailure[irp["FailureRecord"][tag_, stage_, details_Association]] :=
     unsatQ = (MemberQ[{"Constraints", "Solve"}, stage] &&
         tag =!= "OperandCountMismatch") ||
       MemberQ[{"InvalidBindings", "ConflictingBindingFacts",
-        "DroppedNonUnitAtom", "DroppedBlockAtom", "KeptLiteralAxis"}, tag] ||
+        "DroppedNonUnitAtom", "DroppedBlockAtom", "KeptLiteralAxis",
+        "TargetBlockShape"}, tag] ||
       numericUnsupported || analysisReduction;
     If[unsatQ,
       Message[Einstoff::unsat, text],

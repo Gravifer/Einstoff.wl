@@ -342,6 +342,26 @@ VerificationTest[
   TestID -> "reshape-reject-direct-sum"
 ];
 
+(* Massage cannot choose a direction when the description asks for a split and a
+   join at once. Express the two structural operations separately. *)
+VerificationTest[
+  Quiet[
+    Einstoff["Massage"][
+      {{CirclePlus[a_, b_]}} :> {{CirclePlus[a, b]}}, {Range[5]}],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "massage-reject-direct-sum-on-both-sides"
+];
+
+VerificationTest[
+  Quiet[
+    Einstoff[ArrayReshape][{{a_}} :> {{a}}, {Range[3]}, {},
+      "Targeting" -> "invalid"],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "reshape-invalid-targeting-uses-shared-boundary"
+];
+
 (* 22. A literal-integer INPUT axis cannot be carried to the output (it has no
    identity to permute — cf. einx rejecting 'a 2 -> a 2'); that is a drop = reduce. *)
 VerificationTest[

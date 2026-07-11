@@ -145,4 +145,13 @@ VerificationTest[
   TestID -> "einsum-reject-nary-contraction"
 ];
 
+VerificationTest[
+  Quiet[
+    Einstoff["einsum"][{{a_}, {a_}} :> {{}}, {Range[3], Range[3]}, {},
+      "Targeting" -> "invalid"],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "einsum-invalid-targeting-uses-shared-boundary"
+];
+
 EndTestSection[];

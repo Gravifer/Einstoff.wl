@@ -38,8 +38,8 @@ Options[EinstoffEinsum] = {TraceAction -> None, "Targeting" -> Automatic};
 EinstoffEinsum[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
   Module[{targeting, compiled, normalized, summary, planned, traceAction},
     traceAction = OptionValue[TraceAction];
-    targeting = Catch[validateTargetingOption[OptionValue["Targeting"]], einThrowTag];
-    If[plannerFailureQ[targeting], reportPlannerFailure[targeting],
+    targeting = einCatch[validateTargetingOption[OptionValue["Targeting"]]];
+    If[targeting === $Failed, $Failed,
     compiled = compileHeldDescIR[Hold[desc], HoldComplete[bindings], "einsum",
       <|"Targeting" -> targeting|>];
     normalized = Lookup[compiled, "Normalized", None];

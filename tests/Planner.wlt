@@ -15,6 +15,7 @@ planReduce = Symbol["Einstoff`PackageScope`planReduceIR"];
 planMap = Symbol["Einstoff`PackageScope`planMapIR"];
 planInner = Symbol["Einstoff`PackageScope`planInnerIR"];
 planDirectSum = Symbol["Einstoff`PackageScope`planDirectSumIR"];
+reportFailure = Symbol["Einstoff`PackageScope`reportPlannerFailure"];
 ir[name_] := Symbol["Einstoff`Internal`IR`" <> name];
 
 makePlan[desc_, x_, bindings_ : {}, op_ : "Reshape"] :=
@@ -431,6 +432,15 @@ VerificationTest[
       "OutputShapes" -> {{2, 0}}|>]],
   ir["FailureRecord"],
   TestID -> "plan-validator-rejects-nonpositive-shape"
+];
+
+VerificationTest[
+  Quiet[
+    reportFailure @ ir["FailureRecord"]["TargetBlockShape", "Plan",
+      <|"Expected" -> {2, 3}, "Actual" -> {2, 2}|>],
+    {Einstoff::unsat}],
+  $Failed,
+  TestID -> "plan-shared-classifier-marks-target-block-shape-unsat"
 ];
 
 VerificationTest[
