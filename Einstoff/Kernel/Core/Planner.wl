@@ -8,7 +8,9 @@ PackageScoped[{
   planDirectSumIR,
   executeExecutionPlan,
   renderExecutionPlan, tryStructuralIRPlan, tryReduceIRPlan, tryMapIRPlan,
-  tryInnerIRPlan, tryDirectSumIRPlan, plannerFailureQ, reportPlannerFailure
+  tryInnerIRPlan, tryInnerCompiledIRPlan, tryDirectSumIRPlan, tryStructuralCompiledIRPlan,
+  tryDirectSumCompiledIRPlan, normalizedDirectSumSides,
+  heldDirectSumSides, heldRepeatedInputQ, plannerFailureQ, reportPlannerFailure
 }]
 
 irp[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
@@ -737,10 +739,14 @@ renderPlanStep[_, other_] := plannerFailure["UnsupportedPlanStep", <|
    Failures remain structured until the operator boundary translates them. *)
 tryStructuralIRPlan[h_Hold, tensors_List, bindings_List, operator_String,
     targeting_, traceAction_] :=
-  Catch[Module[{compiled, solvedBundle, solved, analysis, plan, held,
+  tryStructuralCompiledIRPlan[
+    compileHeldDescIR[h, HoldComplete[bindings], operator,
+      <|"Targeting" -> targeting|>], tensors, operator, targeting, traceAction];
+
+tryStructuralCompiledIRPlan[compiled_Association, tensors_List, operator_String,
+    targeting_, traceAction_] :=
+  Catch[Module[{solvedBundle, solved, analysis, plan, held,
           normalized, na, inShapes, axisSizes, inAtoms, inKeys},
-    compiled = compileHeldDescIR[h, HoldComplete[bindings], operator,
-      <|"Targeting" -> targeting|>];
     If[rejectNonDeclarativePlanInput[compiled],
       Throw[$Failed, plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
@@ -855,10 +861,15 @@ tryMapIRPlan[h_Hold, tensors_List, bindings_List, f_, strictQ_, traceAction_] :=
 
 tryInnerIRPlan[h_Hold, tensors_List, bindings_List, mul_, add_, targeting_,
     traceAction_] :=
-  Catch[Module[{operator, compiled, solvedBundle, solved, analysis, plan, held},
+  Module[{operator = If[mul === Times && add === Plus, "Dot", "Inner"]},
+    tryInnerCompiledIRPlan[
+      compileHeldDescIR[h, HoldComplete[bindings], operator,
+        <|"Targeting" -> targeting|>], tensors, mul, add, targeting, traceAction]];
+
+tryInnerCompiledIRPlan[compiled_Association, tensors_List, mul_, add_, targeting_,
+    traceAction_] :=
+  Catch[Module[{operator, solvedBundle, solved, analysis, plan, held},
     operator = If[mul === Times && add === Plus, "Dot", "Inner"];
-    compiled = compileHeldDescIR[h, HoldComplete[bindings], operator,
-      <|"Targeting" -> targeting|>];
     If[rejectNonDeclarativePlanInput[compiled],
       Throw[$Failed, plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
@@ -883,10 +894,15 @@ tryInnerIRPlan[h_Hold, tensors_List, bindings_List, mul_, add_, targeting_,
 
 tryDirectSumIRPlan[h_Hold, tensors_List, bindings_List, direction_String,
     traceAction_] :=
-  Catch[Module[{compiled, solvedBundle, solved, analysis, plan, held},
-    If[heldRepeatedInputQ[h],
-      Throw[plannerFailure["RepeatedDirectSumAtom", <||>], plannerFallbackTag]];
-    compiled = compileHeldDescIR[h, HoldComplete[bindings], direction, <||>];
+  If[heldRepeatedInputQ[h],
+    plannerFailure["RepeatedDirectSumAtom", <||>],
+    tryDirectSumCompiledIRPlan[
+      compileHeldDescIR[h, HoldComplete[bindings], direction, <||>],
+      tensors, direction, traceAction]];
+
+tryDirectSumCompiledIRPlan[compiled_Association, tensors_List, direction_String,
+    traceAction_] :=
+  Catch[Module[{solvedBundle, solved, analysis, plan, held},
     If[rejectNonDeclarativePlanInput[compiled],
       Throw[$Failed, plannerFallbackTag]];
     If[capturedRepeatedInputQ[Lookup[compiled, "Captured", None]],
@@ -923,6 +939,17 @@ normalizedRepeatedInputQ[_] := False;
 capturedRepeatedInputQ[irp["CapturedDesc"][a_Association]] :=
   ! distinctAxesQ[a["CanonicalLHS"]];
 capturedRepeatedInputQ[_] := False;
+
+normalizedDirectSumSides[irp["NormalizedDesc"][a_Association]] :=
+  <|"LHS" -> ! FreeQ[a["Inputs"], irp["DirectSumAxis"], Infinity],
+    "RHS" -> ! FreeQ[a["Outputs"], irp["DirectSumAxis"], Infinity]|>;
+normalizedDirectSumSides[_] := <|"LHS" -> False, "RHS" -> False|>;
+
+heldDirectSumSides[h_Hold] := Replace[h,
+  Hold[(Rule | RuleDelayed)[lhs_, rhs_]] :>
+    <|"LHS" -> ! FreeQ[Unevaluated[lhs], CirclePlus],
+      "RHS" -> ! FreeQ[Unevaluated[rhs], CirclePlus]|>];
+heldDirectSumSides[_] := <|"LHS" -> False, "RHS" -> False|>;
 
 heldRepeatedInputQ[h_Hold] :=
   Replace[h, Hold[(Rule | RuleDelayed)[lhs_, _]] :> ! distinctAxesQ[lhs]];

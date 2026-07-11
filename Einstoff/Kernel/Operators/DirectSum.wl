@@ -91,38 +91,37 @@ directSumSplit[desc_, tensors_, bindings_List, traceAction_ : None] :=
 
 (* Public direction guards preserve the embedded surface diagnostics; execution is
    delegated exclusively to the staged direct-sum planner. *)
-EinstoffJoin[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] := withAxisScope @
-  Module[{parts, traceAction},
-    traceAction = OptionValue[TraceAction];
-    parts = descParts[Hold[desc]];
-    If[parts === $Failed, Return[descFailReturn[]]];
-    (* Guard: Join is concatenation — CirclePlus must be on the RHS only. *)
-    If[hasCirclePlus[parts[[1]]],
-      Message[Einstoff::unsupp,
-        "Einstoff[Join] concatenates: CirclePlus must appear on the output (RHS), \
-not the input (LHS); use Einstoff[Split] for an input direct sum"];
-      Return[$Failed]];
-    If[! hasCirclePlus[parts[[2]]],
-      Message[Einstoff::unsupp,
-        "Einstoff[Join] needs a direct-sum (CirclePlus) axis on the output"];
-      Return[$Failed]];
-    directSumConcat[desc, tensors, bindings, traceAction]
-  ];
+EinstoffJoin[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
+  directSumPublic[Hold[desc], tensors, bindings, "Join", OptionValue[TraceAction]];
 
-EinstoffSplit[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] := withAxisScope @
-  Module[{parts, traceAction},
-    traceAction = OptionValue[TraceAction];
-    parts = descParts[Hold[desc]];
-    If[parts === $Failed, Return[descFailReturn[]]];
-    (* Guard: Split is the input direct sum — CirclePlus on the LHS only. *)
-    If[hasCirclePlus[parts[[2]]],
+EinstoffSplit[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
+  directSumPublic[Hold[desc], tensors, bindings, "Split", OptionValue[TraceAction]];
+
+directSumPublic[h_Hold, tensors_List, bindings_List, direction_String, traceAction_] :=
+  Module[{compiled, sides, planned},
+    sides = heldDirectSumSides[h];
+    If[heldRepeatedInputQ[h],
       Message[Einstoff::unsupp,
-        "Einstoff[Split] splits an input direct sum: CirclePlus must appear on the \
-input (LHS), not the output (RHS); use Einstoff[Join] for an output direct sum"];
+        "a direct-sum input may not repeat a carried axis"];
       Return[$Failed]];
-    If[! hasCirclePlus[parts[[1]]],
-      Message[Einstoff::unsupp,
-        "Einstoff[Split] needs a direct-sum (CirclePlus) axis on the input (LHS)"];
-      Return[$Failed]];
-    directSumSplit[desc, tensors, bindings, traceAction]
+    compiled = compileHeldDescIR[h, HoldComplete[bindings], direction, <||>];
+    Which[
+      direction === "Join" && TrueQ[sides["LHS"]],
+        Message[Einstoff::unsupp,
+          "Einstoff[Join] requires CirclePlus on the output, not the input"];
+        $Failed,
+      direction === "Split" && TrueQ[sides["RHS"]],
+        Message[Einstoff::unsupp,
+          "Einstoff[Split] requires CirclePlus on the input, not the output"];
+        $Failed,
+      Head[Lookup[compiled, "Normalized", None]] ===
+          Einstoff`Internal`IR`NormalizedDesc &&
+          ! TrueQ[sides[If[direction === "Join", "RHS", "LHS"]]],
+        Message[Einstoff::unsupp,
+          "the direct-sum operator requires a CirclePlus axis"];
+        $Failed,
+      True,
+        planned = tryDirectSumCompiledIRPlan[compiled, tensors, direction, traceAction];
+        If[plannerFailureQ[planned], reportPlannerFailure[planned], planned]
+    ]
   ];

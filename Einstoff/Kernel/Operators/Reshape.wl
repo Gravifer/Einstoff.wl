@@ -78,26 +78,28 @@ EinstoffContract[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :
 (* desc is NOT held (uniform convention): Pattern holds each binding `name_` and `:>`
    holds the RHS, so only a bare reference to a globally bound symbol is substituted. *)
 massageCore[desc_, tensors_, bindings_List, policy_, traceAction_, targeting_] :=
-  withAxisScope @ Catch[
-    Module[{parts, lhs, rhs, targetingMode, planned, planOperator},
+  Catch[
+    Module[{targetingMode, planned, planOperator, compiled, sumSides, held = Hold[desc]},
       targetingMode = einCatch[validateTargetingOption[targeting]];
       If[targetingMode === $Failed, Throw[$Failed, massageCoreTag]];
-      parts = descParts[Hold[desc]];
-      If[parts === $Failed, Throw[descFailReturn[], massageCoreTag]];
-      {lhs, rhs} = parts;
-      If[hasCirclePlus[rhs] || hasCirclePlus[lhs],
-        If[policy =!= All,
-          Message[Einstoff::unsupp,
-            "a direct sum (CirclePlus) is a structural join/split; use Einstoff[Join]/[Split]"];
-          Throw[$Failed, massageCoreTag]];
-        Throw[If[hasCirclePlus[rhs],
-          directSumConcat[desc, tensors, bindings, traceAction],
-          directSumSplit[desc, tensors, bindings, traceAction]], massageCoreTag]];
       planOperator = Which[
         policy === "Reshape", "Reshape",
         policy === "Contract", "Contract",
         True, "Massage"];
-      planned = tryStructuralIRPlan[Hold[desc], tensors, bindings, planOperator,
+      sumSides = heldDirectSumSides[held];
+      compiled = compileHeldDescIR[held, HoldComplete[bindings], planOperator,
+        <|"Targeting" -> targetingMode|>];
+      If[TrueQ[sumSides["LHS"]] || TrueQ[sumSides["RHS"]],
+        If[policy =!= All,
+          Message[Einstoff::unsupp,
+            "a direct sum (CirclePlus) is a structural join/split; use Einstoff[Join]/[Split]"];
+          Throw[$Failed, massageCoreTag]];
+        planned = If[TrueQ[sumSides["RHS"]],
+          tryDirectSumCompiledIRPlan[compiled, tensors, "Join", traceAction],
+          tryDirectSumCompiledIRPlan[compiled, tensors, "Split", traceAction]];
+        Throw[If[plannerFailureQ[planned], reportPlannerFailure[planned], planned],
+          massageCoreTag]];
+      planned = tryStructuralCompiledIRPlan[compiled, tensors, planOperator,
         targetingMode, traceAction];
       If[plannerFailureQ[planned], reportPlannerFailure[planned], planned]
     ], massageCoreTag];
