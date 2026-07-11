@@ -318,7 +318,7 @@ normalizeCapturedDesc[iri["CapturedDesc"][captured_Association]] :=
   Catch[Module[{lhs, rhs, state, in, out, r, facts, axisTable, normalized},
     lhs = captured["CanonicalLHS"];
     rhs = Quiet @ Check[ReleaseHold[captured["CanonicalRHS"]], $Failed];
-    If[rhs === $Failed || ! MatchQ[rhs, {___List}],
+    If[rhs === $Failed || ! ListQ[rhs] || ! AllTrue[rhs, ListQ],
       Throw[compilerFailure["InvalidOutputShapes", "Normalize",
         <|"Source" -> captured["Surface"]|>], compilerTag]];
     state = compilerState[captured];
@@ -540,7 +540,7 @@ compileNamedSequence[s_Symbol, side_, min_, body_, target_, state_] :=
     If[side === "LHS",
       st = Append[st, "SequenceAxes" -> Append[st["SequenceAxes"], id -> True]]];
     {occ, st} = compilerOccurrence[st];
-    If[MatchQ[Unevaluated[body], Verbatim[Blank[]]],
+    If[HoldComplete[body] === HoldComplete[Blank[]],
       child = None,
       r = compileTerm[body, side, None,
         compilerAtSource[st, Append[st["CurrentSourcePath"], 1], HoldComplete[body]]];
@@ -557,7 +557,7 @@ compileNamedSequenceByName[name_String, side_, min_, body_, target_, state_] :=
     If[side === "LHS",
       st = Append[st, "SequenceAxes" -> Append[st["SequenceAxes"], id -> True]]];
     {occ, st} = compilerOccurrence[st];
-    If[MatchQ[Unevaluated[body], Verbatim[Blank[]]], child = None,
+    If[HoldComplete[body] === HoldComplete[Blank[]], child = None,
       r = compileTerm[body, side, None,
         compilerAtSource[st, Append[st["CurrentSourcePath"], 1], HoldComplete[body]]];
       If[compilerResultFailureQ[r], Throw[r, compilerTag]];
@@ -621,9 +621,12 @@ compileRepeated[body_, side_, min_, target_, state_] :=
     If[compilerResultFailureQ[r], Throw[r, compilerTag]];
     st = compilerAtSource[Last[r], path, held];
     If[side === "RHS" && Head[First[r]] === iri["SequenceAxis"],
-      {Replace[First[r], iri["SequenceAxis"][o_, id_, meta_Association] :>
-        iri["SequenceAxis"][o, id,
-          Join[meta, <|"TargetHead" -> target|>]]], st},
+      {occ, st} = compilerOccurrence[st];
+      {Replace[First[r], iri["SequenceAxis"][referenceOcc_, id_, meta_Association] :>
+        iri["SequenceProjection"][occ,
+          iri["SequenceReference"][id, referenceOcc],
+          Join[meta, <|"SyntaxRole" -> "SequenceProjection",
+            "TargetHead" -> target|>]]], st},
       {occ, st} = compilerOccurrence[st];
       {iri["RepeatedGroup"][occ, First[r],
         <|"Side" -> side, "Minimum" -> min, "TargetHead" -> target|>], st}]
@@ -632,7 +635,8 @@ compileRepeated[body_, side_, min_, target_, state_] :=
 compileSequenceZip[symbols_List, side_, target_, state_Association] :=
   Catch[Module[{st = state, refs = {}, id, occ},
     Do[
-      If[MatchQ[symbol, capturedLogicalAxis[_String, _]],
+      If[Head[symbol] === capturedLogicalAxis && Length[symbol] === 2 &&
+          StringQ[First[symbol]],
         {id, st} = compilerAxisForName[First[symbol], st],
         If[Head[symbol] =!= Symbol,
           Throw[{compilerFailure["InvalidSequenceZipReference", "Normalize", <|
@@ -659,13 +663,14 @@ compileBindingFacts[inline_List, external_List, state_Association] :=
         "SourceReference" -> iri["SourceRef"][{},
           With[{sourceExpression = fact["SourceExpression"]},
             HoldComplete[sourceExpression]]]|>;
-      AppendTo[out, iri["BindingFact"][id, fact["Size"], source]],
+      AppendTo[out, iri["BindingFact"][id, fact["Size"],
+        fact["Source"], KeyDrop[source, "Kind"]]],
       {fact, inline}];
     Do[
       id = compilerBindingAxisId[First[bd], state];
       If[! MissingQ[id],
-        AppendTo[out, iri["BindingFact"][id, Last[bd],
-          <|"Kind" -> "Argument", "Key" -> bindingKeyDisplayName[First[bd]],
+        AppendTo[out, iri["BindingFact"][id, Last[bd], "Argument",
+          <|"Key" -> bindingKeyDisplayName[First[bd]],
             "SourceReference" -> iri["SourceRef"][{},
               With[{binding = bd}, HoldComplete[binding]]]|>]]],
       {bd, external}];
@@ -696,8 +701,8 @@ bindingKeyDisplayName[surfaceAxisKey[name_String]] := name;
 bindingKeyDisplayName[key_Symbol] := SymbolName[Unevaluated[key]];
 bindingKeyDisplayName[key_] := ToString[key, InputForm];
 
-bindingFactAxisId[iri["BindingFact"][id_, _, _]] := id;
-bindingFactSize[iri["BindingFact"][_, size_, _]] := size;
+bindingFactAxisId[iri["BindingFact"][id_, _, _, _]] := id;
+bindingFactSize[iri["BindingFact"][_, size_, _, _]] := size;
 
 compilerAxisName[id_, state_Association] :=
   Replace[Lookup[state["IRState"]["AxisMetadata"], id, Missing[]],

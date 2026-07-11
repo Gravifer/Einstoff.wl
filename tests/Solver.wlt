@@ -110,7 +110,7 @@ VerificationTest[
     bundle = solve[compile[{{a_, b_}} :> {{b, a}}], {{2, 3}}];
     constraints = bundle["Constraints"];
     sources = Cases[constraints,
-      ir["EqualSize"][_, _, source_Association] :> source["Source"], Infinity];
+      ir["TensorDimension"][_, _, _, _, source_] :> source, Infinity];
     MatchQ[sources,
       {ir["SourceRef"][{1, 1, 1}, HoldComplete[a_]],
        ir["SourceRef"][{1, 1, 2}, HoldComplete[b_]]}]],
@@ -122,7 +122,7 @@ VerificationTest[
   Module[{failure = solved[{{a_, a_}} :> {{a}}, {{3, 4}}]},
     MatchQ[failure,
       ir["FailureRecord"]["ConflictingAxisSizes", "Solve",
-        KeyValuePattern["Sources" -> {__Association}]]]],
+        KeyValuePattern["Sources" -> {ir["SourceRef"][__] ..}]]]],
   True,
   TestID -> "solver-conflict-carries-source-provenance"
 ];
@@ -144,6 +144,18 @@ VerificationTest[
           "MessageParameters" -> _List}]]]],
   True,
   TestID -> "solver-failure-has-structured-context"
+];
+
+VerificationTest[
+  Module[{bundle = solve[
+      compile[{{Annotation[a_, 3], b__}} :> {{a, b..}}], {{3, 4, 5}}]},
+    {
+      ! FreeQ[bundle["Constraints"], ir["InlineSizeCheck"][___], Infinity],
+      ! FreeQ[bundle["Constraints"], ir["TensorDimension"][___], Infinity],
+      ! FreeQ[bundle["Constraints"], ir["SequenceLength"][___], Infinity]
+    }],
+  {True, True, True},
+  TestID -> "solver-emits-explicit-constraint-vocabulary"
 ];
 
 EndTestSection[];

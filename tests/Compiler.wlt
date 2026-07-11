@@ -43,14 +43,14 @@ VerificationTest[
 
 VerificationTest[
   Module[{n = compile[{{a_}} :> {{a, Annotation[c, 2]}}]["Normalized"]},
-    Cases[n, ir["BindingFact"][id_, size_, _] :> {id, size}, Infinity]],
+    Cases[n, ir["BindingFact"][id_, size_, _, _] :> {id, size}, Infinity]],
   {{ir["AxisId"][2], 2}},
   TestID -> "compiler-inline-binding-fact"
 ];
 
 VerificationTest[
   Module[{n = compile[{{a_}} :> {{a, c}}, {c -> 2}]["Normalized"]},
-    Cases[n, ir["BindingFact"][id_, size_, _] :> {id, size}, Infinity]],
+    Cases[n, ir["BindingFact"][id_, size_, _, _] :> {id, size}, Infinity]],
   {{ir["AxisId"][2], 2}},
   TestID -> "compiler-external-binding-fact"
 ];
@@ -68,6 +68,14 @@ VerificationTest[
       {MapThread[CircleTimes, {{a}, {b}}]}]["Normalized"],
   ir["NormalizedDesc"],
   TestID -> "compiler-normalizes-legacy-sequence-zip"
+];
+
+VerificationTest[
+  ! FreeQ[compile[{{a__}} :> {{a..}}]["Normalized"],
+    ir["SequenceProjection"][_, ir["SequenceReference"][_, _], _Association],
+    Infinity],
+  True,
+  TestID -> "compiler-normalizes-postfix-sequence-projection"
 ];
 
 VerificationTest[

@@ -28,7 +28,7 @@ buildConstraintDesc[normalized : irs["NormalizedDesc"][a_Association],
     inputShapes_] :=
   Catch[Module[{inputIR, shapes, constraints = {}, bindings, terms, r,
           captureState, solvedInputs = {}, solvedOutputs},
-    If[! MatchQ[inputShapes, {___List}],
+    If[! ListQ[inputShapes] || ! AllTrue[inputShapes, ListQ],
       Throw[solverFailure["InvalidInputShapes", "Constraints",
         <|"InputShapes" -> HoldComplete[inputShapes]|>], solverTag]];
     inputIR = a["Inputs"];
@@ -46,7 +46,10 @@ buildConstraintDesc[normalized : irs["NormalizedDesc"][a_Association],
       With[{id = bindingFactId[fact], size = bindingFactValue[fact],
           source = bindingFactSource[fact]},
         If[MissingQ[solverSequenceBindingValue[size]],
-          AppendTo[constraints, irs["KnownSize"][id, size, source]],
+          AppendTo[constraints,
+            If[AssociationQ[source] && TrueQ[Lookup[source, "Binder", False]],
+              irs["InlineSizeCheck"][id, size, source],
+              irs["KnownSize"][id, size, source]]],
           r = seedBoundSequence[id, solverSequenceBindingValue[size], captureState, source];
           If[solverFailureQ[r], Throw[r, solverTag]];
           captureState = r["State"];
@@ -61,7 +64,8 @@ buildConstraintDesc[normalized : irs["NormalizedDesc"][a_Association],
       captureState = r["State"],
       {i, Length[shapes]}];
     With[{scalarIds = DeleteDuplicates @ Cases[constraints,
-        irs["EqualSize"][irs["SizeAxis"][id_], _, _] :> id, Infinity],
+        (irs["EqualSize"] | irs["TensorDimension"])[
+            irs["SizeAxis"][id_], ___] :> id, Infinity],
         pointwiseIds = Lookup[captureState, "PointwiseAxes", {}]},
       If[Intersection[scalarIds, pointwiseIds] =!= {},
         Throw[solverFailure["SequenceScalarCollision", "Constraints", <|
@@ -83,9 +87,10 @@ buildConstraintDesc[other_, inputShapes_] :=
     <|"Expression" -> HoldComplete[other],
       "InputShapes" -> HoldComplete[inputShapes]|>];
 
-bindingFactId[irs["BindingFact"][id_, _, _]] := id;
-bindingFactValue[irs["BindingFact"][_, value_, _]] := value;
-bindingFactSource[irs["BindingFact"][_, _, source_]] := source;
+bindingFactId[irs["BindingFact"][id_, _, _, _]] := id;
+bindingFactValue[irs["BindingFact"][_, value_, _, _]] := value;
+bindingFactSource[irs["BindingFact"][_, _, kind_, source_Association]] :=
+  Join[<|"Kind" -> kind|>, source];
 
 solverSequenceBindingValue[Verbatim[Inactive][Sequence][xs___]] := {xs};
 solverSequenceBindingValue[_] := Missing["NotSequenceBinding"];
@@ -159,24 +164,24 @@ expandInputTerms[terms_List, dims_List, inputIndex_Integer, state_Association] :
         out = Join[out, expanded["Terms"]];
         constraints = Join[constraints,
           Lookup[expanded, "Constraints", {}],
-          MapIndexed[irs["EqualSize"][sizeExpression[#1],
-              slice[[First[#2]]], <|"Source" -> solverTermSource[terms[[j]], st],
-                "Input" -> inputIndex,
-                "Dimension" -> cursor + First[#2] - 1|>] &,
+          MapIndexed[irs["TensorDimension"][sizeExpression[#1], inputIndex,
+              cursor + First[#2] - 1, slice[[First[#2]]],
+              solverTermSource[terms[[j]], st]] &,
             expanded["Terms"]]];
         st = expanded["State"];
         cursor += len,
         expanded = expandBoundSequencesInTerm[terms[[j]], st];
-        If[MatchQ[expanded, irs["AnonymousAxis"][_, _, _Association]],
+        If[Head[expanded] === irs["AnonymousAxis"] && Length[expanded] === 3 &&
+            AssociationQ[Last[expanded]],
           AppendTo[out, Replace[expanded,
             irs["AnonymousAxis"][occ_, _, meta_Association] :>
               irs["LiteralAxis"][occ, dims[[cursor]], meta]]],
           AppendTo[out, expanded];
           expanded = sizeExpression[expanded];
           If[solverFailureQ[expanded], Throw[expanded, solverTag]];
-          AppendTo[constraints, irs["EqualSize"][expanded, dims[[cursor]],
-            <|"Source" -> solverTermSource[terms[[j]], st],
-              "Input" -> inputIndex, "Dimension" -> cursor|>]]];
+          AppendTo[constraints, irs["TensorDimension"][expanded,
+            inputIndex, cursor, dims[[cursor]],
+            solverTermSource[terms[[j]], st]]]];
         cursor++],
       {j, Length[terms]}];
     <|"Terms" -> out, "Constraints" -> constraints, "State" -> st|>
@@ -226,9 +231,12 @@ expandCapturedSequence[irs["SequenceAxis"][occ_, id_, meta_Association],
         irs["SequenceMemberId"][sequenceId, k],
         Join[meta, <|"SequenceIndex" -> k|>]], {k, Length[dims]}],
       Table[specializeSequenceTerm[pattern, occ, k], {k, Length[dims]}]];
-    equalities = If[pattern === None, {},
+    equalities = Join[
+      {irs["SequenceLength"][sequenceId, Length[dims],
+        solverTermSource[irs["SequenceAxis"][occ, id, meta], st]]},
+      If[pattern === None, {},
       Flatten[Table[sequenceStaticEqualities[pattern, k],
-        {k, Length[dims]}], 1]];
+        {k, Length[dims]}], 1]]];
     st = Join[st, <|
       "Lengths" -> Append[st["Lengths"], sequenceId -> Length[dims]],
       "Members" -> Append[st["Members"], sequenceId -> terms]|>];
@@ -306,6 +314,12 @@ expandOutputTerm[irs["SequenceAxis"][_, id_, _], state_Association] :=
     If[MissingQ[members],
       {solverFailure["UnknownSequenceReference", "Solve", <|"Sequence" -> id|>]},
       members]];
+expandOutputTerm[irs["SequenceProjection"][_,
+    irs["SequenceReference"][id_, ___], _Association], state_Association] :=
+  With[{members = Lookup[state["Members"], id, Missing["UnknownSequence"]]},
+    If[MissingQ[members],
+      {solverFailure["UnknownSequenceReference", "Solve", <|"Sequence" -> id|>]},
+      members]];
 expandOutputTerm[irs["SequenceZip"][occ_, CircleTimes, refs_List,
     meta_Association], state_Association] :=
   Module[{ids, memberLists, lengths},
@@ -366,10 +380,13 @@ solveConstraintDesc[constraint : irs["ConstraintDesc"][a_Association]] :=
     constraints = Replace[a["Constraints"], irs["Constraints"][c_List] :> c];
     axisIds = DeleteDuplicates @ Join[
       Cases[constraints, irs["SizeAxis"][id_] :> id, Infinity],
-      Cases[constraints, irs["KnownSize"][id_, _, _] :> id, Infinity]];
+      Cases[constraints,
+        (irs["KnownSize"] | irs["InlineSizeCheck"])[id_, _, _] :> id,
+        Infinity]];
     directSizes = GroupBy[
       Cases[constraints,
-        irs["EqualSize"][irs["SizeAxis"][id_], n_Integer, _] :> id -> n],
+        (irs["EqualSize"] | irs["TensorDimension"])[
+            irs["SizeAxis"][id_], ___, n_Integer, _] :> id -> n],
       First -> Last];
     conflict = SelectFirst[Normal[directSizes],
       Length[DeleteDuplicates[Last[#]]] > 1 &, Missing["NoConflict"]];
@@ -380,7 +397,8 @@ solveConstraintDesc[constraint : irs["ConstraintDesc"][a_Association]] :=
           "Expected" -> First[Last[conflict]],
           "Actual" -> Last[Last[conflict]],
           "Sources" -> Cases[constraints,
-            irs["EqualSize"][irs["SizeAxis"][id_], _, source_] /;
+            (irs["EqualSize"] | irs["TensorDimension"])[
+                irs["SizeAxis"][id_], ___, source_] /;
                 id === conflictId :> source]
         |>], solverTag]]];
     variables = solverVariable /@ axisIds;
@@ -429,6 +447,13 @@ constraintEquation[irs["KnownSize"][id_, n_, source_], vars_Association] :=
   If[IntegerQ[n] && n > 0, vars[id] == n,
     solverFailure["InvalidKnownSize", "Constraints",
       <|"Axis" -> id, "Value" -> HoldComplete[n], "Source" -> source|>]];
+constraintEquation[irs["InlineSizeCheck"][id_, n_, source_], vars_Association] :=
+  If[IntegerQ[n] && n > 0, vars[id] == n,
+    solverFailure["InvalidKnownSize", "Constraints",
+      <|"Axis" -> id, "Value" -> HoldComplete[n], "Source" -> source|>]];
+constraintEquation[irs["TensorDimension"][expr_, _, _, n_Integer, _],
+    vars_Association] := algebraicSize[expr, vars] == n;
+constraintEquation[irs["SequenceLength"][_, n_Integer, _], _Association] := n >= 0;
 constraintEquation[irs["EqualSize"][expr_, n_Integer, _], vars_Association] :=
   algebraicSize[expr, vars] == n;
 constraintEquation[irs["EqualSizeExpr"][left_, right_, _], vars_Association] :=
