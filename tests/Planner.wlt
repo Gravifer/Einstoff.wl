@@ -9,6 +9,7 @@ solve = Symbol["Einstoff`PackageScope`solveDescIR"];
 plan = Symbol["Einstoff`PackageScope`planStructuralIR"];
 execute = Symbol["Einstoff`PackageScope`executeExecutionPlan"];
 render = Symbol["Einstoff`PackageScope`renderExecutionPlan"];
+planReduce = Symbol["Einstoff`PackageScope`planReduceIR"];
 ir[name_] := Symbol["Einstoff`Internal`IR`" <> name];
 
 makePlan[desc_, x_, bindings_ : {}, op_ : "Reshape"] :=
@@ -69,6 +70,32 @@ VerificationTest[
     Einstoff["Massage"][{{a_}} :> {{a, Annotation[c, 2]}}, {x}]],
   ConstantArray[Range[3], {2}] // Transpose,
   TestID -> "plan-public-massage-integration"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[24], {2, 3, 4}], p},
+    p = planReduce[
+      solve[compile[{{a_, b_, c_}} :> {{c, a}}], {Dimensions[x]}]["Solved"],
+      Total];
+    execute[p, {x}]],
+  Transpose[Total[ArrayReshape[Range[24], {2, 3, 4}], {2}], {2, 1}],
+  TestID -> "plan-execute-reduce-and-permute"
+];
+
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
+    Einstoff[ArrayReduce][Total][{{a_, Highlighted[b_]}} :> {{a}}, {x}]],
+  Total[ArrayReshape[Range[6], {2, 3}], {2}],
+  TestID -> "plan-public-reduce-integration"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[6], {2, 3}], held},
+    held = Einstoff[ArrayReduce][Total][
+      {{a_, Highlighted[b_]}} :> {{a}}, {x}, {}, TraceAction -> Hold];
+    {Head[held], ReleaseHold[held]}],
+  {Hold, Total[ArrayReshape[Range[6], {2, 3}], {2}]},
+  TestID -> "plan-public-reduce-trace"
 ];
 
 EndTestSection[];

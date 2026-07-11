@@ -72,7 +72,7 @@ EinstoffReduce[reducerSpec_][desc_, tensors_, bindings_List : {},
   Module[{parts, lhs, rhs, inShapes, shp, m, env, x, reducer, decomp,
           rhsTerms, lhsTagged, lhsAtoms, lhsBr, rhsAtoms, reducedPos,
           plainAnonAtoms, keptOrder, decompDims, xr, xred, result, traceAction,
-          targeting, targetedPos},
+          targeting, targetedPos, planned},
     traceAction = OptionValue[EinstoffReduce, {opts}, TraceAction];
     targeting = einCatch[validateTargetingOption[
       OptionValue[EinstoffReduce, {opts}, "Targeting"]]];
@@ -111,6 +111,10 @@ sum/mean/var/std/prod/count_nonzero/any/all/max/min/logsumexp, or pass a functio
 shape; ArrayReduce does not contract a repeated axis. Within-tensor contraction is \
 Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
       Return[$Failed]];
+
+    planned = tryReduceIRPlan[Hold[desc], tensors, bindings, reducer, targeting,
+      traceAction];
+    If[! MissingQ[planned], Return[planned]];
 
     inShapes = Dimensions /@ tensors;
     m = EinstoffMatch[lhs, inShapes, bindings];
