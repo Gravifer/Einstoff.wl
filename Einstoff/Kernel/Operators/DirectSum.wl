@@ -27,8 +27,8 @@
    machinery under a directional guard (Join: CirclePlus only on the RHS; Split: only on
    the LHS).
 
-   Shared shape helpers (descParts, hasCirclePlus) live in ShapeChecker.wl; runtime
-   helpers (rearrangeAtoms, atomSize, materializeOutput) live in Lowering.wl. *)
+   Surface capture, analysis, and execution are delegated to the staged compiler and
+   direct-sum planner. *)
 
 PackageExported[{EinstoffJoin, EinstoffSplit}]
 
@@ -50,41 +50,6 @@ Einstoff["Split"] := EinstoffSplit;
 Options[EinstoffJoin] = {TraceAction -> None};
 Options[EinstoffSplit] = {TraceAction -> None};
 
-(* A valid direct-sum summand: an axis name (bare or blank), an
-   integer, or a CircleTimes product of those. A targeted direct sum or
-   any other head is not supported. Shared by the concat and split handlers. *)
-SetAttributes[directSumConcat, HoldFirst];
-
-directSumConcat[desc_, tensors_, bindings_List, traceAction_ : None] :=
-  Module[{planned = tryDirectSumIRPlan[
-      Hold[desc], tensors, bindings, "Join", traceAction]},
-    Which[
-      plannerFailureQ[planned],
-        reportPlannerFailure[planned],
-      True,
-        planned
-    ]
-  ];
-
-(* ------------------------------------------------------------------ *)
-(* Split handler.  CirclePlus on the LHS of a single input shape: slice the *)
-(* concat axes into contiguous Cartesian blocks (last axis fastest) and       *)
-(* rearrange each block to its output shape.  Returns a List of arrays.       *)
-(* ------------------------------------------------------------------ *)
-
-SetAttributes[directSumSplit, HoldFirst];
-
-directSumSplit[desc_, tensors_, bindings_List, traceAction_ : None] :=
-  Module[{planned = tryDirectSumIRPlan[
-      Hold[desc], tensors, bindings, "Split", traceAction]},
-    Which[
-      plannerFailureQ[planned],
-        reportPlannerFailure[planned],
-      True,
-        planned
-    ]
-  ];
-
 (* ------------------------------------------------------------------ *)
 (* Public operators.                                                   *)
 (* ------------------------------------------------------------------ *)
@@ -100,12 +65,11 @@ EinstoffSplit[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
 directSumPublic[h_Hold, tensors_List, bindings_List, direction_String, traceAction_] :=
   Module[{compiled, sides, planned},
     sides = heldDirectSumSides[h];
-    If[heldRepeatedInputQ[h],
-      Message[Einstoff::unsupp,
-        "a direct-sum input may not repeat a carried axis"];
-      Return[$Failed]];
-    compiled = compileHeldDescIR[h, HoldComplete[bindings], direction, <||>];
     Which[
+      heldRepeatedInputQ[h],
+        Message[Einstoff::unsupp,
+          "a direct-sum input may not repeat a carried axis"];
+        $Failed,
       direction === "Join" && TrueQ[sides["LHS"]],
         Message[Einstoff::unsupp,
           "Einstoff[Join] requires CirclePlus on the output, not the input"];
@@ -114,14 +78,15 @@ directSumPublic[h_Hold, tensors_List, bindings_List, direction_String, traceActi
         Message[Einstoff::unsupp,
           "Einstoff[Split] requires CirclePlus on the input, not the output"];
         $Failed,
-      Head[Lookup[compiled, "Normalized", None]] ===
-          Einstoff`Internal`IR`NormalizedDesc &&
-          ! TrueQ[sides[If[direction === "Join", "RHS", "LHS"]]],
-        Message[Einstoff::unsupp,
-          "the direct-sum operator requires a CirclePlus axis"];
-        $Failed,
       True,
+        compiled = compileHeldDescIR[h, HoldComplete[bindings], direction, <||>];
+        If[Head[Lookup[compiled, "Normalized", None]] ===
+            Einstoff`Internal`IR`NormalizedDesc &&
+            ! TrueQ[sides[If[direction === "Join", "RHS", "LHS"]]],
+          Message[Einstoff::unsupp,
+            "the direct-sum operator requires a CirclePlus axis"];
+          $Failed,
         planned = tryDirectSumCompiledIRPlan[compiled, tensors, direction, traceAction];
-        If[plannerFailureQ[planned], reportPlannerFailure[planned], planned]
+        If[plannerFailureQ[planned], reportPlannerFailure[planned], planned]]
     ]
   ];
