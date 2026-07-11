@@ -327,6 +327,16 @@ VerificationTest[
   TestID -> "parse-flattens-rhs-circleplus"
 ];
 
+VerificationTest[
+  {
+    KeyExistsQ[Einstoff`EinstoffParse[{{a_}} -> {{a}}], "Warning"],
+    KeyExistsQ[Einstoff`EinstoffParse[{{a_}} :> {{a}}], "Warning"],
+    sat @ Einstoff`EinstoffShapes[{{a_}} -> {{a}}, {{3}}]
+  },
+  {True, False, True},
+  TestID -> "parse-rule-is-warned-best-effort-compatibility"
+];
+
 (* ===================== bindings validation (§7.4) ================== *)
 
 (* A bindings entry that is not an axis-name -> size rule (a bare symbol/expr) is
@@ -489,13 +499,67 @@ VerificationTest[
   TestID -> "inline-reject-annotation-arity"
 ];
 
+VerificationTest[
+  out /@ {
+    Einstoff`EinstoffShapes[
+      {{Annotation[Highlighted[b_], 3]}} :> {{Highlighted[b]}}, {{3}}],
+    Einstoff`EinstoffShapes[
+      {{Highlighted[Annotation[b_, 3]]}} :> {{Highlighted[b]}}, {{3}}],
+    Einstoff`EinstoffShapes[
+      {{Labeled[3, Highlighted[b_]]}} :> {{Highlighted[b]}}, {{3}}],
+    Einstoff`EinstoffShapes[
+      {{Highlighted[Labeled[3, b_]]}} :> {{Highlighted[b]}}, {{3}}],
+    Einstoff`EinstoffShapes[
+      {{Labeled[3, Framed[b_]]}} :> {{Framed[b]}}, {{3}}],
+    Einstoff`EinstoffShapes[
+      {{Framed[Labeled[3, b_]]}} :> {{Framed[b]}}, {{3}}],
+    Einstoff`EinstoffShapes[
+      {{Annotation[Slot["b"], 3]}} :> {{Slot["b"]}}, {{3}}],
+    Einstoff`EinstoffShapes[
+      {{Labeled[3, Slot["b"]]}} :> {{Slot["b"]}}, {{3}}],
+    Einstoff`EinstoffShapes[
+      {{Slot[Labeled[3, "b"]]}} :> {{Slot["b"]}}, {{3}}]
+  },
+  ConstantArray[{{3}}, 9],
+  TestID -> "inline-target-wrapper-composition-matrix"
+];
+
+VerificationTest[
+  {
+    out @ Einstoff`EinstoffShapes[
+      {{Annotation[c, 2]}} :> {{Annotation[c, 2]}}, {{2}}],
+    out @ Einstoff`EinstoffShapes[
+      {{a_}} :> {{a, c}}, {{3}}, {c -> 2, c -> 2}]
+  },
+  {{{2}}, {{3, 2}}},
+  TestID -> "inline-and-argument-equal-duplicates-coalesce"
+];
+
+VerificationTest[
+  And @@ (Not /@ (sat /@ Quiet[{
+      Einstoff`EinstoffShapes[{{a_}} :> {{a, Annotation[2, 3]}}, {{3}}],
+      Einstoff`EinstoffShapes[{{a_}} :> {{a, Annotation[_, 3]}}, {{3}}],
+      Einstoff`EinstoffShapes[{{a_}} :> {{a, Annotation[__, 3]}}, {{3}}],
+      Einstoff`EinstoffShapes[
+        {{a_}} :> {{a, Annotation[CirclePlus[c, d], 3]}}, {{3}}],
+      Einstoff`EinstoffShapes[
+        {{a_}} :> {{a, Annotation[Repeated[c], 3]}}, {{3}}],
+      Einstoff`EinstoffShapes[
+        {{a_}} :> {{a, Labeled[3, c, Right]}}, {{3}}],
+      Einstoff`EinstoffShapes[
+        {{a_}} :> {{a, Labeled[3, {c, d}]}}, {{3}}]
+    }, {Einstoff::unsupp}])),
+  True,
+  TestID -> "inline-rejects-unsupported-axis-and-wrapper-forms"
+];
+
 (* ===================== named axis-sequence resolver (§5.3) ============== *)
 
 (* Cross-tensor named axis-sequences: RHS code listifies the captured Sequences and zips them. *)
 VerificationTest[
   out @ Einstoff`EinstoffShapes[
     {{a__}, {b__}} :>
-      {MapThread[CircleTimes, {{a}, {b}}]},
+      {{CircleTimes[a, b]..}},
     {{2, 3}, {5, 7}}],
   {{10, 21}},
   TestID -> "named-axis-sequence-cross-tensor-zip"
@@ -570,7 +634,7 @@ VerificationTest[
 VerificationTest[
   sat @ Einstoff`EinstoffShapes[
     {{a__}, {b__}} :>
-      {MapThread[CircleTimes, {{a}, {b}}]},
+      {{CircleTimes[a, b]..}},
     {{2, 3}, {5, 7, 11}}],
   False,
   TestID -> "named-axis-sequence-reject-length-mismatch"
@@ -579,8 +643,8 @@ VerificationTest[
 VerificationTest[
   StringContainsQ[
     Einstoff`EinstoffShapes[
-      {{a__}, {b__}} :>
-        {MapThread[CircleTimes, {{a}, {b}}]},
+    {{a__}, {b__}} :>
+      {{CircleTimes[a, b]..}},
       {{2, 3}, {5, 7, 11}}]["Reason"],
     "different lengths"],
   True,

@@ -20,11 +20,8 @@
    5.2, ex 5); a bare dropped axis is the einops way (`a b -> a`) — both reduce
    here, since the operator is unambiguously a reduction.  A targeted axis
    *kept* on the RHS is the feed-to-elementary-op path (not reduction), rejected.
-   An output-only axis is repetition (SPEC 5.5) — reduce, then broadcast it on,
-   via the shared materializeOutput (e.g. einx.sum("a [b] -> a c", x, c=3)).
-
-   Shared shape helpers (descParts, distinctAxesQ) live in ShapeChecker.wl; atom and
-   materialization helpers live in Lowering.wl. *)
+   An output-only axis is repetition (SPEC 5.5) — reduce, then broadcast it on
+   through the shared execution plan (e.g. einx.sum("a [b] -> a c", x, c=3)). *)
 
 PackageExported[{EinstoffReduce}]
 

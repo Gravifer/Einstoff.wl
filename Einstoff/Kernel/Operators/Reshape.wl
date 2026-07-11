@@ -6,7 +6,7 @@
    delegated to the DirectSum path); and within-tensor *pairwise* contraction — a
    name repeated in the input and dropped on the output is summed over its coincident
    slots (the einsum-within-one-tensor case, e.g. the Ricci trace R^a_bad -> R_bd),
-   via selfContract.
+   via an explicit self-contraction execution-plan step.
 
    This is the engine the guarded entrances delegate to: Einstoff["Massage"] is it,
    ungated.  The intent guards live here too, as thin policies over the shared
@@ -78,10 +78,9 @@ EinstoffContract[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :
 (* desc is NOT held (uniform convention): Pattern holds each binding `name_` and `:>`
    holds the RHS, so only a bare reference to a globally bound symbol is substituted. *)
 massageCore[desc_, tensors_, bindings_List, policy_, traceAction_, targeting_] :=
-  Catch[
-    Module[{targetingMode, planned, planOperator, compiled, sumSides, held = Hold[desc]},
-      targetingMode = einCatch[validateTargetingOption[targeting]];
-      If[targetingMode === $Failed, Throw[$Failed, massageCoreTag]];
+  Module[{targetingMode, planned, planOperator, compiled, sumSides, held = Hold[desc]},
+      targetingMode = Catch[validateTargetingOption[targeting], einThrowTag];
+      If[plannerFailureQ[targetingMode], reportPlannerFailure[targetingMode],
       planOperator = Which[
         policy === "Reshape", "Reshape",
         policy === "Contract", "Contract",
@@ -91,15 +90,16 @@ massageCore[desc_, tensors_, bindings_List, policy_, traceAction_, targeting_] :
         <|"Targeting" -> targetingMode|>];
       If[TrueQ[sumSides["LHS"]] || TrueQ[sumSides["RHS"]],
         If[policy =!= All,
-          Message[Einstoff::unsupp,
-            "a direct sum (CirclePlus) is a structural join/split; use Einstoff[Join]/[Split]"];
-          Throw[$Failed, massageCoreTag]];
+          reportPlannerFailure @ Einstoff`Internal`IR`FailureRecord[
+            "DirectSumPolicy", "Analysis", <|
+              "Operator" -> planOperator,
+              "Reason" -> "a direct sum (CirclePlus) is a structural join/split; " <>
+                "use Einstoff[Join]/[Split]", "MessageParameters" -> {}|>],
         planned = If[TrueQ[sumSides["RHS"]],
           tryDirectSumCompiledIRPlan[compiled, tensors, "Join", traceAction],
           tryDirectSumCompiledIRPlan[compiled, tensors, "Split", traceAction]];
-        Throw[If[plannerFailureQ[planned], reportPlannerFailure[planned], planned],
-          massageCoreTag]];
+        If[plannerFailureQ[planned], reportPlannerFailure[planned], planned]],
       planned = tryStructuralCompiledIRPlan[compiled, tensors, planOperator,
         targetingMode, traceAction];
-      If[plannerFailureQ[planned], reportPlannerFailure[planned], planned]
-    ], massageCoreTag];
+      If[plannerFailureQ[planned], reportPlannerFailure[planned], planned]]]
+    ];

@@ -12,6 +12,11 @@ constructors = {
 };
 
 irSymbol[name_] := Symbol["Einstoff`Internal`IR`" <> name];
+irValid = Symbol["Einstoff`PackageScope`irValidQ"];
+compile = Symbol["Einstoff`PackageScope`compileDescIR"];
+solve = Symbol["Einstoff`PackageScope`solveDescIR"];
+analyze = Symbol["Einstoff`PackageScope`analyzeSolvedDesc"];
+plan = Symbol["Einstoff`PackageScope`planStructuralIR"];
 
 VerificationTest[
   Context /@ (irSymbol /@ constructors),
@@ -75,6 +80,30 @@ VerificationTest[
   ],
   True,
   TestID -> "staged-core-does-not-use-return"
+];
+
+VerificationTest[
+  Module[{compiled, solvedBundle, analysis, executionPlan, stages},
+    compiled = compile[{{a_, b_}} :> {{b, a}}];
+    solvedBundle = solve[compiled, {{2, 3}}];
+    analysis = analyze[solvedBundle["Solved"], "Reshape", Automatic];
+    executionPlan = plan[solvedBundle["Solved"], "Reshape"];
+    stages = {compiled["Surface"], compiled["Captured"], compiled["Normalized"],
+      solvedBundle["Constraints"], solvedBundle["Solved"], analysis,
+      executionPlan};
+    irValid /@ stages],
+  ConstantArray[True, 7],
+  TestID -> "ir-validator-accepts-every-compiler-stage"
+];
+
+VerificationTest[
+  Module[{compiled, before},
+    compiled = compile[{{a_, b_}} :> {{b, a}}];
+    before = compiled;
+    solve[compiled, {{2, 3}}];
+    compiled === before],
+  True,
+  TestID -> "ir-stage-transformations-do-not-mutate-input"
 ];
 
 EndTestSection[];

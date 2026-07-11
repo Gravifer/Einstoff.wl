@@ -65,12 +65,14 @@ EinstoffParse[desc_] :=
     ]
   ];
 
-displayCapturedSurface[expr_] := expr /. {
+displayCapturedSurface[expr_] := FixedPoint[displayCapturedSurfaceStep, expr];
+
+displayCapturedSurfaceStep[expr_] := expr /. {
   capturedBinder[name_String] :>
     RuleCondition[With[{s = axisSymbol[name]}, Pattern[s, Blank[]]]],
-  capturedNamedSequence[name_String, 1, Verbatim[Blank[]]] :>
+  capturedNamedSequence[name_String, 1, None] :>
     RuleCondition[With[{s = axisSymbol[name]}, Pattern[s, BlankSequence[]]]],
-  capturedNamedSequence[name_String, 0, Verbatim[Blank[]]] :>
+  capturedNamedSequence[name_String, 0, None] :>
     RuleCondition[With[{s = axisSymbol[name]}, Pattern[s, BlankNullSequence[]]]],
   capturedNamedSequence[name_String, 1, body_] :>
     RuleCondition[With[{s = axisSymbol[name]}, Pattern[s, Repeated[body]]]],
@@ -78,7 +80,22 @@ displayCapturedSurface[expr_] := expr /. {
     RuleCondition[With[{s = axisSymbol[name]}, Pattern[s, RepeatedNull[body]]]],
   capturedLogicalAxis[name_String, _] :> RuleCondition[axisSymbol[name]],
   capturedAmbientAxis[context_String, name_String] :>
-    RuleCondition[Symbol[context <> name]]
+    RuleCondition[Symbol[context <> name]],
+  capturedAmbientValue[value_] :> value,
+  capturedSizedAxis[x_] :> x,
+  capturedAnonymousAxis[] :> Blank[],
+  capturedAnonymousSequence[1] :> BlankSequence[],
+  capturedAnonymousSequence[0] :> BlankNullSequence[],
+  capturedAnonymousSequence[0, "SlotSequence"] :> SlotSequence[1],
+  capturedTarget[name_String, x_] :>
+    RuleCondition[Switch[name, "Slot", Slot[x], "Highlighted", Highlighted[x],
+      "Framed", Framed[x]]],
+  capturedProduct[children_List] :>
+    RuleCondition[Apply[CircleTimes, children]],
+  capturedDirectSum[children_List] :>
+    RuleCondition[Apply[CirclePlus, children]],
+  capturedRepeated[x_, 1] :> Repeated[x],
+  capturedRepeated[x_, 0] :> RepeatedNull[x]
 };
 (* Axis-name identities used by one shape term, for the within-shape uniqueness
    check.  A blank (name_), a bare reference, and a targeted string (Slot["name"])

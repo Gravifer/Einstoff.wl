@@ -70,6 +70,8 @@ buildConstraintDesc[normalized : irs["NormalizedDesc"][a_Association],
       If[Intersection[scalarIds, pointwiseIds] =!= {},
         Throw[solverFailure["SequenceScalarCollision", "Constraints", <|
           "Axes" -> Intersection[scalarIds, pointwiseIds]|>], solverTag]]];
+    constraints = Join[constraints,
+      outputSequenceConstraints[a["Outputs"], captureState]];
     solvedOutputs = expandOutputShapes[a["Outputs"], captureState];
     If[solverFailureQ[solvedOutputs], Throw[solvedOutputs, solverTag]];
     irs["ConstraintDesc"][<|
@@ -197,6 +199,26 @@ solverTermSource[term_, state_Association] :=
   Lookup[Lookup[state, "SourceMap", <||>], solverTermOccurrence[term],
     irs["SourceRef"][{}, HoldComplete[term]]];
 
+outputSequenceConstraints[outputs_, state_Association] :=
+  Join[
+    Cases[outputs,
+      irs["SequenceZip"][occ_, _, refs_List, _Association] :>
+        With[{ids = Replace[refs,
+            irs["SequenceReference"][id_, ___] :> id, {1}]},
+          irs["CrossGroupLength"][ids,
+            Lookup[state["Lengths"], ids, Missing["UnknownLength"]],
+            Lookup[state["SourceMap"], occ,
+              irs["SourceRef"][{}, HoldComplete[refs]]]]], Infinity],
+    Cases[outputs,
+      irs["SequenceComposition"][occ_, child_, _Association] :>
+        With[{ids = DeleteDuplicates @ Cases[child,
+            irs["SequenceAxis"][_, id_, _] :> id, Infinity]},
+          irs["RepeatedMemberConstraint"][occ, ids,
+            Lookup[state["Lengths"], ids, Missing["UnknownLength"]],
+            Lookup[state["SourceMap"], occ,
+              irs["SourceRef"][{}, HoldComplete[child]]]]], Infinity]
+  ];
+
 expandBoundSequencesInTerm[
     irs["SequenceAxis"][_, id_, meta_Association], state_Association] :=
   Module[{members = Lookup[state["Members"], id,
@@ -289,11 +311,12 @@ expandOutputShapes[irs["Outputs"][shapes_List], state_Association] :=
         irs["Shape"][expanded]]],
     shapes], solverTag];
 
-expandOutputTerm[irs["RepeatedGroup"][occ_, child_, meta_Association],
-    state_Association] :=
+expandOutputTerm[(head : (irs["RepeatedGroup"] | irs["SequenceComposition"]))[
+    occ_, child_, meta_Association], state_Association] :=
   Module[{ids, allMemberLists, pairs, memberLists, length},
-    ids = DeleteDuplicates @ Cases[child,
-      irs["AxisOccurrence"][_, id_, _] :> id, {0, Infinity}];
+    ids = DeleteDuplicates @ Join[
+      Cases[child, irs["AxisOccurrence"][_, id_, _] :> id, {0, Infinity}],
+      Cases[child, irs["SequenceAxis"][_, id_, _] :> id, {0, Infinity}]];
     allMemberLists = Lookup[state["Members"], ids, Missing["UnknownProjection"]];
     pairs = Select[Transpose[{ids, allMemberLists}],
       Function[pair, ListQ[pair[[2]]]]];
@@ -323,7 +346,7 @@ expandOutputTerm[irs["SequenceProjection"][_,
 expandOutputTerm[irs["SequenceZip"][occ_, CircleTimes, refs_List,
     meta_Association], state_Association] :=
   Module[{ids, memberLists, lengths},
-    ids = Replace[refs, irs["SequenceReference"][id_] :> id, {1}];
+    ids = Replace[refs, irs["SequenceReference"][id_, ___] :> id, {1}];
     memberLists = Lookup[state["Members"], ids, Missing["UnknownSequence"]];
     If[AnyTrue[memberLists, MissingQ],
       {solverFailure["UnknownSequenceZipReference", "Solve", <|"Axes" -> ids|>]},
@@ -354,6 +377,12 @@ specializeOutputSequenceTerm[
     irs["AxisOccurrence"][irs["SequenceOccurrence"][occ, k], id,
       Join[meta, <|"SequenceIndex" -> k,
         "SequenceOccurrence" -> outerOcc|>]]];
+specializeOutputSequenceTerm[
+    irs["SequenceAxis"][_, id_, _Association], _, k_, state_Association] :=
+  With[{members = Lookup[state["Members"], id, {}]},
+    If[Length[members] >= k, members[[k]],
+      solverFailure["UnknownSequenceReference", "Solve", <|
+        "Sequence" -> id, "Index" -> k|>]]];
 specializeOutputSequenceTerm[head_[occ_, children_List, meta_Association],
     outerOcc_, k_, state_Association] /;
       MemberQ[{irs["ProductAxis"], irs["DirectSumAxis"]}, head] :=
@@ -454,6 +483,10 @@ constraintEquation[irs["InlineSizeCheck"][id_, n_, source_], vars_Association] :
 constraintEquation[irs["TensorDimension"][expr_, _, _, n_Integer, _],
     vars_Association] := algebraicSize[expr, vars] == n;
 constraintEquation[irs["SequenceLength"][_, n_Integer, _], _Association] := n >= 0;
+constraintEquation[irs["CrossGroupLength"][_, lengths_List, _], _Association] :=
+  lengths =!= {} && SameQ @@ lengths;
+constraintEquation[irs["RepeatedMemberConstraint"][_, _, lengths_List, _],
+    _Association] := lengths =!= {} && SameQ @@ lengths;
 constraintEquation[irs["EqualSize"][expr_, n_Integer, _], vars_Association] :=
   algebraicSize[expr, vars] == n;
 constraintEquation[irs["EqualSizeExpr"][left_, right_, _], vars_Association] :=

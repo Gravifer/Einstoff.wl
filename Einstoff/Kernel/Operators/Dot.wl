@@ -23,14 +23,13 @@
    axis is combined only once nothing downstream needs it. For a semiring (mul, add)
    — (Times,Plus), tropical (Plus,Min), … — the fold is associative; the left-to-
    right order is the defined semantics regardless. The single remaining tensor is
-   permuted/recomposed onto the output by the shared materializeOutput (which also
-   broadcasts any output-only repetition axis, SPEC 5.5).
+   permuted/recomposed by the shared execution plan, which also broadcasts any
+   output-only repetition axis (SPEC 5.5).
 
    An axis appearing in only one operand and neither kept nor shared would be a
    within-operand reduction before contraction — rejected (use ArrayReduce). A
    CirclePlus or variable-arity bracket ellipsis in a contraction shape is also
-   rejected. Shared shape helpers live in ShapeChecker.wl; atom/materialization helpers
-   live in Lowering.wl. *)
+   rejected. *)
 
 PackageExported[{EinstoffDot, EinstoffInner}]
 

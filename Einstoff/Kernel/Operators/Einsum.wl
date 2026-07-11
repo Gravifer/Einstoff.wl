@@ -18,8 +18,8 @@
    contraction subset — Massage rejects it pointing at Einstoff[ArrayReduce].  A future
    cross-tensor backend parallel to the univalent Massage is sketched as EinstoffTandem.
 
-   Shared shape helpers (descParts, hasCirclePlus) live in ShapeChecker.wl; atom
-   lowering helpers such as reduceAtoms live in Lowering.wl. *)
+   Surface parsing, shape solving, and tensor execution are delegated to the staged
+   compiler and shared execution-plan engine. *)
 
 PackageExported[{EinstoffEinsum}]
 
@@ -36,41 +36,41 @@ Einstoff["Einsum"] := EinstoffEinsum;
 Options[EinstoffEinsum] = {TraceAction -> None, "Targeting" -> Automatic};
 
 EinstoffEinsum[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
-  Catch[Module[{targeting, compiled, normalized, summary, planned, traceAction},
+  Module[{targeting, compiled, normalized, summary, planned, traceAction},
     traceAction = OptionValue[TraceAction];
-    targeting = einCatch[validateTargetingOption[OptionValue["Targeting"]]];
-    If[targeting === $Failed, Throw[$Failed, einsumTag]];
+    targeting = Catch[validateTargetingOption[OptionValue["Targeting"]], einThrowTag];
+    If[plannerFailureQ[targeting], reportPlannerFailure[targeting],
     compiled = compileHeldDescIR[Hold[desc], HoldComplete[bindings], "einsum",
       <|"Targeting" -> targeting|>];
     normalized = Lookup[compiled, "Normalized", None];
     If[Head[normalized] =!= Einstoff`Internal`IR`NormalizedDesc,
-      Throw[reportPlannerFailure[normalized], einsumTag]];
+      reportPlannerFailure[normalized],
     summary = einsumSummary[normalized];
-    Which[
+    planned = Which[
       summary["DirectSum"],
-        Message[Einstoff::unsupp,
-          "einsum does not take a direct sum; use Einstoff[Join]/[Split]"];
-        Throw[$Failed, einsumTag],
+        reportPlannerFailure @ einsumPolicyFailure["DirectSum",
+          "einsum does not take a direct sum; use Einstoff[Join]/[Split]"],
       summary["OutputOnly"],
-        Message[Einstoff::unsupp,
-          "einsum cannot introduce a broadcast/output-only axis"];
-        Throw[$Failed, einsumTag],
+        reportPlannerFailure @ einsumPolicyFailure["OutputOnly",
+          "einsum cannot introduce a broadcast/output-only axis"],
       summary["SingleDrop"],
-        Message[Einstoff::unsupp,
-          "einsum does not perform single-axis reduction; use Einstoff[ArrayReduce]"];
-        Throw[$Failed, einsumTag],
+        reportPlannerFailure @ einsumPolicyFailure["SingleDrop",
+          "einsum does not perform single-axis reduction; use Einstoff[ArrayReduce]"],
       Length[tensors] > 1 && summary["WithinRepeat"],
-        Message[Einstoff::unsupp,
-          "contract a within-operand repeated index before a multi-tensor einsum"];
-        Throw[$Failed, einsumTag],
+        reportPlannerFailure @ einsumPolicyFailure["WithinRepeat",
+          "contract a within-operand repeated index before a multi-tensor einsum"],
       Length[tensors] === 1,
-        planned = tryStructuralCompiledIRPlan[compiled, tensors, "Massage",
+        tryStructuralCompiledIRPlan[compiled, tensors, "Massage",
           targeting, traceAction],
       True,
-        planned = tryInnerCompiledIRPlan[compiled, tensors, Times, Plus,
+        tryInnerCompiledIRPlan[compiled, tensors, Times, Plus,
           targeting, traceAction]];
-    If[plannerFailureQ[planned], reportPlannerFailure[planned], planned]
-  ], einsumTag];
+    If[plannerFailureQ[planned], reportPlannerFailure[planned], planned]]]
+  ];
+
+einsumPolicyFailure[tag_String, reason_String] :=
+  Einstoff`Internal`IR`FailureRecord["Einsum" <> tag, "Analysis", <|
+    "Operator" -> "einsum", "Reason" -> reason, "MessageParameters" -> {}|>];
 
 einsumSummary[Einstoff`Internal`IR`NormalizedDesc[a_Association]] :=
   Module[{inputs, outputs, inputShapes, inputIds, outputIds},

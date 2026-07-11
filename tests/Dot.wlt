@@ -49,7 +49,7 @@ VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}],
         y = ArrayReshape[Range[35], {5, 7}]},
     Einstoff[Dot][
-      {{a__}, {b__}} :> {MapThread[CircleTimes, {{a}, {b}}]},
+    {{a__}, {b__}} :> {{CircleTimes[a, b]..}},
       {x, y}]],
   ArrayReshape[
     Table[
@@ -64,7 +64,7 @@ VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}],
         y = ArrayReshape[Range[35], {5, 7}]},
     With[{g = Einstoff[Dot][
-        {{a__}, {b__}} :> {MapThread[CircleTimes, {{a}, {b}}]},
+    {{a__}, {b__}} :> {{CircleTimes[a, b]..}},
         {x, y}, {}, TraceAction -> Hold]},
       {Head[g], Dimensions[ReleaseHold[g]], ! FreeQ[g, _MapThread]}]],
   {Hold, {10, 21}, True},

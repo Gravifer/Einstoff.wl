@@ -19,8 +19,7 @@
    convention (a globally bound axis symbol substitutes, a bound integer reads as a
    literal dimension, illegal values are rejected by the matcher).
 
-   Shared shape helpers (descParts, distinctAxesQ) live in ShapeChecker.wl; atom and
-   materialization helpers live in Lowering.wl. *)
+   Shape compilation, analysis, and materialization all use the staged pipeline. *)
 
 PackageExported[{EinstoffMap, EinstoffOperate}]
 

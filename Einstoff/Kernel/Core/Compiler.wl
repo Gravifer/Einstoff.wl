@@ -7,7 +7,10 @@ PackageScoped[{
   compileDescIR, compileHeldDescIR, captureDescIR, normalizeCapturedDesc,
   compileTargetPolicy, normalizedDescAssociation, declarativeRhsQ,
   compileDeclarativeRhsSurface, surfaceAxisKey, capturedBinder,
-  capturedLogicalAxis, capturedAmbientAxis, capturedNamedSequence
+  capturedLogicalAxis, capturedAmbientAxis, capturedNamedSequence,
+  capturedTarget, capturedProduct, capturedDirectSum, capturedRepeated,
+  capturedAnonymousAxis, capturedAnonymousSequence, capturedAmbientValue,
+  capturedUnsupported, capturedSizedAxis
 }]
 
 iri[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
@@ -208,41 +211,95 @@ captureBindingCandidates[bindings_List, established_List, axisKinds_Association]
     <|"Bindings" -> out, "Diagnostics" -> diagnostics|>
   ], bindingCaptureTag];
 
-captureSurfaceHeld[h_Hold, side_String, established_List] :=
-  h /. {
-    inlineSizedAxis[s_String, _, _] :> capturedLogicalAxis[s, "String"],
-    inlineSizedAxis[s_Symbol, _, _] /; Context[Unevaluated[s]] =!= "System`" :>
-      RuleCondition[capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"]],
-    inlineSizedAxis[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]], _, _] :>
-      RuleCondition[capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"]],
-    Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :>
-      RuleCondition[capturedBinder[SymbolName[Unevaluated[s]]]],
-    Verbatim[Pattern][s_Symbol, Verbatim[BlankSequence[]]] :>
-      RuleCondition[capturedNamedSequence[SymbolName[Unevaluated[s]], 1, Blank[]]],
-    Verbatim[Pattern][s_Symbol, Verbatim[BlankNullSequence[]]] :>
-      RuleCondition[capturedNamedSequence[SymbolName[Unevaluated[s]], 0, Blank[]]],
-    (head : (Slot | Highlighted | Framed))[s_String] :>
-      head[capturedLogicalAxis[s, "String"]],
-    (head : (Slot | Highlighted | Framed))[s_Symbol] /;
-        Context[Unevaluated[s]] =!= "System`" :>
-      RuleCondition[head[capturedLogicalAxis[
-        SymbolName[Unevaluated[s]], "Symbol"]]],
-    s_String :> capturedLogicalAxis[s, "String"],
-    s_Symbol /; Context[Unevaluated[s]] =!= "System`" &&
-        Unevaluated[s] =!= sequenceZipSurface &&
-        Unevaluated[s] =!= inlineSizedAxis &&
-        MemberQ[established, SymbolName[Unevaluated[s]]] :>
-      RuleCondition[capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"]],
-    s_Symbol /; Context[Unevaluated[s]] =!= "System`" &&
-        Unevaluated[s] =!= sequenceZipSurface &&
-        Unevaluated[s] =!= inlineSizedAxis && ValueQ[s] :> s,
-    s_Symbol /; Context[Unevaluated[s]] =!= "System`" &&
-        Unevaluated[s] =!= sequenceZipSurface &&
-        Unevaluated[s] =!= inlineSizedAxis :>
-      RuleCondition[capturedAmbientAxis[Context[Unevaluated[s]],
-        SymbolName[Unevaluated[s]]]]
-  };
+captureSurfaceHeld[Hold[shapes_], side_String, established_List] :=
+  With[{captured = captureHeldShapeList[HoldComplete[shapes], side, established]},
+    With[{value = captured}, Hold[value]]];
 
+heldImmediateChildren[held_HoldComplete] :=
+  Cases[held, child_ :> HoldComplete[child], {2}];
+
+captureHeldShapeList[held_HoldComplete, side_, established_] :=
+  captureHeldShape[#, side, established] & /@ heldImmediateChildren[held];
+captureHeldShape[held_HoldComplete, side_, established_] :=
+  captureHeldTerm[#, side, established] & /@ heldImmediateChildren[held];
+
+captureHeldTerm[HoldComplete[inlineSizedAxis[x_, _, _]], side_, established_] :=
+  capturedSizedAxis @ captureExplicitHeldTerm[HoldComplete[x], side, established];
+captureHeldTerm[HoldComplete[
+    Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]]], _, _] :=
+  capturedBinder[SymbolName[Unevaluated[s]]];
+captureHeldTerm[HoldComplete[
+    Verbatim[Pattern][s_Symbol, Verbatim[BlankSequence[]]]], _, _] :=
+  capturedNamedSequence[SymbolName[Unevaluated[s]], 1, None];
+captureHeldTerm[HoldComplete[
+    Verbatim[Pattern][s_Symbol, Verbatim[BlankNullSequence[]]]], _, _] :=
+  capturedNamedSequence[SymbolName[Unevaluated[s]], 0, None];
+captureHeldTerm[held : HoldComplete[
+    Verbatim[Pattern][s_Symbol, Verbatim[Repeated][_]]], side_, established_] :=
+  capturedNamedSequence[SymbolName[Unevaluated[s]], 1,
+    captureHeldTerm[Extract[held, {1, 2, 1}, HoldComplete], side, established]];
+captureHeldTerm[held : HoldComplete[
+    Verbatim[Pattern][s_Symbol, Verbatim[RepeatedNull][_]]], side_, established_] :=
+  capturedNamedSequence[SymbolName[Unevaluated[s]], 0,
+    captureHeldTerm[Extract[held, {1, 2, 1}, HoldComplete], side, established]];
+captureHeldTerm[HoldComplete[Verbatim[Blank[]]], _, _] := capturedAnonymousAxis[];
+captureHeldTerm[HoldComplete[Verbatim[BlankSequence[]]], _, _] :=
+  capturedAnonymousSequence[1];
+captureHeldTerm[HoldComplete[Verbatim[BlankNullSequence[]]], _, _] :=
+  capturedAnonymousSequence[0];
+captureHeldTerm[HoldComplete[SlotSequence[1]], _, _] :=
+  capturedAnonymousSequence[0, "SlotSequence"];
+captureHeldTerm[held : HoldComplete[Slot[_]], side_, established_] :=
+  capturedTarget["Slot",
+    captureExplicitHeldTerm[Extract[held, {1, 1}, HoldComplete], side, established]];
+captureHeldTerm[held : HoldComplete[Highlighted[_]], side_, established_] :=
+  capturedTarget["Highlighted",
+    captureExplicitHeldTerm[Extract[held, {1, 1}, HoldComplete], side, established]];
+captureHeldTerm[held : HoldComplete[Framed[_]], side_, established_] :=
+  capturedTarget["Framed",
+    captureExplicitHeldTerm[Extract[held, {1, 1}, HoldComplete], side, established]];
+captureHeldTerm[held : HoldComplete[CircleTimes[__]], side_, established_] :=
+  capturedProduct[captureHeldTerm[#, side, established] & /@
+    heldImmediateChildren[held]];
+captureHeldTerm[held : HoldComplete[CirclePlus[__]], side_, established_] :=
+  capturedDirectSum[captureHeldTerm[#, side, established] & /@
+    heldImmediateChildren[held]];
+captureHeldTerm[held : HoldComplete[Verbatim[Repeated][_]], side_, established_] :=
+  capturedRepeated[captureHeldTerm[Extract[held, {1, 1}, HoldComplete],
+    side, established], 1];
+captureHeldTerm[held : HoldComplete[Verbatim[RepeatedNull][_]], side_, established_] :=
+  capturedRepeated[captureHeldTerm[Extract[held, {1, 1}, HoldComplete],
+    side, established], 0];
+captureHeldTerm[HoldComplete[s_String], _, _] := capturedLogicalAxis[s, "String"];
+captureHeldTerm[HoldComplete[n_Integer], _, _] := n;
+captureHeldTerm[HoldComplete[s_Symbol], side_, established_] /;
+    Context[Unevaluated[s]] =!= "System`" :=
+  Module[{name = SymbolName[Unevaluated[s]]},
+    Which[
+      MemberQ[established, name], capturedLogicalAxis[name, "Symbol"],
+      ValueQ[s], With[{value = s}, capturedAmbientValue[value]],
+      True, capturedAmbientAxis[Context[Unevaluated[s]], name]]];
+captureHeldTerm[held_HoldComplete, _, _] := capturedUnsupported[held];
+
+captureExplicitHeldTerm[HoldComplete[s_String], _, _] :=
+  capturedLogicalAxis[s, "String"];
+captureExplicitHeldTerm[HoldComplete[s_Symbol], _, _] /;
+    Context[Unevaluated[s]] =!= "System`" :=
+  capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"];
+captureExplicitHeldTerm[HoldComplete[
+    Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]]], _, _] :=
+  capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"];
+captureExplicitHeldTerm[held : HoldComplete[Slot[_]], side_, established_] :=
+  capturedTarget["Slot", captureExplicitHeldTerm[
+    Extract[held, {1, 1}, HoldComplete], side, established]];
+captureExplicitHeldTerm[held : HoldComplete[Highlighted[_]], side_, established_] :=
+  capturedTarget["Highlighted", captureExplicitHeldTerm[
+    Extract[held, {1, 1}, HoldComplete], side, established]];
+captureExplicitHeldTerm[held : HoldComplete[Framed[_]], side_, established_] :=
+  capturedTarget["Framed", captureExplicitHeldTerm[
+    Extract[held, {1, 1}, HoldComplete], side, established]];
+captureExplicitHeldTerm[held_HoldComplete, side_, established_] :=
+  captureHeldTerm[held, side, established];
 surfaceBinderNames[h_Hold] := DeleteDuplicates @ Cases[h,
   Verbatim[Pattern][s_Symbol,
       Verbatim[Blank[]] | Verbatim[BlankSequence[]] |
@@ -255,13 +312,20 @@ captureSurfaceSide[shapes_List, side_String, established_List] :=
     shapes];
 
 captureSurfaceTerm[inlineSizedAxis[x_, _, _], side_, established_] :=
-  captureExplicitSurfaceTerm[x, side, established];
+  capturedSizedAxis @ If[side === "LHS",
+    captureLhsSizedTerm[x, established],
+    captureExplicitSurfaceTerm[x, side, established]];
+captureLhsSizedTerm[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]], _] :=
+  capturedBinder[SymbolName[Unevaluated[s]]];
+captureLhsSizedTerm[(head : (Slot | Highlighted | Framed))[x_], est_] :=
+  capturedTarget[SymbolName[head], captureLhsSizedTerm[x, est]];
+captureLhsSizedTerm[x_, est_] := captureExplicitSurfaceTerm[x, "LHS", est];
 captureSurfaceTerm[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]], _, _] :=
   capturedBinder[SymbolName[Unevaluated[s]]];
 captureSurfaceTerm[Verbatim[Pattern][s_Symbol, Verbatim[BlankSequence[]]], _, _] :=
-  capturedNamedSequence[SymbolName[Unevaluated[s]], 1, Blank[]];
+  capturedNamedSequence[SymbolName[Unevaluated[s]], 1, None];
 captureSurfaceTerm[Verbatim[Pattern][s_Symbol, Verbatim[BlankNullSequence[]]], _, _] :=
-  capturedNamedSequence[SymbolName[Unevaluated[s]], 0, Blank[]];
+  capturedNamedSequence[SymbolName[Unevaluated[s]], 0, None];
 captureSurfaceTerm[Verbatim[Pattern][s_Symbol, Verbatim[Repeated][body_]], side_, est_] :=
   capturedNamedSequence[SymbolName[Unevaluated[s]], 1,
     captureSurfaceTerm[body, side, est]];
@@ -269,15 +333,19 @@ captureSurfaceTerm[Verbatim[Pattern][s_Symbol, Verbatim[RepeatedNull][body_]], s
   capturedNamedSequence[SymbolName[Unevaluated[s]], 0,
     captureSurfaceTerm[body, side, est]];
 captureSurfaceTerm[(head : (Slot | Highlighted | Framed))[x_], side_, est_] :=
-  head[captureExplicitSurfaceTerm[x, side, est]];
+  capturedTarget[SymbolName[head], captureExplicitSurfaceTerm[x, side, est]];
 captureSurfaceTerm[CircleTimes[xs__], side_, est_] :=
-  CircleTimes @@ (captureSurfaceTerm[#, side, est] & /@ {xs});
+  capturedProduct[captureSurfaceTerm[#, side, est] & /@ {xs}];
 captureSurfaceTerm[CirclePlus[xs__], side_, est_] :=
-  CirclePlus @@ (captureSurfaceTerm[#, side, est] & /@ {xs});
+  capturedDirectSum[captureSurfaceTerm[#, side, est] & /@ {xs}];
 captureSurfaceTerm[Verbatim[Repeated][x_], side_, est_] :=
-  Repeated[captureSurfaceTerm[x, side, est]];
+  capturedRepeated[captureSurfaceTerm[x, side, est], 1];
 captureSurfaceTerm[Verbatim[RepeatedNull][x_], side_, est_] :=
-  RepeatedNull[captureSurfaceTerm[x, side, est]];
+  capturedRepeated[captureSurfaceTerm[x, side, est], 0];
+captureSurfaceTerm[Verbatim[Blank[]], _, _] := capturedAnonymousAxis[];
+captureSurfaceTerm[Verbatim[BlankSequence[]], _, _] := capturedAnonymousSequence[1];
+captureSurfaceTerm[Verbatim[BlankNullSequence[]], _, _] := capturedAnonymousSequence[0];
+captureSurfaceTerm[SlotSequence[1], _, _] := capturedAnonymousSequence[0, "SlotSequence"];
 captureSurfaceTerm[s_String, _, _] := capturedLogicalAxis[s, "String"];
 captureSurfaceTerm[s_Symbol, side_, est_] /; Context[Unevaluated[s]] =!= "System`" :=
   Module[{name = SymbolName[Unevaluated[s]]},
@@ -289,6 +357,9 @@ captureSurfaceTerm[x_, _, _] := x;
 captureExplicitSurfaceTerm[s_String, _, _] := capturedLogicalAxis[s, "String"];
 captureExplicitSurfaceTerm[s_Symbol, _, _] /; Context[Unevaluated[s]] =!= "System`" :=
   capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"];
+captureExplicitSurfaceTerm[
+    Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]], _, _] :=
+  capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"];
 captureExplicitSurfaceTerm[x_, side_, est_] := captureSurfaceTerm[x, side, est];
 
 (* Inspect held compound heads before releasing the RHS.  Only the declarative shape
@@ -299,20 +370,13 @@ declarativeRhsQ[h_Hold] :=
     allowed = {Hold, List, CircleTimes, CirclePlus, Pattern, Blank,
       BlankSequence, BlankNullSequence, Repeated, RepeatedNull,
       Slot, SlotSequence, Highlighted, Framed, Inactive, Sequence,
-      sequenceZipSurface, inlineSizedAxis};
+      inlineSizedAxis};
     heads = DeleteDuplicates @ Cases[h,
       e_[___] :> Unevaluated[e], {0, Infinity}, Heads -> False];
     AllTrue[heads, MemberQ[allowed, #] &]
   ];
 
-compileDeclarativeRhsSurface[h_Hold] :=
-  Replace[h,
-    Hold[{MapThread[CircleTimes, lists_List]}] :>
-      If[MatchQ[Unevaluated[lists], {{_Symbol} ..}],
-        With[{symbols = First /@ lists},
-          Hold[{{sequenceZipSurface[CircleTimes, symbols]}}]],
-        h],
-    {0}];
+compileDeclarativeRhsSurface[h_Hold] := h;
 
 normalizeCapturedDesc[iri["CapturedDesc"][captured_Association]] :=
   Catch[Module[{lhs, rhs, state, in, out, r, facts, axisTable, normalized},
@@ -397,12 +461,6 @@ compilerAtSource[state_Association, path_List, held_HoldComplete] :=
   Join[state, <|"CurrentSourcePath" -> path,
     "CurrentSourceExpression" -> held|>];
 
-compilerAxisForSymbol[s_Symbol, side_String, state_Association] :=
-  Module[{name = SymbolName[Unevaluated[s]]},
-    If[side === "RHS" && MemberQ[state["EstablishedNames"], name],
-      compilerAxisForName[name, state],
-      compilerAmbientAxis[Context[Unevaluated[s]], name, state]]];
-
 compilerAxisForName[name_String, state_Association] :=
   compilerIntern["axis:" <> name, name, <|"Origin" -> "Established",
     "SurfaceKinds" -> Lookup[state["AxisKinds"], name, {}]|>, state];
@@ -438,9 +496,6 @@ compileTerms[terms_List, side_String, state_Association] :=
     {out, st}
   ], compilerTag];
 
-compileTerm[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]], side_, target_, state_] :=
-  compileNamedOccurrence[s, side, "Binder", target, state];
-
 compileTerm[capturedBinder[name_String], side_, target_, state_] :=
   compileNamedOccurrenceByName[name, side, "Binder", target, state];
 compileTerm[capturedLogicalAxis[name_String, _], side_, target_, state_] :=
@@ -450,67 +505,47 @@ compileTerm[capturedAmbientAxis[context_String, name_String], side_, target_, st
   compileAmbientOccurrence[context, name, side, target, state];
 compileTerm[capturedNamedSequence[name_String, min_Integer, body_], side_, target_, state_] :=
   compileNamedSequenceByName[name, side, min, body, target, state];
-
-compileTerm[Verbatim[Pattern][s_Symbol, Verbatim[BlankSequence[]]], side_, target_, state_] :=
-  compileNamedSequence[s, side, 1, Blank[], target, state];
-compileTerm[Verbatim[Pattern][s_Symbol, Verbatim[BlankNullSequence[]]], side_, target_, state_] :=
-  compileNamedSequence[s, side, 0, Blank[], target, state];
-compileTerm[Verbatim[Pattern][s_Symbol, Verbatim[Repeated][body_]], side_, target_, state_] :=
-  compileNamedSequence[s, side, 1, body, target, state];
-compileTerm[Verbatim[Pattern][s_Symbol, Verbatim[RepeatedNull][body_]], side_, target_, state_] :=
-  compileNamedSequence[s, side, 0, body, target, state];
-
-compileTerm[s_Symbol, side_, target_, state_] /; Context[Unevaluated[s]] =!= "System`" :=
-  compileNamedOccurrence[s, side, If[side === "RHS", "Reference", "Named"],
-    target, state];
+compileTerm[capturedSizedAxis[capturedLogicalAxis[name_String, _]], side_, target_,
+    state_] :=
+  compileNamedOccurrenceByName[name, side, "ExplicitSizedDeclaration", target, state];
+compileTerm[capturedSizedAxis[capturedBinder[name_String]], side_, target_, state_] :=
+  compileNamedOccurrenceByName[name, side, "Binder", target, state];
+compileTerm[capturedSizedAxis[capturedTarget[targetKind_String, child_]], side_, _,
+    state_] := compileTerm[capturedSizedAxis[child], side, targetKind, state];
+compileTerm[capturedSizedAxis[other_], side_, _, state_] :=
+  {compilerFailure["InvalidInlineBinding", "Normalize", <|
+    "Side" -> side, "Expression" -> HoldComplete[other]|>], state};
 compileTerm[n_Integer, side_, target_, state_] :=
   compileLeaf["LiteralAxis", n, side, target, state];
-compileTerm[Verbatim[Blank[]], side_, target_, state_] :=
+compileTerm[capturedAmbientValue[n_Integer], side_, target_, state_] :=
+  compileLeaf["LiteralAxis", n, side, target, state, "AmbientCapture"];
+compileTerm[capturedAmbientValue[value_], side_, _, state_] :=
+  {compilerFailure["InvalidAmbientCapture", "Normalize", <|
+    "Side" -> side, "Expression" -> HoldComplete[value]|>], state};
+compileTerm[capturedAnonymousAxis[], side_, target_, state_] :=
   compileLeaf["AnonymousAxis", "One", side, target, state];
-compileTerm[Verbatim[BlankSequence[]], side_, target_, state_] :=
-  compileAnonymousSequence[side, 1, target, state];
-compileTerm[Verbatim[BlankNullSequence[]], side_, target_, state_] :=
-  compileAnonymousSequence[side, 0, target, state];
-compileTerm[SlotSequence[1], side_, _, state_] :=
-  compileAnonymousSequence[side, 0, SlotSequence, state];
+compileTerm[capturedAnonymousSequence[min_Integer], side_, target_, state_] :=
+  compileAnonymousSequence[side, min, target, state];
+compileTerm[capturedAnonymousSequence[min_Integer, targetKind_], side_, _, state_] :=
+  compileAnonymousSequence[side, min, targetKind, state];
 
-compileTerm[Slot[x_], side_, _, state_] :=
-  compileTerm[x, side, Slot,
-    compilerAtSource[state, Append[state["CurrentSourcePath"], 1], HoldComplete[x]]];
-compileTerm[Highlighted[x_], side_, _, state_] :=
-  compileTerm[x, side, Highlighted,
-    compilerAtSource[state, Append[state["CurrentSourcePath"], 1], HoldComplete[x]]];
-compileTerm[Framed[x_], side_, _, state_] :=
-  compileTerm[x, side, Framed,
+compileTerm[capturedTarget[targetKind_String, x_], side_, _, state_] :=
+  compileTerm[x, side, targetKind,
     compilerAtSource[state, Append[state["CurrentSourcePath"], 1], HoldComplete[x]]];
 
-compileTerm[CircleTimes[xs__], side_, target_, state_] :=
-  compileComposite["ProductAxis", {xs}, side, target, state];
-compileTerm[CirclePlus[xs__], side_, target_, state_] :=
-  compileComposite["DirectSumAxis", {xs}, side, target, state];
-compileTerm[Verbatim[Repeated][body_], side_, target_, state_] :=
-  compileRepeated[body, side, 1, target, state];
-compileTerm[Verbatim[RepeatedNull][body_], side_, target_, state_] :=
-  compileRepeated[body, side, 0, target, state];
-compileTerm[sequenceZipSurface[CircleTimes, symbols_List], side_, target_, state_] :=
-  compileSequenceZip[symbols, side, target, state];
+compileTerm[capturedProduct[children_List], side_, target_, state_] :=
+  compileComposite["ProductAxis", children, side, target, state];
+compileTerm[capturedDirectSum[children_List], side_, target_, state_] :=
+  compileComposite["DirectSumAxis", children, side, target, state];
+compileTerm[capturedRepeated[body_, min_Integer], side_, target_, state_] :=
+  compileRepeated[body, side, min, target, state];
+compileTerm[capturedUnsupported[held_HoldComplete], side_, _, state_] :=
+  {compilerFailure["UnsupportedTerm", "Normalize",
+    <|"Side" -> side, "Expression" -> held|>], state};
 
 compileTerm[other_, side_, _, state_] :=
   {compilerFailure["UnsupportedTerm", "Normalize",
     <|"Side" -> side, "Expression" -> HoldComplete[other]|>], state};
-
-compileNamedOccurrence[s_Symbol, side_, role_, target_, state_] :=
-  Module[{id, occ, st},
-    {id, st} = compilerAxisForSymbol[Unevaluated[s], side, state];
-    {occ, st} = compilerOccurrence[st];
-    If[side === "RHS" && KeyExistsQ[st["SequenceAxes"], id],
-      {iri["SequenceAxis"][occ, id,
-        <|"Side" -> side, "Minimum" -> 0, "Pattern" -> None,
-          "SyntaxRole" -> "SequenceReference", "TargetHead" -> target|>], st},
-      {iri["AxisOccurrence"][occ, id,
-        <|"Side" -> side, "SyntaxRole" -> role,
-          "TargetHead" -> target|>], st}]
-  ];
 
 compileNamedOccurrenceByName[name_String, side_, role_, target_, state_] :=
   Module[{id, occ, st},
@@ -534,30 +569,13 @@ compileAmbientOccurrence[context_, name_, side_, target_, state_] :=
         "TargetHead" -> target|>], st}
   ];
 
-compileNamedSequence[s_Symbol, side_, min_, body_, target_, state_] :=
-  Module[{id, occ, st, child, r},
-    {id, st} = compilerAxisForSymbol[Unevaluated[s], side, state];
-    If[side === "LHS",
-      st = Append[st, "SequenceAxes" -> Append[st["SequenceAxes"], id -> True]]];
-    {occ, st} = compilerOccurrence[st];
-    If[HoldComplete[body] === HoldComplete[Blank[]],
-      child = None,
-      r = compileTerm[body, side, None,
-        compilerAtSource[st, Append[st["CurrentSourcePath"], 1], HoldComplete[body]]];
-      If[compilerResultFailureQ[r], Throw[r, compilerTag]];
-      child = First[r]; st = Last[r]];
-    {iri["SequenceAxis"][occ, id,
-      <|"Side" -> side, "Minimum" -> min, "Pattern" -> child,
-        "TargetHead" -> target|>], st}
-  ];
-
 compileNamedSequenceByName[name_String, side_, min_, body_, target_, state_] :=
   Module[{id, occ, st, child, r},
     {id, st} = compilerAxisForName[name, state];
     If[side === "LHS",
       st = Append[st, "SequenceAxes" -> Append[st["SequenceAxes"], id -> True]]];
     {occ, st} = compilerOccurrence[st];
-    If[HoldComplete[body] === HoldComplete[Blank[]], child = None,
+    If[body === None, child = None,
       r = compileTerm[body, side, None,
         compilerAtSource[st, Append[st["CurrentSourcePath"], 1], HoldComplete[body]]];
       If[compilerResultFailureQ[r], Throw[r, compilerTag]];
@@ -593,11 +611,12 @@ compileAnonymousSequence[side_, min_, target_, state_Association] :=
           "Pattern" -> None, "TargetHead" -> target|>], st}]
   ];
 
-compileLeaf[head_, payload_, side_, target_, state_] :=
+compileLeaf[head_, payload_, side_, target_, state_, role_ : None] :=
   Module[{occ, st},
     {occ, st} = compilerOccurrence[state];
     {iri[head][occ, payload,
-      <|"Side" -> side, "TargetHead" -> target|>], st}
+      Join[<|"Side" -> side, "TargetHead" -> target|>,
+        If[role === None, <||>, <|"SyntaxRole" -> role|>]]], st}
   ];
 
 compileComposite[head_, children_List, side_, target_, state_] :=
@@ -620,34 +639,39 @@ compileRepeated[body_, side_, min_, target_, state_] :=
         HoldComplete[body]]];
     If[compilerResultFailureQ[r], Throw[r, compilerTag]];
     st = compilerAtSource[Last[r], path, held];
-    If[side === "RHS" && Head[First[r]] === iri["SequenceAxis"],
+    Which[
+      side === "RHS" && Head[First[r]] === iri["SequenceAxis"],
       {occ, st} = compilerOccurrence[st];
       {Replace[First[r], iri["SequenceAxis"][referenceOcc_, id_, meta_Association] :>
         iri["SequenceProjection"][occ,
           iri["SequenceReference"][id, referenceOcc],
           Join[meta, <|"SyntaxRole" -> "SequenceProjection",
             "TargetHead" -> target|>]]], st},
-      {occ, st} = compilerOccurrence[st];
+      side === "RHS" && sequenceProductQ[First[r]],
+        {occ, st} = compilerOccurrence[st];
+        {Replace[First[r], iri["ProductAxis"][_, children_List, meta_Association] :>
+          iri["SequenceZip"][occ, CircleTimes,
+            Replace[children,
+              iri["SequenceAxis"][referenceOcc_, id_, _Association] :>
+                iri["SequenceReference"][id, referenceOcc], {1}],
+            Join[meta, <|"SyntaxRole" -> "SequenceZip",
+              "TargetHead" -> target|>]]], st},
+      side === "RHS" && containsSequenceReferenceQ[First[r]],
+        {occ, st} = compilerOccurrence[st];
+        {iri["SequenceComposition"][occ, First[r], <|
+          "Side" -> side, "Minimum" -> min, "TargetHead" -> target|>], st},
+      True,
+        {occ, st} = compilerOccurrence[st];
       {iri["RepeatedGroup"][occ, First[r],
         <|"Side" -> side, "Minimum" -> min, "TargetHead" -> target|>], st}]
   ];
 
-compileSequenceZip[symbols_List, side_, target_, state_Association] :=
-  Catch[Module[{st = state, refs = {}, id, occ},
-    Do[
-      If[Head[symbol] === capturedLogicalAxis && Length[symbol] === 2 &&
-          StringQ[First[symbol]],
-        {id, st} = compilerAxisForName[First[symbol], st],
-        If[Head[symbol] =!= Symbol,
-          Throw[{compilerFailure["InvalidSequenceZipReference", "Normalize", <|
-            "Expression" -> HoldComplete[symbol]|>], st}, compilerTag]];
-        {id, st} = compilerAxisForSymbol[symbol, side, st]];
-      AppendTo[refs, iri["SequenceReference"][id]],
-      {symbol, symbols}];
-    {occ, st} = compilerOccurrence[st];
-    {iri["SequenceZip"][occ, CircleTimes, refs,
-      <|"Side" -> side, "TargetHead" -> target|>], st}
-  ], compilerTag];
+sequenceProductQ[iri["ProductAxis"][_, children_List, _Association]] :=
+  children =!= {} && AllTrue[children, Head[#] === iri["SequenceAxis"] &];
+sequenceProductQ[_] := False;
+
+containsSequenceReferenceQ[expr_] :=
+  ! FreeQ[expr, iri["SequenceAxis"][___], Infinity];
 
 compileBindingFacts[inline_List, external_List, state_Association] :=
   Catch[Module[{out = {}, id, source, grouped, values, fact},

@@ -9,7 +9,7 @@
 
    * Concat — CirclePlus on the RHS: `{op1, …, opk} :> {{ … s1 ⊕ … ⊕ sk … }}`.
      Each operand is aligned to the output shape with the top-level CirclePlus axes
-     replaced by one Cartesian summand combination (reusing materializeOutput, so a
+     replaced by one Cartesian summand combination (the shared plan broadcasts a
      scalar operand or an integer summand broadcasts to fill — einx's
      `b c, -> b (c + 1)` with 42), then the blocks are Join'd along those concat
      axes. IMPLEMENTED.
@@ -17,7 +17,7 @@
    * Split — CirclePlus on the LHS: `{{ … a ⊕ b … }} :> {out1, out2, …}`. One input
      is sliced into contiguous Cartesian blocks along the top-level direct-sum axes
      (Take, left-to-right with the last axis varying fastest); each slice is then
-     rearranged to its output shape (reusing materializeOutput). Returns a List of
+     rearranged to its output shape through the shared plan. Returns a List of
      arrays. IMPLEMENTED.
 
    Surface: folded into the permissive Einstoff["Massage"] (einx puts `+` in `id`); the

@@ -373,7 +373,7 @@ VerificationTest[
   Module[{x = ArrayReshape[Range[6], {2, 3}],
       y = ArrayReshape[Range[35], {5, 7}], solvedDesc, p},
     solvedDesc = solve[compile[{{a__}, {b__}} :>
-      {MapThread[CircleTimes, {{a}, {b}}]}],
+      {{CircleTimes[a, b]..}}],
       {Dimensions[x], Dimensions[y]}]["Solved"];
     p = planInner[solvedDesc, Times, Plus, Automatic];
     execute[p, {x, y}]],
@@ -431,6 +431,22 @@ VerificationTest[
       "OutputShapes" -> {{2, 0}}|>]],
   ir["FailureRecord"],
   TestID -> "plan-validator-rejects-nonpositive-shape"
+];
+
+VerificationTest[
+  Catch @ Einstoff[ArrayReduce][Function[x, Throw["reduce-boom"]]][
+    {{a_, Highlighted[b_]}} :> {{a}},
+    {ArrayReshape[Range[6], {2, 3}]}],
+  "reduce-boom",
+  TestID -> "plan-reducer-throw-propagates"
+];
+
+VerificationTest[
+  Catch @ Einstoff[Map][Function[x, Throw["map-boom"]]][
+    {{a_, Highlighted[b_]}} :> {{a}},
+    {ArrayReshape[Range[6], {2, 3}]}],
+  "map-boom",
+  TestID -> "plan-map-throw-propagates"
 ];
 
 EndTestSection[];

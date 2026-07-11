@@ -92,9 +92,15 @@ VerificationTest[
 
 VerificationTest[
   out @ solved[{{a__}, {b__}} :>
-      {MapThread[CircleTimes, {{a}, {b}}]}, {{2, 3}, {5, 7}}],
+      {{CircleTimes[a, b]..}}, {{2, 3}, {5, 7}}],
   {{10, 21}},
   TestID -> "solver-declarative-sequence-zip"
+];
+
+VerificationTest[
+  out @ solved[{{a__, c_}} :> {{CircleTimes[a, c]..}}, {{2, 3, 4}}],
+  {{8, 12}},
+  TestID -> "solver-declarative-sequence-composition"
 ];
 
 VerificationTest[
@@ -156,6 +162,21 @@ VerificationTest[
     }],
   {True, True, True},
   TestID -> "solver-emits-explicit-constraint-vocabulary"
+];
+
+VerificationTest[
+  Module[{zip, composition},
+    zip = solve[compile[{{a__}, {b__}} :> {{CircleTimes[a, b]..}}],
+      {{2, 3}, {5, 7}}]["Constraints"];
+    composition = solve[
+      compile[{{a__, c_}} :> {{CircleTimes[a, c]..}}],
+      {{2, 3, 4}}]["Constraints"];
+    {
+      ! FreeQ[zip, ir["CrossGroupLength"][___], Infinity],
+      ! FreeQ[composition, ir["RepeatedMemberConstraint"][___], Infinity]
+    }],
+  {True, True},
+  TestID -> "solver-emits-sequence-relation-constraints"
 ];
 
 EndTestSection[];

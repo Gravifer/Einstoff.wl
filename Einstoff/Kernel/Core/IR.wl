@@ -291,17 +291,52 @@ irValidSourceRefQ[_] := False;
 
 irValidQ[Einstoff`Internal`IR`SurfaceDesc[
     _HoldComplete, _HoldComplete, _, opts_]] := AssociationQ[opts];
-irValidQ[Einstoff`Internal`IR`CapturedDesc[assoc_Association]] := True;
-irValidQ[n_Einstoff`Internal`IR`NormalizedDesc] := irFreeOfSurfaceSyntaxQ[n];
-irValidQ[n_Einstoff`Internal`IR`ConstraintDesc] := irFreeOfSurfaceSyntaxQ[n];
-irValidQ[n_Einstoff`Internal`IR`SolvedDesc] := irFreeOfSurfaceSyntaxQ[n];
-irValidQ[n_Einstoff`Internal`IR`OperationAnalysis] := irFreeOfSurfaceSyntaxQ[n];
+irValidQ[Einstoff`Internal`IR`CapturedDesc[assoc_Association]] :=
+  ContainsAll[Keys[assoc], {"Surface", "CanonicalLHS", "CanonicalRHS",
+    "EstablishedNames", "AxisKinds", "InlineBindingFacts",
+    "ExternalBindings", "CaptureDiagnostics", "SourceMap"}] &&
+    Head[assoc["CanonicalRHS"]] === Hold &&
+    irFreeOfSurfaceSyntaxQ[assoc["CanonicalLHS"]] &&
+    irFreeOfSurfaceSyntaxQ[assoc["CanonicalRHS"]] &&
+    irSourceMapValidQ[assoc["SourceMap"]];
+irValidQ[n : Einstoff`Internal`IR`NormalizedDesc[assoc_Association]] :=
+  ContainsAll[Keys[assoc], {"Inputs", "Outputs", "Axes", "Bindings", "SourceMap"}] &&
+    irFreeOfSurfaceSyntaxQ[n] && irNormalizedIdsValidQ[n] &&
+    irSourceMapValidQ[assoc["SourceMap"]];
+irValidQ[n : Einstoff`Internal`IR`ConstraintDesc[assoc_Association]] :=
+  ContainsAll[Keys[assoc], {"Normalized", "InputShapes", "SolvedInputs",
+    "SolvedOutputs", "SequenceCaptures", "SourceMap", "Constraints"}] &&
+    Head[assoc["Normalized"]] === Einstoff`Internal`IR`NormalizedDesc &&
+    irFreeOfSurfaceSyntaxQ[n] && irSourceMapValidQ[assoc["SourceMap"]];
+irValidQ[n : Einstoff`Internal`IR`SolvedDesc[assoc_Association]] :=
+  ContainsAll[Keys[assoc], {"Normalized", "Constraints", "InputShapes", "Inputs",
+    "Outputs", "SequenceCaptures", "SourceMap", "OutputShapes", "AxisSizes"}] &&
+    Head[assoc["Constraints"]] === Einstoff`Internal`IR`ConstraintDesc &&
+    ListQ[assoc["OutputShapes"]] && AllTrue[assoc["OutputShapes"], ListQ] &&
+    irFreeOfSurfaceSyntaxQ[n] &&
+    irSourceMapValidQ[assoc["SourceMap"]];
+irValidQ[n : Einstoff`Internal`IR`OperationAnalysis[assoc_Association]] :=
+  ContainsAll[Keys[assoc], {"Solved", "Operator", "Spec", "TargetPolicy",
+    "Effects", "Violations", "Valid"}] &&
+    Head[assoc["Solved"]] === Einstoff`Internal`IR`SolvedDesc &&
+    BooleanQ[assoc["Valid"]] && irFreeOfSurfaceSyntaxQ[n];
 irValidQ[Einstoff`Internal`IR`ExecutionPlan[steps_List, ___]] :=
   AllTrue[steps, MemberQ[irPlanStepHeads, Head[Unevaluated[#]]] &];
 irValidQ[id : (Einstoff`Internal`IR`AxisId[_] |
     Einstoff`Internal`IR`OccurrenceId[_])] := irValidIdQ[id];
 irValidQ[src_Einstoff`Internal`IR`SourceRef] := irValidSourceRefQ[src];
 irValidQ[_] := False;
+
+irSourceMapValidQ[Einstoff`Internal`IR`SourceMap[map_Association]] :=
+  AllTrue[Values[map], irValidSourceRefQ];
+irSourceMapValidQ[_] := False;
+
+irNormalizedIdsValidQ[expr_] := And[
+  AllTrue[Cases[expr, id_Einstoff`Internal`IR`AxisId :> id, Infinity],
+    irValidIdQ],
+  AllTrue[Cases[expr, id_Einstoff`Internal`IR`OccurrenceId :> id, Infinity],
+    irValidIdQ]
+];
 
 irValidate[expr_] := If[TrueQ[irValidQ[expr]], expr,
   irFailure["InvalidIR", Head[Unevaluated[expr]],
