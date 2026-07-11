@@ -178,7 +178,7 @@ sanitizeOperandHeld[t_, atoms_, env_] :=
    (uniform convention): a globally bound axis symbol substitutes — a bound integer
    reads as a literal dimension, illegal values rejected downstream; Pattern still
    holds each binding `name_` and `:>` holds the RHS. *)
-innerLower[mul_, add_, desc_, tensors_, bindings_, traceAction_, targeting_] := withAxisScope @
+innerLegacyLower[mul_, add_, desc_, tensors_, bindings_, traceAction_, targeting_] := withAxisScope @
   Module[{parts, lhs, heldRhs, rhs, shp, m, env, seq, decomp, decompList = {},
           namedAtoms = <||>, rhsTerms, taggedLabs, labs, lhsBr, outA, sanitized,
           stensors, slabs, hsanitized, hstensors, hslabs, result, targetedOcc,
@@ -310,6 +310,21 @@ output for an elementwise/batch product, or contract pairwise)"];
         materializeOutputTrace[accT0, accL0, rhs0, env0, traceAction]]];
     If[result === $Failed, Return[$Failed]];
     result
+  ];
+
+innerLower[mul_, add_, desc_, tensors_, bindings_List, traceAction_, targeting_] :=
+  Module[{planned = tryInnerIRPlan[Hold[desc], tensors, bindings, mul, add,
+      targeting, traceAction]},
+    Which[
+      MissingQ[planned],
+        innerLegacyLower[mul, add, desc, tensors, bindings, traceAction, targeting],
+      plannerFailureQ[planned],
+        Message[Einstoff::unsupp,
+          "the contraction execution plan could not be executed"];
+        $Failed,
+      True,
+        planned
+    ]
   ];
 
 EinstoffDot[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=

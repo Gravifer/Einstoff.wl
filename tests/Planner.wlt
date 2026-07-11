@@ -2,7 +2,7 @@
 
 BeginTestSection["Einstoff`Planner"];
 
-ClearAll[a, b, c, h, w];
+ClearAll[a, b, c, h, r, w];
 
 compile = Symbol["Einstoff`PackageScope`compileDescIR"];
 solve = Symbol["Einstoff`PackageScope`solveDescIR"];
@@ -11,6 +11,7 @@ execute = Symbol["Einstoff`PackageScope`executeExecutionPlan"];
 render = Symbol["Einstoff`PackageScope`renderExecutionPlan"];
 planReduce = Symbol["Einstoff`PackageScope`planReduceIR"];
 planMap = Symbol["Einstoff`PackageScope`planMapIR"];
+planInner = Symbol["Einstoff`PackageScope`planInnerIR"];
 ir[name_] := Symbol["Einstoff`Internal`IR`" <> name];
 
 makePlan[desc_, x_, bindings_ : {}, op_ : "Reshape"] :=
@@ -140,6 +141,84 @@ VerificationTest[
     {calls, Head[held], ReleaseHold[held]; calls}],
   {2, Hold, 4},
   TestID -> "plan-target-block-trace-evaluation-count"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[6], {2, 3}],
+      y = ArrayReshape[Range[12], {3, 4}], p},
+    p = planInner[
+      solve[compile[{{a_, b_}, {b_, c_}} :> {{a, c}}],
+        {Dimensions[x], Dimensions[y]}]["Solved"],
+      Times, Plus, Automatic];
+    execute[p, {x, y}]],
+  ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}],
+  TestID -> "plan-execute-inner-step"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[6], {2, 3}],
+      y = ArrayReshape[Range[12], {3, 4}], p, held},
+    p = planInner[
+      solve[compile[{{a_, b_}, {b_, c_}} :> {{a, c}}],
+        {Dimensions[x], Dimensions[y]}]["Solved"],
+      Times, Plus, Automatic];
+    held = render[p, {x, y}];
+    {Head[held], ReleaseHold[held] === execute[p, {x, y}]}],
+  {HoldComplete, True},
+  TestID -> "plan-render-inner-step-parity"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[24], {2, 3, 4}],
+      y = ArrayReshape[Range[40], {2, 4, 5}], p},
+    p = planInner[
+      solve[compile[{{a_, b_, c_}, {a_, c_, d_}} :> {{a, b, d}}],
+        {Dimensions[x], Dimensions[y]}]["Solved"],
+      Plus, Min, Automatic];
+    execute[p, {x, y}]],
+  MapThread[Inner[Plus, #1, #2, Min] &,
+    {ArrayReshape[Range[24], {2, 3, 4}],
+      ArrayReshape[Range[40], {2, 4, 5}]}],
+  TestID -> "plan-execute-batched-generalized-inner"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[6], {2, 3}],
+      y = ArrayReshape[Range[12], {3, 4}],
+      z = ArrayReshape[Range[20], {4, 5}], p},
+    p = planInner[
+      solve[compile[{{a_, b_}, {b_, c_}, {c_, d_}} :> {{a, d}}],
+        {Dimensions[x], Dimensions[y], Dimensions[z]}]["Solved"],
+      Times, Plus, Automatic];
+    execute[p, {x, y, z}]],
+  ArrayReshape[Range[6], {2, 3}] . ArrayReshape[Range[12], {3, 4}] .
+    ArrayReshape[Range[20], {4, 5}],
+  TestID -> "plan-execute-variadic-inner"
+];
+
+VerificationTest[
+  Module[{p},
+    p = planInner[
+      solve[compile[{{a_}, {a_}, {b_}} :> {{b}}],
+        {{3}, {3}, {4}}]["Solved"],
+      Times, Plus, Automatic];
+    execute[p, {Range[3], Range[3], Range[4]}]],
+  (Range[3] . Range[3]) Range[4],
+  TestID -> "plan-execute-scalar-contraction-intermediate"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[6], {2, 3}],
+      y = ArrayReshape[Range[12], {3, 4}], p},
+    p = planInner[
+      solve[compile[
+          {{a_, Highlighted[b_]}, {Highlighted[b_], c_}} :>
+            {{a, c, Annotation[r, 2]}}],
+        {Dimensions[x], Dimensions[y]}]["Solved"],
+      Times, Plus, Automatic];
+    Dimensions @ execute[p, {x, y}]],
+  {2, 4, 2},
+  TestID -> "plan-execute-contract-then-broadcast"
 ];
 
 EndTestSection[];

@@ -4,9 +4,9 @@
    execution and held TraceAction rendering interpret the same ExecutionPlan. *)
 
 PackageScoped[{
-  planStructuralIR, planReduceIR, planMapIR, executeExecutionPlan,
+  planStructuralIR, planReduceIR, planMapIR, planInnerIR, executeExecutionPlan,
   renderExecutionPlan, tryStructuralIRPlan, tryReduceIRPlan, tryMapIRPlan,
-  plannerFailureQ
+  tryInnerIRPlan, plannerFailureQ
 }]
 
 irp[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
@@ -207,6 +207,101 @@ planMapIR[other_, f_, strictQ_] := plannerFailure["ExpectedSolvedDesc", <|
   "Expression" -> HoldComplete[other], "Function" -> HoldComplete[f],
   "Strict" -> strictQ|>];
 
+planInnerIR[solved : irp["SolvedDesc"][a_Association], mul_, add_, targeting_] :=
+  Catch[Module[{normalized, na, inShapes, outShapes, axisSizes, inputAtoms,
+          outputAtoms, inputKeys, outputKeys, allInputKeys, contractedKeys,
+          targetedOccurrences, contractedOccurrences, currentKeys,
+          steps = {}, broadcastResult, key, size, perm},
+    normalized = a["Normalized"];
+    na = Replace[normalized, irp["NormalizedDesc"][x_Association] :> x];
+    inShapes = Replace[na["Inputs"], irp["Inputs"][x_List] :> x];
+    outShapes = Replace[na["Outputs"], irp["Outputs"][x_List] :> x];
+    If[Length[inShapes] < 2 || Length[outShapes] =!= 1,
+      Throw[plannerFailure["InnerArity", <|
+        "Inputs" -> Length[inShapes], "Outputs" -> Length[outShapes]|>], plannerTag]];
+    axisSizes = a["AxisSizes"];
+    inputAtoms = Map[
+      flattenPlanTerms[Replace[#, irp["Shape"][x_List] :> x], axisSizes] &,
+      inShapes];
+    outputAtoms = flattenPlanTerms[
+      Replace[First[outShapes], irp["Shape"][x_List] :> x], axisSizes];
+    If[AnyTrue[inputAtoms, plannerFailureQ] || plannerFailureQ[outputAtoms],
+      Throw[plannerFailure["UnsupportedInnerTerm", <||>], plannerTag]];
+    If[Cases[Join[Flatten[inputAtoms], outputAtoms],
+        atom_Association /; atom["Kind"] =!= "Axis"] =!= {},
+      Throw[plannerFailure["InnerLiteralAxis", <||>], plannerTag]];
+    inputKeys = (planAtomKey /@ #) & /@ inputAtoms;
+    outputKeys = planAtomKey /@ outputAtoms;
+    If[AnyTrue[inputKeys, ! DuplicateFreeQ[#] &] || ! DuplicateFreeQ[outputKeys],
+      Throw[plannerFailure["RepeatedInnerAtom", <|
+        "Inputs" -> inputKeys, "Output" -> outputKeys|>], plannerTag]];
+    allInputKeys = DeleteDuplicates @ Flatten[inputKeys];
+    contractedKeys = Select[allInputKeys, ! MemberQ[outputKeys, #] &];
+    If[AnyTrue[contractedKeys,
+        Function[id, Count[inputKeys, keys_ /; MemberQ[keys, id]] =!= 2]],
+      Throw[plannerFailure["InvalidContractionMultiplicity", <|
+        "Contracted" -> contractedKeys|>], plannerTag]];
+    targetedOccurrences = Sort @ Cases[Flatten[inputAtoms],
+      atom_Association /; TrueQ[atom["Targeted"]] :> atom["Occurrence"]];
+    contractedOccurrences = Sort @ Cases[Flatten[inputAtoms],
+      atom_Association /; MemberQ[contractedKeys, atom["Key"]] :>
+        atom["Occurrence"]];
+    Which[
+      targeting === True && targetedOccurrences =!= contractedOccurrences,
+        Throw[plannerFailure["InnerTargetsRequired", <||>], plannerTag],
+      targeting === Automatic && targetedOccurrences =!= {} &&
+          targetedOccurrences =!= contractedOccurrences,
+        Throw[plannerFailure["InnerTargetMismatch", <||>], plannerTag],
+      ! MemberQ[{False, Automatic, True}, targeting],
+        Throw[plannerFailure["InvalidTargetPolicy", <|"Value" -> targeting|>], plannerTag],
+      True, Null];
+    currentKeys = contractionFoldLabels[inputKeys, outputKeys];
+    If[plannerFailureQ[currentKeys], Throw[currentKeys, plannerTag]];
+    AppendTo[steps,
+      irp["InnerStep"][mul, add, inputKeys, outputKeys, axisSizes]];
+    broadcastResult = Catch[
+      Do[
+        key = planAtomKey[atom]; size = planAtomSize[atom];
+        If[! MemberQ[currentKeys, key],
+          AppendTo[steps, irp["BroadcastStep"][size, key]];
+          currentKeys = Prepend[currentKeys, key]],
+        {atom, outputAtoms}];
+      Null,
+      planBroadcastTag];
+    If[plannerFailureQ[broadcastResult], Throw[broadcastResult, plannerTag]];
+    perm = InversePermutation @ Flatten[FirstPosition[currentKeys, #] & /@ outputKeys];
+    If[perm =!= Range[Length[perm]],
+      AppendTo[steps, irp["TransposeStep"][perm]]];
+    AppendTo[steps, irp["RecomposeStep"][a["OutputShapes"][[1]]]];
+    irp["ExecutionPlan"][steps, <|
+      "Operator" -> If[mul === Times && add === Plus, "Dot", "Inner"],
+      "InputCount" -> Length[inputKeys], "OutputShapes" -> a["OutputShapes"],
+      "Solved" -> solved|>]
+  ], plannerTag];
+planInnerIR[other_, mul_, add_, targeting_] := plannerFailure[
+  "ExpectedSolvedDesc", <|"Expression" -> HoldComplete[other],
+    "Multiply" -> HoldComplete[mul], "Add" -> HoldComplete[add],
+    "Targeting" -> targeting|>];
+
+contractionFoldLabels[inputKeys_List, outputKeys_List] :=
+  Catch[Fold[
+    Function[{acc, i},
+      Module[{next = inputKeys[[i]], keep, both, batch, left, right},
+        keep = Union[outputKeys,
+          If[i < Length[inputKeys], Flatten[inputKeys[[i + 1 ;;]]], {}]];
+        If[AnyTrue[acc, ! MemberQ[next, #] && ! MemberQ[keep, #] &] ||
+            AnyTrue[next, ! MemberQ[acc, #] && ! MemberQ[keep, #] &],
+          Throw[plannerFailure["WithinOperandDrop", <|"Operand" -> i|>],
+            plannerTag]];
+        both = Intersection[acc, next];
+        batch = Select[acc, MemberQ[both, #] && MemberQ[keep, #] &];
+        left = Select[acc, ! MemberQ[next, #] && MemberQ[keep, #] &];
+        right = Select[next, ! MemberQ[acc, #] && MemberQ[keep, #] &];
+        Join[batch, left, right]
+      ]],
+    First[inputKeys], Range[2, Length[inputKeys]]],
+  plannerTag];
+
 flattenPlanTerms[terms_List, sizes_Association] :=
   Catch[Module[{out = {}, r},
     Do[
@@ -239,7 +334,7 @@ executeExecutionPlan[irp["ExecutionPlan"][steps_List, meta_Association],
     If[Length[tensors] =!= meta["InputCount"],
       Throw[plannerFailure["PlanInputCount", <|
         "Expected" -> meta["InputCount"], "Actual" -> Length[tensors]|>], plannerTag]];
-    value = First[tensors];
+    value = If[meta["InputCount"] === 1, First[tensors], tensors];
     Do[
       step = st;
       value = executePlanStep[value, step];
@@ -260,6 +355,10 @@ executePlanStep[value_, irp["TargetBlockStep"][f_, level_Integer, expected_List]
       plannerFailure["TargetBlockShape", <|
         "Expected" -> expected, "Actual" -> Dimensions[mapped]|>]]
   ];
+executePlanStep[tensors_List,
+    irp["InnerStep"][mul_, add_, labels_List, outputKeys_List,
+      sizes_Association]] :=
+  executeContractionFold[tensors, labels, outputKeys, sizes, mul, add];
 executePlanStep[value_, irp["TransposeStep"][perm_List]] := Transpose[value, perm];
 executePlanStep[value_, irp["RecomposeStep"][dims_List]] := reshapeTo[value, dims];
 executePlanStep[_, other_] := plannerFailure["UnsupportedPlanStep", <|
@@ -271,7 +370,8 @@ renderExecutionPlan[irp["ExecutionPlan"][steps_List, meta_Association],
     If[Length[tensors] =!= meta["InputCount"],
       Throw[plannerFailure["PlanInputCount", <|
         "Expected" -> meta["InputCount"], "Actual" -> Length[tensors]|>], plannerTag]];
-    held = heldValue[First[tensors]];
+    held = If[meta["InputCount"] === 1, heldValue[First[tensors]],
+      heldValue /@ tensors];
     Do[
       step = st;
       held = renderPlanStep[held, step];
@@ -291,6 +391,10 @@ renderPlanStep[held_HoldComplete, irp["ReduceStep"][reducer_, pos_List]] :=
 renderPlanStep[held_HoldComplete,
     irp["TargetBlockStep"][f_, level_Integer, _List]] :=
   If[level === 0, heldApply[held, f], heldMapAt[held, f, level]];
+renderPlanStep[helds_List,
+    irp["InnerStep"][mul_, add_, labels_List, outputKeys_List,
+      sizes_Association]] :=
+  renderContractionFold[helds, labels, outputKeys, sizes, mul, add];
 renderPlanStep[held_HoldComplete, irp["TransposeStep"][perm_List]] :=
   heldTranspose[held, perm];
 renderPlanStep[held_HoldComplete, irp["RecomposeStep"][dims_List]] :=
@@ -386,6 +490,114 @@ tryMapIRPlan[h_Hold, tensors_List, bindings_List, f_, strictQ_, traceAction_] :=
         If[plannerFailureQ[held], held, traceReturnHeld[held, traceAction]],
         executed]]
   ], plannerFallbackTag];
+
+tryInnerIRPlan[h_Hold, tensors_List, bindings_List, mul_, add_, targeting_,
+    traceAction_] :=
+  Catch[Module[{operator, compiled, solvedBundle, solved, analysis, plan, held},
+    operator = If[mul === Times && add === Plus, "Dot", "Inner"];
+    compiled = compileHeldDescIR[h, HoldComplete[bindings], operator,
+      <|"Targeting" -> targeting|>];
+    If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
+      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
+    solved = solvedBundle["Solved"];
+    If[Head[solved] =!= irp["SolvedDesc"],
+      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    analysis = analyzeSolvedDesc[solved, operator, targeting];
+    If[Head[analysis] =!= irp["OperationAnalysis"] ||
+        ! TrueQ[Replace[analysis,
+          irp["OperationAnalysis"][a_Association] :> a["Valid"]]],
+      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    plan = planInnerIR[solved, mul, add, targeting];
+    If[plannerFailureQ[plan], Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    If[traceActionEnabledQ[traceAction],
+      held = renderExecutionPlan[plan, tensors];
+      If[plannerFailureQ[held], held, traceReturnHeld[held, traceAction]],
+      executeExecutionPlan[plan, tensors]]
+  ], plannerFallbackTag];
+
+executeContractionFold[tensors_List, labels_List, outputKeys_List,
+    sizes_Association, mul_, add_] :=
+  First @ Fold[
+    Function[{acc, i},
+      Module[{keep = Union[outputKeys,
+          If[i < Length[labels], Flatten[labels[[i + 1 ;;]]], {}]]},
+        executeContractionPair[mul, add, acc[[1]], acc[[2]], tensors[[i]],
+          labels[[i]], keep, sizes]
+      ]],
+    {First[tensors], First[labels]}, Range[2, Length[tensors]]];
+
+executeContractionPair[mul_, add_, t1_, l1_List, t2_, l2_List, keep_List,
+    sizes_Association] :=
+  Module[{both, batch, contract, left, right, dims, prod, x1, x2, p1, p2,
+          x1r, x2r, mm, resultLabels},
+    dims[keys_] := Lookup[sizes, keys];
+    prod[keys_] := Times @@ dims[keys];
+    both = Intersection[l1, l2];
+    batch = Select[l1, MemberQ[both, #] && MemberQ[keep, #] &];
+    contract = Select[l1, MemberQ[both, #] && ! MemberQ[keep, #] &];
+    left = Select[l1, ! MemberQ[l2, #] && MemberQ[keep, #] &];
+    right = Select[l2, ! MemberQ[l1, #] && MemberQ[keep, #] &];
+    x1 = If[l1 === {}, t1, ArrayReshape[t1, dims[l1]]];
+    x2 = If[l2 === {}, t2, ArrayReshape[t2, dims[l2]]];
+    p1 = Flatten[FirstPosition[l1, #] & /@ Join[batch, left, contract]];
+    p2 = Flatten[FirstPosition[l2, #] & /@ Join[batch, contract, right]];
+    If[Length[p1] > 1, x1 = Transpose[x1, InversePermutation[p1]]];
+    If[Length[p2] > 1, x2 = Transpose[x2, InversePermutation[p2]]];
+    x1r = If[l1 === {}, ArrayReshape[{t1}, {1, 1, 1}],
+      ArrayReshape[x1, {prod[batch], prod[left], prod[contract]}]];
+    x2r = If[l2 === {}, ArrayReshape[{t2}, {1, 1, 1}],
+      ArrayReshape[x2, {prod[batch], prod[contract], prod[right]}]];
+    mm = If[mul === Times && add === Plus,
+      MapThread[Dot, {x1r, x2r}],
+      MapThread[Inner[mul, #1, #2, add] &, {x1r, x2r}]];
+    resultLabels = Join[batch, left, right];
+    {If[resultLabels === {}, First @ Flatten[mm],
+      ArrayReshape[mm, dims[resultLabels]]], resultLabels}
+  ];
+
+renderContractionFold[helds_List, labels_List, outputKeys_List,
+    sizes_Association, mul_, add_] :=
+  First @ Fold[
+    Function[{acc, i},
+      Module[{keep = Union[outputKeys,
+          If[i < Length[labels], Flatten[labels[[i + 1 ;;]]], {}]]},
+        renderContractionPair[mul, add, acc[[1]], acc[[2]], helds[[i]],
+          labels[[i]], keep, sizes]
+      ]],
+    {First[helds], First[labels]}, Range[2, Length[helds]]];
+
+renderContractionPair[mul_, add_, ht1_HoldComplete, l1_List,
+    ht2_HoldComplete, l2_List, keep_List, sizes_Association] :=
+  Module[{both, batch, contract, left, right, dims, prod, x1, x2, p1, p2,
+          x1r, x2r, mm, resultLabels},
+    dims[keys_] := Lookup[sizes, keys];
+    prod[keys_] := Times @@ dims[keys];
+    both = Intersection[l1, l2];
+    batch = Select[l1, MemberQ[both, #] && MemberQ[keep, #] &];
+    contract = Select[l1, MemberQ[both, #] && ! MemberQ[keep, #] &];
+    left = Select[l1, ! MemberQ[l2, #] && MemberQ[keep, #] &];
+    right = Select[l2, ! MemberQ[l1, #] && MemberQ[keep, #] &];
+    x1 = If[l1 === {}, ht1, heldReshape[ht1, dims[l1]]];
+    x2 = If[l2 === {}, ht2, heldReshape[ht2, dims[l2]]];
+    p1 = Flatten[FirstPosition[l1, #] & /@ Join[batch, left, contract]];
+    p2 = Flatten[FirstPosition[l2, #] & /@ Join[batch, contract, right]];
+    If[Length[p1] > 1, x1 = heldTranspose[x1, InversePermutation[p1]]];
+    If[Length[p2] > 1, x2 = heldTranspose[x2, InversePermutation[p2]]];
+    x1r = If[l1 === {}, plannerHeldScalarBlock[ht1],
+      heldReshape[x1, {prod[batch], prod[left], prod[contract]}]];
+    x2r = If[l2 === {}, plannerHeldScalarBlock[ht2],
+      heldReshape[x2, {prod[batch], prod[contract], prod[right]}]];
+    mm = If[mul === Times && add === Plus,
+      heldMapThreadDot[x1r, x2r],
+      heldMapThreadInner[mul, add, x1r, x2r]];
+    resultLabels = Join[batch, left, right];
+    {If[resultLabels === {}, heldReshape[mm, {}],
+      heldReshape[mm, dims[resultLabels]]], resultLabels}
+  ];
+
+plannerHeldScalarBlock[HoldComplete[e_]] :=
+  HoldComplete[ArrayReshape[{e}, {1, 1, 1}]];
 
 plannerFailure[tag_, details_Association] :=
   irp["FailureRecord"][tag, "Plan", details];
