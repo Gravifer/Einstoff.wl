@@ -63,7 +63,9 @@ VerificationTest[
       Einstoff`Private`planMapIR,
       Einstoff`Private`tryMapIRPlan,
       Einstoff`Private`planInnerIR,
-      Einstoff`Private`tryInnerIRPlan
+      Einstoff`Private`tryInnerIRPlan,
+      Einstoff`Private`planDirectSumIR,
+      Einstoff`Private`tryDirectSumIRPlan
     },
     _Return,
     Infinity,

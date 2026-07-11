@@ -12,6 +12,7 @@ render = Symbol["Einstoff`PackageScope`renderExecutionPlan"];
 planReduce = Symbol["Einstoff`PackageScope`planReduceIR"];
 planMap = Symbol["Einstoff`PackageScope`planMapIR"];
 planInner = Symbol["Einstoff`PackageScope`planInnerIR"];
+planDirectSum = Symbol["Einstoff`PackageScope`planDirectSumIR"];
 ir[name_] := Symbol["Einstoff`Internal`IR`" <> name];
 
 makePlan[desc_, x_, bindings_ : {}, op_ : "Reshape"] :=
@@ -219,6 +220,71 @@ VerificationTest[
     Dimensions @ execute[p, {x, y}]],
   {2, 4, 2},
   TestID -> "plan-execute-contract-then-broadcast"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[6], {2, 3}],
+      y = ArrayReshape[Range[8], {2, 4}], solved, p},
+    solved = solve[compile[
+      {{a_, b_}, {a_, c_}} :> {{a, CirclePlus[b, c]}}],
+      {Dimensions[x], Dimensions[y]}]["Solved"];
+    p = planDirectSum[solved, "Join"];
+    execute[p, {x, y}]],
+  Join[ArrayReshape[Range[6], {2, 3}],
+    ArrayReshape[Range[8], {2, 4}], 2],
+  TestID -> "plan-execute-direct-sum-join"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[20], {2, 10}], solved, p},
+    solved = solve[compile[
+      {{a_, CirclePlus[Annotation[b, 3], c_]}} :> {{a, b}, {a, c}}],
+      {Dimensions[x]}]["Solved"];
+    p = planDirectSum[solved, "Split"];
+    execute[p, {x}]],
+  With[{x = ArrayReshape[Range[20], {2, 10}]},
+    {Take[x, All, {1, 3}], Take[x, All, {4, 10}]}],
+  TestID -> "plan-execute-direct-sum-split"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[15] - 1, {3, 5}], solved, p},
+    solved = solve[compile[
+      {{CirclePlus[Annotation[a, 1], d_],
+        CirclePlus[Annotation[b, 2], c_]}} :>
+        {{a, b}, {a, c}, {d, b}, {d, c}}],
+      {Dimensions[x]}]["Solved"];
+    p = planDirectSum[solved, "Split"];
+    execute[p, {x}]],
+  With[{x = ArrayReshape[Range[15] - 1, {3, 5}]},
+    {Take[x, {1, 1}, {1, 2}], Take[x, {1, 1}, {3, 5}],
+     Take[x, {2, 3}, {1, 2}], Take[x, {2, 3}, {3, 5}]}],
+  TestID -> "plan-execute-cartesian-direct-sum-split"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[6], {2, 3}],
+      y = ArrayReshape[Range[8], {2, 4}], solved, p, held},
+    solved = solve[compile[
+      {{a_, b_}, {a_, c_}} :> {{a, CirclePlus[b, c]}}],
+      {Dimensions[x], Dimensions[y]}]["Solved"];
+    p = planDirectSum[solved, "Join"];
+    held = render[p, {x, y}];
+    {Head[held], ReleaseHold[held] === execute[p, {x, y}]}],
+  {HoldComplete, True},
+  TestID -> "plan-render-direct-sum-join-parity"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[20], {2, 10}], solved, p, held},
+    solved = solve[compile[
+      {{a_, CirclePlus[Annotation[b, 3], c_]}} :> {{b, a}, {a, c}}],
+      {Dimensions[x]}]["Solved"];
+    p = planDirectSum[solved, "Split"];
+    held = render[p, {x}];
+    {Head[held], ReleaseHold[held] === execute[p, {x}]}],
+  {HoldComplete, True},
+  TestID -> "plan-render-direct-sum-split-parity"
 ];
 
 EndTestSection[];

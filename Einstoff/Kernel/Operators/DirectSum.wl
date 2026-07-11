@@ -88,8 +88,9 @@ directSumBlockStarts[sizes_List] :=
 (* ------------------------------------------------------------------ *)
 
 SetAttributes[directSumConcat, HoldFirst];
+SetAttributes[directSumConcatLegacy, HoldFirst];
 
-directSumConcat[desc_, tensors_, bindings_List, traceAction_ : None] := withAxisScope @
+directSumConcatLegacy[desc_, tensors_, bindings_List, traceAction_ : None] := withAxisScope @
   Module[{parts, lhs, rhs, out, cpos, cps, summandLists, counts, combos, k, shp,
           env, aligned, axes},
     parts = descParts[Hold[desc]];
@@ -200,6 +201,21 @@ summand distinctly; within-tensor contraction is not supported here)"];
       traceReturn[directSumJoinBlocks[aligned0, axes0, counts0], traceAction]]
   ];
 
+directSumConcat[desc_, tensors_, bindings_List, traceAction_ : None] :=
+  Module[{planned = tryDirectSumIRPlan[
+      Hold[desc], tensors, bindings, "Join", traceAction]},
+    Which[
+      MissingQ[planned],
+        directSumConcatLegacy[desc, tensors, bindings, traceAction],
+      plannerFailureQ[planned],
+        Message[Einstoff::unsupp,
+          "the direct-sum concatenation plan could not be executed"];
+        $Failed,
+      True,
+        planned
+    ]
+  ];
+
 (* ------------------------------------------------------------------ *)
 (* Split handler.  CirclePlus on the LHS of a single input shape: slice the *)
 (* concat axes into contiguous Cartesian blocks (last axis fastest) and       *)
@@ -207,8 +223,9 @@ summand distinctly; within-tensor contraction is not supported here)"];
 (* ------------------------------------------------------------------ *)
 
 SetAttributes[directSumSplit, HoldFirst];
+SetAttributes[directSumSplitLegacy, HoldFirst];
 
-directSumSplit[desc_, tensors_, bindings_List, traceAction_ : None] := withAxisScope @
+directSumSplitLegacy[desc_, tensors_, bindings_List, traceAction_ : None] := withAxisScope @
   Module[{parts, lhs, rhs, inShape, cpos, cps, summandLists, counts, combos, k,
           shp, env, x, ndims, outs},
     parts = descParts[Hold[desc]];
@@ -333,6 +350,21 @@ summand distinctly; within-tensor contraction is not supported here)"];
         "an axis size is unbound while slicing a direct-sum block"];
       Return[$Failed]];
     outs
+  ];
+
+directSumSplit[desc_, tensors_, bindings_List, traceAction_ : None] :=
+  Module[{planned = tryDirectSumIRPlan[
+      Hold[desc], tensors, bindings, "Split", traceAction]},
+    Which[
+      MissingQ[planned],
+        directSumSplitLegacy[desc, tensors, bindings, traceAction],
+      plannerFailureQ[planned],
+        Message[Einstoff::unsupp,
+          "the direct-sum split plan could not be executed"];
+        $Failed,
+      True,
+        planned
+    ]
   ];
 
 (* ------------------------------------------------------------------ *)

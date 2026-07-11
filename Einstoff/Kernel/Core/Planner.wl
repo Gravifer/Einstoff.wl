@@ -4,9 +4,10 @@
    execution and held TraceAction rendering interpret the same ExecutionPlan. *)
 
 PackageScoped[{
-  planStructuralIR, planReduceIR, planMapIR, planInnerIR, executeExecutionPlan,
+  planStructuralIR, planReduceIR, planMapIR, planInnerIR, planDirectSumIR,
+  executeExecutionPlan,
   renderExecutionPlan, tryStructuralIRPlan, tryReduceIRPlan, tryMapIRPlan,
-  tryInnerIRPlan, plannerFailureQ
+  tryInnerIRPlan, tryDirectSumIRPlan, plannerFailureQ
 }]
 
 irp[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
@@ -283,6 +284,189 @@ planInnerIR[other_, mul_, add_, targeting_] := plannerFailure[
     "Multiply" -> HoldComplete[mul], "Add" -> HoldComplete[add],
     "Targeting" -> targeting|>];
 
+planDirectSumIR[solved : irp["SolvedDesc"][a_Association], direction_String] :=
+  Catch[Module[{normalized, na, inShapes, outShapes, axisSizes, plan},
+    normalized = a["Normalized"];
+    na = Replace[normalized, irp["NormalizedDesc"][x_Association] :> x];
+    inShapes = Replace[na["Inputs"], irp["Inputs"][x_List] :> x];
+    outShapes = Replace[na["Outputs"], irp["Outputs"][x_List] :> x];
+    axisSizes = a["AxisSizes"];
+    plan = Switch[direction,
+      "Join", planDirectSumJoin[solved, inShapes, outShapes, axisSizes],
+      "Split", planDirectSumSplit[solved, inShapes, outShapes, axisSizes],
+      _, plannerFailure["UnknownDirectSumDirection", <|
+        "Direction" -> direction|>]];
+    If[plannerFailureQ[plan], Throw[plan, plannerTag]];
+    plan
+  ], plannerTag];
+planDirectSumIR[other_, direction_String] := plannerFailure[
+  "ExpectedSolvedDesc", <|"Expression" -> HoldComplete[other],
+    "Direction" -> direction|>];
+
+planDirectSumJoin[solved_, inShapes_List, outShapes_List, sizes_Association] :=
+  Catch[Module[{outTerms, sumPositions, sums, counts, combinations, blockPlans,
+          replacement, targetTerms, inputTerms, inputAtoms, targetAtoms, finalDims,
+          steps, k},
+    If[Length[outShapes] =!= 1,
+      Throw[plannerFailure["JoinOutputArity", <|
+        "Outputs" -> Length[outShapes]|>], plannerTag]];
+    outTerms = Replace[First[outShapes], irp["Shape"][x_List] :> x];
+    sumPositions = Flatten @ Position[outTerms, _?(Head[#] === irp["DirectSumAxis"] &), {1}];
+    If[sumPositions === {} ||
+        Cases[Delete[outTerms, List /@ sumPositions],
+          _?(Head[#] === irp["DirectSumAxis"] &), Infinity] =!= {},
+      Throw[plannerFailure["UnsupportedJoinSumPlacement", <||>], plannerTag]];
+    sums = outTerms[[sumPositions]];
+    If[AnyTrue[sums, ! planDirectSumUntargetedQ[#] &],
+      Throw[plannerFailure["TargetedDirectSum", <||>], plannerTag]];
+    counts = Length /@ (Replace[#, irp["DirectSumAxis"][_, xs_List, _] :> xs] & /@ sums);
+    combinations = Tuples[Range /@ counts];
+    k = Length[combinations];
+    If[Length[inShapes] =!= k,
+      Throw[plannerFailure["JoinInputArity", <|
+        "Expected" -> k, "Actual" -> Length[inShapes]|>], plannerTag]];
+    blockPlans = Table[
+      replacement = Table[
+        sumPositions[[j]] -> Replace[sums[[j]],
+          irp["DirectSumAxis"][_, xs_List, _] :> xs[[combinations[[i, j]]]]],
+        {j, Length[sumPositions]}];
+      targetTerms = ReplacePart[outTerms, replacement];
+      inputTerms = Replace[inShapes[[i]], irp["Shape"][x_List] :> x];
+      inputAtoms = flattenPlanTerms[inputTerms, sizes];
+      targetAtoms = flattenPlanTerms[targetTerms, sizes];
+      If[plannerFailureQ[inputAtoms] || plannerFailureQ[targetAtoms],
+        Throw[plannerFailure["UnsupportedJoinBlock", <|"Block" -> i|>], plannerTag]];
+      finalDims = planTermSize[#, sizes] & /@ targetTerms;
+      If[AnyTrue[finalDims, plannerFailureQ],
+        Throw[First @ Select[finalDims, plannerFailureQ], plannerTag]];
+      steps = planAtomTransformSteps[inputAtoms, targetAtoms, finalDims, True];
+      If[plannerFailureQ[steps], Throw[steps, plannerTag]];
+      irp["ExecutionPlan"][steps, <|
+        "Operator" -> "JoinBlock", "InputCount" -> 1,
+        "OutputShapes" -> {finalDims}|>],
+      {i, k}];
+    irp["ExecutionPlan"][
+      {irp["ConcatenateStep"][sumPositions, counts, blockPlans]},
+      <|"Operator" -> "Join", "InputCount" -> k,
+        "OutputShapes" -> Replace[solved,
+          irp["SolvedDesc"][sa_Association] :> sa["OutputShapes"]],
+        "Solved" -> solved|>]
+  ], plannerTag];
+
+planDirectSumSplit[solved_, inShapes_List, outShapes_List, sizes_Association] :=
+  Catch[Module[{inTerms, sumPositions, sums, summandLists, counts, combinations,
+          k, sumSizes, ends, starts, specs, blockPlans, replacement, blockTerms,
+          blockAtoms, outputTerms, outputAtoms, finalDims, steps, rank},
+    If[Length[inShapes] =!= 1,
+      Throw[plannerFailure["SplitInputArity", <|
+        "Inputs" -> Length[inShapes]|>], plannerTag]];
+    inTerms = Replace[First[inShapes], irp["Shape"][x_List] :> x];
+    sumPositions = Flatten @ Position[inTerms, _?(Head[#] === irp["DirectSumAxis"] &), {1}];
+    If[sumPositions === {} ||
+        Cases[Delete[inTerms, List /@ sumPositions],
+          _?(Head[#] === irp["DirectSumAxis"] &), Infinity] =!= {},
+      Throw[plannerFailure["UnsupportedSplitSumPlacement", <||>], plannerTag]];
+    sums = inTerms[[sumPositions]];
+    If[AnyTrue[sums, ! planDirectSumUntargetedQ[#] &],
+      Throw[plannerFailure["TargetedDirectSum", <||>], plannerTag]];
+    summandLists = Replace[#, irp["DirectSumAxis"][_, xs_List, _] :> xs] & /@ sums;
+    counts = Length /@ summandLists;
+    combinations = Tuples[Range /@ counts];
+    k = Length[combinations];
+    If[Length[outShapes] =!= k,
+      Throw[plannerFailure["SplitOutputArity", <|
+        "Expected" -> k, "Actual" -> Length[outShapes]|>], plannerTag]];
+    sumSizes = Map[planTermSize[#, sizes] &, summandLists, {2}];
+    If[AnyTrue[Flatten[sumSizes], plannerFailureQ],
+      Throw[First @ Select[Flatten[sumSizes], plannerFailureQ], plannerTag]];
+    ends = Accumulate /@ sumSizes;
+    starts = (Most[Accumulate[Prepend[#, 1]]] &) /@ sumSizes;
+    rank = Length[inTerms];
+    specs = Table[
+      Table[
+        With[{at = FirstPosition[sumPositions, d, Missing["NotSum"]]},
+          If[MissingQ[at], All,
+            {starts[[at[[1]], combinations[[i, at[[1]]]]]],
+             ends[[at[[1]], combinations[[i, at[[1]]]]]]}]],
+        {d, rank}],
+      {i, k}];
+    blockPlans = Table[
+      replacement = Table[
+        sumPositions[[j]] -> summandLists[[j, combinations[[i, j]]]],
+        {j, Length[sumPositions]}];
+      blockTerms = ReplacePart[inTerms, replacement];
+      outputTerms = Replace[outShapes[[i]], irp["Shape"][x_List] :> x];
+      blockAtoms = flattenPlanTerms[blockTerms, sizes];
+      outputAtoms = flattenPlanTerms[outputTerms, sizes];
+      If[plannerFailureQ[blockAtoms] || plannerFailureQ[outputAtoms],
+        Throw[plannerFailure["UnsupportedSplitBlock", <|"Block" -> i|>], plannerTag]];
+      finalDims = Replace[solved,
+        irp["SolvedDesc"][sa_Association] :> sa["OutputShapes"][[i]]];
+      steps = planAtomTransformSteps[blockAtoms, outputAtoms, finalDims, True];
+      If[plannerFailureQ[steps], Throw[steps, plannerTag]];
+      irp["ExecutionPlan"][steps, <|
+        "Operator" -> "SplitBlock", "InputCount" -> 1,
+        "OutputShapes" -> {finalDims}|>],
+      {i, k}];
+    irp["ExecutionPlan"][
+      {irp["SliceStep"][specs, blockPlans], irp["AssembleOutputsStep"]},
+      <|"Operator" -> "Split", "InputCount" -> 1,
+        "OutputShapes" -> Replace[solved,
+          irp["SolvedDesc"][sa_Association] :> sa["OutputShapes"]],
+        "Solved" -> solved|>]
+  ], plannerTag];
+
+planAtomTransformSteps[inAtoms_List, outAtoms_List, finalDims_List,
+    allowBroadcast_] :=
+  Catch[Module[{inKeys, outKeys, violations, kept, currentKeys, steps = {},
+          key, size, perm},
+    inKeys = planAtomKey /@ inAtoms; outKeys = planAtomKey /@ outAtoms;
+    If[! DuplicateFreeQ[inKeys] || ! DuplicateFreeQ[outKeys],
+      Throw[plannerFailure["RepeatedBlockAtom", <||>], plannerTag]];
+    violations = Select[inAtoms,
+      ! MemberQ[outKeys, planAtomKey[#]] && planAtomSize[#] > 1 &];
+    If[violations =!= {},
+      Throw[plannerFailure["DroppedBlockAtom", <|"Atoms" -> violations|>], plannerTag]];
+    AppendTo[steps, irp["ReshapeStep"][planAtomSize /@ inAtoms]];
+    kept = Select[inAtoms,
+      MemberQ[outKeys, planAtomKey[#]] || planAtomSize[#] > 1 &];
+    If[Length[kept] =!= Length[inAtoms],
+      AppendTo[steps, irp["ReshapeStep"][planAtomSize /@ kept]]];
+    currentKeys = planAtomKey /@ kept;
+    Do[
+      key = planAtomKey[atom]; size = planAtomSize[atom];
+      If[! MemberQ[currentKeys, key],
+        If[! TrueQ[allowBroadcast] && size > 1,
+          Throw[plannerFailure["BlockBroadcast", <|"Atom" -> atom|>], plannerTag]];
+        AppendTo[steps, irp["BroadcastStep"][size, key]];
+        currentKeys = Prepend[currentKeys, key]],
+      {atom, outAtoms}];
+    perm = InversePermutation @ Flatten[FirstPosition[currentKeys, #] & /@ outKeys];
+    If[perm =!= Range[Length[perm]],
+      AppendTo[steps, irp["TransposeStep"][perm]]];
+    AppendTo[steps, irp["RecomposeStep"][finalDims]];
+    steps
+  ], plannerTag];
+
+planTermSize[irp["AxisOccurrence"][_, id_, _], sizes_Association] := sizes[id];
+planTermSize[irp["LiteralAxis"][_, n_Integer, _], _] := n;
+planTermSize[irp["ProductAxis"][_, children_List, _], sizes_Association] :=
+  Times @@ (planTermSize[#, sizes] & /@ children);
+planTermSize[irp["DirectSumAxis"][_, children_List, _], sizes_Association] :=
+  Plus @@ (planTermSize[#, sizes] & /@ children);
+planTermSize[other_, _] := plannerFailure["UnsupportedPlanSizeTerm", <|
+  "Expression" -> HoldComplete[other]|>];
+
+planDirectSumUntargetedQ[
+    irp["AxisOccurrence"][_, _, meta_Association]] := meta["TargetHead"] === None;
+planDirectSumUntargetedQ[
+    irp["LiteralAxis"][_, _, meta_Association]] := meta["TargetHead"] === None;
+planDirectSumUntargetedQ[
+    (irp["ProductAxis"] | irp["DirectSumAxis"])[_, children_List,
+      meta_Association]] :=
+  meta["TargetHead"] === None && AllTrue[children, planDirectSumUntargetedQ];
+planDirectSumUntargetedQ[_] := False;
+
 contractionFoldLabels[inputKeys_List, outputKeys_List] :=
   Catch[Fold[
     Function[{acc, i},
@@ -359,6 +543,19 @@ executePlanStep[tensors_List,
     irp["InnerStep"][mul_, add_, labels_List, outputKeys_List,
       sizes_Association]] :=
   executeContractionFold[tensors, labels, outputKeys, sizes, mul, add];
+executePlanStep[tensors_List,
+    irp["ConcatenateStep"][axes_List, counts_List, plans_List]] :=
+  Module[{blocks},
+    blocks = MapThread[executeNestedPlan, {plans, tensors}];
+    If[AnyTrue[blocks, plannerFailureQ],
+      First @ Select[blocks, plannerFailureQ],
+      plannerJoinBlocks[blocks, axes, counts]]
+  ];
+executePlanStep[value_, irp["SliceStep"][specs_List, plans_List]] :=
+  MapThread[
+    executeNestedPlan[#1, Take[value, Sequence @@ #2]] &,
+    {plans, specs}];
+executePlanStep[values_List, irp["AssembleOutputsStep"]] := values;
 executePlanStep[value_, irp["TransposeStep"][perm_List]] := Transpose[value, perm];
 executePlanStep[value_, irp["RecomposeStep"][dims_List]] := reshapeTo[value, dims];
 executePlanStep[_, other_] := plannerFailure["UnsupportedPlanStep", <|
@@ -395,6 +592,17 @@ renderPlanStep[helds_List,
     irp["InnerStep"][mul_, add_, labels_List, outputKeys_List,
       sizes_Association]] :=
   renderContractionFold[helds, labels, outputKeys, sizes, mul, add];
+renderPlanStep[helds_List,
+    irp["ConcatenateStep"][axes_List, counts_List, plans_List]] :=
+  Module[{blocks = MapThread[renderNestedPlan, {plans, helds}]},
+    If[AnyTrue[blocks, plannerFailureQ],
+      First @ Select[blocks, plannerFailureQ],
+      plannerJoinHeldBlocks[blocks, axes, counts]]
+  ];
+renderPlanStep[held_HoldComplete,
+    irp["SliceStep"][specs_List, plans_List]] :=
+  MapThread[renderNestedPlan[#1, heldTake[held, #2]] &, {plans, specs}];
+renderPlanStep[helds_List, irp["AssembleOutputsStep"]] := heldList[helds];
 renderPlanStep[held_HoldComplete, irp["TransposeStep"][perm_List]] :=
   heldTranspose[held, perm];
 renderPlanStep[held_HoldComplete, irp["RecomposeStep"][dims_List]] :=
@@ -515,6 +723,60 @@ tryInnerIRPlan[h_Hold, tensors_List, bindings_List, mul_, add_, targeting_,
       If[plannerFailureQ[held], held, traceReturnHeld[held, traceAction]],
       executeExecutionPlan[plan, tensors]]
   ], plannerFallbackTag];
+
+tryDirectSumIRPlan[h_Hold, tensors_List, bindings_List, direction_String,
+    traceAction_] :=
+  Catch[Module[{compiled, solvedBundle, solved, analysis, plan, held},
+    compiled = compileHeldDescIR[h, HoldComplete[bindings], direction, <||>];
+    If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
+      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
+    solved = solvedBundle["Solved"];
+    If[Head[solved] =!= irp["SolvedDesc"],
+      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    analysis = analyzeSolvedDesc[solved, direction, Automatic];
+    If[Head[analysis] =!= irp["OperationAnalysis"] ||
+        ! TrueQ[Replace[analysis,
+          irp["OperationAnalysis"][a_Association] :> a["Valid"]]],
+      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    plan = planDirectSumIR[solved, direction];
+    If[plannerFailureQ[plan], Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    If[traceActionEnabledQ[traceAction],
+      held = renderExecutionPlan[plan, tensors];
+      If[plannerFailureQ[held], held, traceReturnHeld[held, traceAction]],
+      executeExecutionPlan[plan, tensors]]
+  ], plannerFallbackTag];
+
+executeNestedPlan[irp["ExecutionPlan"][steps_List, _Association], value_] :=
+  Catch[Fold[
+    Function[{current, step},
+      Module[{next = executePlanStep[current, step]},
+        If[plannerFailureQ[next], Throw[next, plannerTag], next]]],
+    value, steps], plannerTag];
+
+renderNestedPlan[irp["ExecutionPlan"][steps_List, _Association],
+    held_HoldComplete] :=
+  Catch[Fold[
+    Function[{current, step},
+      Module[{next = renderPlanStep[current, step]},
+        If[plannerFailureQ[next], Throw[next, plannerTag], next]]],
+    held, steps], plannerTag];
+
+plannerJoinBlocks[blocks_List, axes_List, counts_List] :=
+  If[axes === {}, First[blocks],
+    Module[{chunk = Times @@ Rest[counts], grouped, joined},
+      grouped = Partition[blocks, chunk];
+      joined = plannerJoinBlocks[#, Rest[axes], Rest[counts]] & /@ grouped;
+      Join[Sequence @@ joined, First[axes]]
+    ]];
+
+plannerJoinHeldBlocks[blocks_List, axes_List, counts_List] :=
+  If[axes === {}, First[blocks],
+    Module[{chunk = Times @@ Rest[counts], grouped, joined},
+      grouped = Partition[blocks, chunk];
+      joined = plannerJoinHeldBlocks[#, Rest[axes], Rest[counts]] & /@ grouped;
+      heldJoin[joined, First[axes]]
+    ]];
 
 executeContractionFold[tensors_List, labels_List, outputKeys_List,
     sizes_Association, mul_, add_] :=
