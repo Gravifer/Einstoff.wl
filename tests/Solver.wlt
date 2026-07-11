@@ -2,7 +2,7 @@
 
 BeginTestSection["Einstoff`Solver"];
 
-ClearAll[a, b, c, q];
+ClearAll[a, b, c, grp, q, s];
 
 compile = Symbol["Einstoff`PackageScope`compileDescIR"];
 solve = Symbol["Einstoff`PackageScope`solveDescIR"];
@@ -61,6 +61,48 @@ VerificationTest[
   },
   {True, True, True},
   TestID -> "solver-public-shape-parity-basic"
+];
+
+VerificationTest[
+  out @ solved[{{a__}} :> {{a..}}, {{2, 3, 4}}],
+  {{2, 3, 4}},
+  TestID -> "solver-named-sequence-projection"
+];
+
+VerificationTest[
+  out @ solved[
+    {{b_, grp : (CircleTimes[s_, Highlighted["ds"]]).., c_}} :>
+      {{b, s.., c}},
+    {{2, 6, 15, 4}}, {Highlighted["ds"] -> 3}],
+  {{2, 2, 5, 4}},
+  TestID -> "solver-structured-repetition-pointwise-binders"
+];
+
+VerificationTest[
+  Head @ solved[{{a___, b___}} :> {{a.., b..}}, {{2}}],
+  ir["FailureRecord"],
+  TestID -> "solver-rejects-ambiguous-sequence-decomposition"
+];
+
+VerificationTest[
+  Head @ solved[{{a__}} :> {{a..}}, {{}}],
+  ir["FailureRecord"],
+  TestID -> "solver-enforces-blanksequence-minimum"
+];
+
+VerificationTest[
+  out @ solved[{{a__}, {b__}} :>
+      {MapThread[CircleTimes, {{a}, {b}}]}, {{2, 3}, {5, 7}}],
+  {{10, 21}},
+  TestID -> "solver-declarative-sequence-zip"
+];
+
+VerificationTest[
+  Module[{s = solved[{{a__}} :> {{a..}}, {{2, 3, 4}}]},
+    DeleteDuplicates @ Cases[s,
+      ir["SequenceMemberId"][ir["AxisId"][n_], k_] :> {n, k}, Infinity]],
+  {{1, 1}, {1, 2}, {1, 3}},
+  TestID -> "solver-sequence-member-identities-are-local-and-indexed"
 ];
 
 EndTestSection[];

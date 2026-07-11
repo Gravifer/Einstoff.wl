@@ -20,8 +20,10 @@ planStructuralIR[solved : irp["SolvedDesc"][a_Association], operator_] :=
           broadcastResult},
     normalized = a["Normalized"];
     na = Replace[normalized, irp["NormalizedDesc"][x_Association] :> x];
-    inShapes = Replace[na["Inputs"], irp["Inputs"][x_List] :> x];
-    outShapes = Replace[na["Outputs"], irp["Outputs"][x_List] :> x];
+    inShapes = Replace[Lookup[a, "Inputs", na["Inputs"]],
+      irp["Inputs"][x_List] :> x];
+    outShapes = Replace[Lookup[a, "Outputs", na["Outputs"]],
+      irp["Outputs"][x_List] :> x];
     If[Length[inShapes] =!= 1 || Length[outShapes] =!= 1,
       Throw[plannerFailure["StructuralArity", <|
         "Inputs" -> Length[inShapes], "Outputs" -> Length[outShapes]|>], plannerTag]];
@@ -88,8 +90,10 @@ planSelfContractIR[solved : irp["SolvedDesc"][a_Association], operator_,
           tailSteps},
     normalized = a["Normalized"];
     na = Replace[normalized, irp["NormalizedDesc"][x_Association] :> x];
-    inShapes = Replace[na["Inputs"], irp["Inputs"][x_List] :> x];
-    outShapes = Replace[na["Outputs"], irp["Outputs"][x_List] :> x];
+    inShapes = Replace[Lookup[a, "Inputs", na["Inputs"]],
+      irp["Inputs"][x_List] :> x];
+    outShapes = Replace[Lookup[a, "Outputs", na["Outputs"]],
+      irp["Outputs"][x_List] :> x];
     If[Length[inShapes] =!= 1 || Length[outShapes] =!= 1,
       Throw[plannerFailure["SelfContractArity", <|
         "Inputs" -> Length[inShapes], "Outputs" -> Length[outShapes]|>], plannerTag]];
@@ -157,8 +161,10 @@ planReduceIR[solved : irp["SolvedDesc"][a_Association], reducer_] :=
           inputLiterals, outputLiterals},
     normalized = a["Normalized"];
     na = Replace[normalized, irp["NormalizedDesc"][x_Association] :> x];
-    inShapes = Replace[na["Inputs"], irp["Inputs"][x_List] :> x];
-    outShapes = Replace[na["Outputs"], irp["Outputs"][x_List] :> x];
+    inShapes = Replace[Lookup[a, "Inputs", na["Inputs"]],
+      irp["Inputs"][x_List] :> x];
+    outShapes = Replace[Lookup[a, "Outputs", na["Outputs"]],
+      irp["Outputs"][x_List] :> x];
     If[Length[inShapes] =!= 1 || Length[outShapes] =!= 1,
       Throw[plannerFailure["ReduceArity", <|
         "Inputs" -> Length[inShapes], "Outputs" -> Length[outShapes]|>], plannerTag]];
@@ -215,8 +221,10 @@ planMapIR[solved : irp["SolvedDesc"][a_Association], f_, strictQ_] :=
           currentKeys, order, perm, steps = {}, dropped, broadcastResult, key, size},
     normalized = a["Normalized"];
     na = Replace[normalized, irp["NormalizedDesc"][x_Association] :> x];
-    inShapes = Replace[na["Inputs"], irp["Inputs"][x_List] :> x];
-    outShapes = Replace[na["Outputs"], irp["Outputs"][x_List] :> x];
+    inShapes = Replace[Lookup[a, "Inputs", na["Inputs"]],
+      irp["Inputs"][x_List] :> x];
+    outShapes = Replace[Lookup[a, "Outputs", na["Outputs"]],
+      irp["Outputs"][x_List] :> x];
     If[Length[inShapes] =!= 1 || Length[outShapes] =!= 1,
       Throw[plannerFailure["MapArity", <|
         "Inputs" -> Length[inShapes], "Outputs" -> Length[outShapes]|>], plannerTag]];
@@ -286,8 +294,10 @@ planInnerIR[solved : irp["SolvedDesc"][a_Association], mul_, add_, targeting_] :
           steps = {}, broadcastResult, key, size, perm},
     normalized = a["Normalized"];
     na = Replace[normalized, irp["NormalizedDesc"][x_Association] :> x];
-    inShapes = Replace[na["Inputs"], irp["Inputs"][x_List] :> x];
-    outShapes = Replace[na["Outputs"], irp["Outputs"][x_List] :> x];
+    inShapes = Replace[Lookup[a, "Inputs", na["Inputs"]],
+      irp["Inputs"][x_List] :> x];
+    outShapes = Replace[Lookup[a, "Outputs", na["Outputs"]],
+      irp["Outputs"][x_List] :> x];
     If[Length[inShapes] < 2 || Length[outShapes] =!= 1,
       Throw[plannerFailure["InnerArity", <|
         "Inputs" -> Length[inShapes], "Outputs" -> Length[outShapes]|>], plannerTag]];
@@ -359,8 +369,10 @@ planDirectSumIR[solved : irp["SolvedDesc"][a_Association], direction_String] :=
   Catch[Module[{normalized, na, inShapes, outShapes, axisSizes, plan},
     normalized = a["Normalized"];
     na = Replace[normalized, irp["NormalizedDesc"][x_Association] :> x];
-    inShapes = Replace[na["Inputs"], irp["Inputs"][x_List] :> x];
-    outShapes = Replace[na["Outputs"], irp["Outputs"][x_List] :> x];
+    inShapes = Replace[Lookup[a, "Inputs", na["Inputs"]],
+      irp["Inputs"][x_List] :> x];
+    outShapes = Replace[Lookup[a, "Outputs", na["Outputs"]],
+      irp["Outputs"][x_List] :> x];
     axisSizes = a["AxisSizes"];
     plan = Switch[direction,
       "Join", planDirectSumJoin[solved, inShapes, outShapes, axisSizes],
@@ -706,7 +718,10 @@ tryStructuralIRPlan[h_Hold, tensors_List, bindings_List, operator_String,
     normalized = Replace[solved,
       irp["SolvedDesc"][sa_Association] :> sa["Normalized"]];
     na = Replace[normalized, irp["NormalizedDesc"][x_Association] :> x];
-    inShapes = Replace[na["Inputs"], irp["Inputs"][x_List] :> x];
+    inShapes = Replace[solved,
+      irp["SolvedDesc"][sa_Association] :>
+        Replace[Lookup[sa, "Inputs", na["Inputs"]],
+          irp["Inputs"][x_List] :> x]];
     axisSizes = Replace[solved,
       irp["SolvedDesc"][sa_Association] :> sa["AxisSizes"]];
     inAtoms = If[Length[inShapes] === 1,
@@ -735,6 +750,10 @@ tryReduceIRPlan[h_Hold, tensors_List, bindings_List, reducer_, targeting_,
     solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
     solved = solvedBundle["Solved"];
     If[Head[solved] =!= irp["SolvedDesc"],
+      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    If[Cases[solved,
+        irp["SequenceMemberId"][irp["OccurrenceId"][_Integer], _Integer],
+        Infinity] =!= {},
       Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
     analysis = analyzeSolvedDesc[solved, "Reduce", targeting];
     If[Head[analysis] =!= irp["OperationAnalysis"] ||

@@ -335,4 +335,33 @@ VerificationTest[
   TestID -> "plan-public-einsum-self-contraction-trace"
 ];
 
+VerificationTest[
+  Module[{x = ArrayReshape[Range[480], {2, 6, 8, 5}], solvedDesc, p},
+    solvedDesc = solve[compile[
+      {{b_, grp : (CircleTimes[s_, Highlighted["ds"]]).., c_}} :>
+        {{b, s.., c}},
+      {"ds" -> 2}], {Dimensions[x]}]["Solved"];
+    p = planReduce[solvedDesc, Total];
+    execute[p, {x}]],
+  Total[Total[ArrayReshape[Range[480], {2, 3, 2, 4, 2, 5}], {5}], {3}],
+  TestID -> "plan-execute-structured-sequence-reduction"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[6], {2, 3}],
+      y = ArrayReshape[Range[35], {5, 7}], solvedDesc, p},
+    solvedDesc = solve[compile[{{a__}, {b__}} :>
+      {MapThread[CircleTimes, {{a}, {b}}]}],
+      {Dimensions[x], Dimensions[y]}]["Solved"];
+    p = planInner[solvedDesc, Times, Plus, Automatic];
+    execute[p, {x, y}]],
+  ArrayReshape[
+    Table[
+      ArrayReshape[Range[6], {2, 3}][[i1, j1]] *
+        ArrayReshape[Range[35], {5, 7}][[i2, j2]],
+      {i1, 2}, {i2, 5}, {j1, 3}, {j2, 7}],
+    {10, 21}],
+  TestID -> "plan-execute-declarative-sequence-zip"
+];
+
 EndTestSection[];

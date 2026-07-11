@@ -39,8 +39,10 @@ analyzeSolvedDesc[solved : ira["SolvedDesc"][a_Association], operator_, targetin
           directSums, units, targetInputs, targetOutputs, spec, policy, violations},
     normalized = a["Normalized"];
     na = Replace[normalized, ira["NormalizedDesc"][x_Association] :> x];
-    inputs = Replace[na["Inputs"], ira["Inputs"][x_List] :> x];
-    outputs = Replace[na["Outputs"], ira["Outputs"][x_List] :> x];
+    inputs = Replace[Lookup[a, "Inputs", na["Inputs"]],
+      ira["Inputs"][x_List] :> x];
+    outputs = Replace[Lookup[a, "Outputs", na["Outputs"]],
+      ira["Outputs"][x_List] :> x];
     axisSizes = a["AxisSizes"];
     inRecords = occurrenceRecords[inputs, "Input"];
     outRecords = occurrenceRecords[outputs, "Output"];

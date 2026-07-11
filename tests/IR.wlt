@@ -5,7 +5,8 @@
 BeginTestSection["Einstoff`Internal`IR"];
 
 constructors = {
-  "AxisId", "OccurrenceId", "SurfaceDesc", "CapturedDesc",
+  "AxisId", "OccurrenceId", "SequenceMemberId", "SequenceOccurrence",
+  "SurfaceDesc", "CapturedDesc",
   "NormalizedDesc", "ConstraintDesc", "SolvedDesc",
   "OperationAnalysis", "ExecutionPlan"
 };

@@ -54,7 +54,8 @@ captureDescIR[h_Hold, hb_HoldComplete, surface_] :=
       Throw[compilerFailure["CaptureRejected", "Capture",
         <|"Reason" -> descFailReason[], "Source" -> surface|>], compilerTag]];
     lhs = normShapes @ Extract[hc, {1, 1}];
-    rhsHeld = normHeldShapes @ Extract[hc, {1, 2}, Hold];
+    rhsHeld = compileDeclarativeRhsSurface[
+      normHeldShapes @ Extract[hc, {1, 2}, Hold]];
     If[! declarativeRhsQ[rhsHeld],
       Throw[compilerFailure["NonDeclarativeRHS", "Capture",
         <|"Source" -> With[{held = rhsHeld},
@@ -86,11 +87,21 @@ declarativeRhsQ[h_Hold] :=
   Module[{allowed, heads},
     allowed = {Hold, List, CircleTimes, CirclePlus, Pattern, Blank,
       BlankSequence, BlankNullSequence, Repeated, RepeatedNull,
-      Slot, SlotSequence, Highlighted, Framed, Inactive, Sequence};
+      Slot, SlotSequence, Highlighted, Framed, Inactive, Sequence,
+      sequenceZipSurface};
     heads = DeleteDuplicates @ Cases[h,
       e_[___] :> Unevaluated[e], {0, Infinity}, Heads -> False];
     AllTrue[heads, MemberQ[allowed, #] &]
   ];
+
+compileDeclarativeRhsSurface[h_Hold] :=
+  Replace[h,
+    Hold[{MapThread[CircleTimes, lists_List]}] :>
+      If[MatchQ[Unevaluated[lists], {{_Symbol} ..}],
+        With[{symbols = First /@ lists},
+          Hold[{{sequenceZipSurface[CircleTimes, symbols]}}]],
+        h],
+    {0}];
 
 normalizeCapturedDesc[iri["CapturedDesc"][captured_Association]] :=
   Catch[Module[{lhs, rhs, state, in, out, r, facts, axisTable, normalized},
@@ -226,10 +237,12 @@ compileTerm[CircleTimes[xs__], side_, target_, state_] :=
   compileComposite["ProductAxis", {xs}, side, target, state];
 compileTerm[CirclePlus[xs__], side_, target_, state_] :=
   compileComposite["DirectSumAxis", {xs}, side, target, state];
-compileTerm[Repeated[body_], side_, target_, state_] :=
+compileTerm[Verbatim[Repeated][body_], side_, target_, state_] :=
   compileRepeated[body, side, 1, target, state];
-compileTerm[RepeatedNull[body_], side_, target_, state_] :=
+compileTerm[Verbatim[RepeatedNull][body_], side_, target_, state_] :=
   compileRepeated[body, side, 0, target, state];
+compileTerm[sequenceZipSurface[CircleTimes, symbols_List], side_, target_, state_] :=
+  compileSequenceZip[symbols, side, target, state];
 
 compileTerm[other_, side_, _, state_] :=
   {compilerFailure["UnsupportedTerm", "Normalize",
@@ -282,6 +295,20 @@ compileRepeated[body_, side_, min_, target_, state_] :=
     {iri["RepeatedGroup"][occ, First[r],
       <|"Side" -> side, "Minimum" -> min, "TargetHead" -> target|>], st}
   ];
+
+compileSequenceZip[symbols_List, side_, target_, state_Association] :=
+  Catch[Module[{st = state, refs = {}, id, occ},
+    Do[
+      If[Head[symbol] =!= Symbol,
+        Throw[{compilerFailure["InvalidSequenceZipReference", "Normalize", <|
+          "Expression" -> HoldComplete[symbol]|>], st}, compilerTag]];
+      {id, st} = compilerAxisForSymbol[symbol, side, st];
+      AppendTo[refs, iri["SequenceReference"][id]],
+      {symbol, symbols}];
+    {occ, st} = compilerOccurrence[st];
+    {iri["SequenceZip"][occ, CircleTimes, refs,
+      <|"Side" -> side, "TargetHead" -> target|>], st}
+  ], compilerTag];
 
 compileBindingFacts[inline_List, external_List, state_Association] :=
   Catch[Module[{out = {}, id, source, grouped, values, fact},

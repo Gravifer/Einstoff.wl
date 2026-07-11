@@ -66,6 +66,13 @@ VerificationTest[
 VerificationTest[
   Head @ compile[{{a__}, {b__}} :>
       {MapThread[CircleTimes, {{a}, {b}}]}]["Normalized"],
+  ir["NormalizedDesc"],
+  TestID -> "compiler-normalizes-legacy-sequence-zip"
+];
+
+VerificationTest[
+  Head @ compile[{{a__}, {b__}} :>
+      {MapThread[Plus, {{a}, {b}}]}]["Normalized"],
   ir["FailureRecord"],
   TestID -> "compiler-rejects-arbitrary-rhs-code"
 ];
