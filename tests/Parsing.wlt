@@ -520,13 +520,13 @@ VerificationTest[
 
 (* Structured projection keeps the captured term structure; targeted string uses Highlighted. *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  sat @ Einstoff`EinstoffShapes[
     {{b_, grp : (CircleTimes[s_, Highlighted["ds"]]).., c_}} :>
       {Join[{b}, Map[First, {grp}], {c}]},
     {{2, 6, 12, 5}},
     {"ds" -> 3}],
-  {{2, 2, 4, 5}},
-  TestID -> "named-axis-sequence-structured-projection"
+  False,
+  TestID -> "named-axis-sequence-rejects-computational-projection"
 ];
 
 (* Inner sequence captures can be projected with RHS postfix syntax.  This is an
@@ -557,13 +557,13 @@ VerificationTest[
   TestID -> "rhs-flat-shape-rejected-even-with-sequence-splice"
 ];
 
-(* A named null axis-sequence accepts an empty run and listifies it as an empty Sequence. *)
+(* Arbitrary Join is not the declarative spelling for a null sequence projection. *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  sat @ Einstoff`EinstoffShapes[
     {{a_, z___, b_}} :> {Join[{a}, {z}, {b}]},
     {{2, 3}}],
-  {{2, 3}},
-  TestID -> "named-axis-sequence-null-empty"
+  False,
+  TestID -> "named-axis-sequence-rejects-computational-null-projection"
 ];
 
 (* Captured named axis-sequences must have the same length in this v1 policy. *)

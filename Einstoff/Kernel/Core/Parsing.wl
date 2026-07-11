@@ -62,16 +62,22 @@ EinstoffParse[desc_] := withAxisScopeDeCanon @ parseDesc[Hold[desc]];
    across its occurrences, so a shadowed global symbol cannot leak its value into an
    axis (and targeted strings are context-safe). *)
 parseDesc[h : Hold[_RuleDelayed]] :=
-  Module[{hr = canonHeld[h]},
+  Module[{hr = canonHeld[h], rhs},
     If[hr === $Failed, <|"LHS" -> $Failed, "RHS" -> $Failed|>,
-      <|"LHS" -> normShapes @ Extract[hr, {1, 1}],
-        "RHS" -> normHeldShapes @ Extract[hr, {1, 2}, Hold]|>]];
+      rhs = normHeldShapes @ Extract[hr, {1, 2}, Hold];
+      If[! declarativeRhsQ[compileDeclarativeRhsSurface[rhs]],
+        $descRejectReason = "the descriptor RHS contains non-declarative WL computation";
+        <|"LHS" -> $Failed, "RHS" -> $Failed|>,
+        <|"LHS" -> normShapes @ Extract[hr, {1, 1}], "RHS" -> rhs|>]]];
 parseDesc[h : Hold[_Rule]] :=
-  Module[{hr = canonHeld[h]},
+  Module[{hr = canonHeld[h], rhs},
     If[hr === $Failed, <|"LHS" -> $Failed, "RHS" -> $Failed|>,
-      <|"LHS" -> normShapes @ Extract[hr, {1, 1}],
-        "RHS" -> normHeldShapes @ Extract[hr, {1, 2}, Hold],
-        "Warning" -> "prefer :> (RuleDelayed) over -> for desc"|>]];
+      rhs = normHeldShapes @ Extract[hr, {1, 2}, Hold];
+      If[! declarativeRhsQ[compileDeclarativeRhsSurface[rhs]],
+        $descRejectReason = "the descriptor RHS contains non-declarative WL computation";
+        <|"LHS" -> $Failed, "RHS" -> $Failed|>,
+        <|"LHS" -> normShapes @ Extract[hr, {1, 1}], "RHS" -> rhs,
+          "Warning" -> "prefer :> (RuleDelayed) over -> for desc"|>]]];
 (* a structurally-malformed desc (not lhs :> rhs): no canonHeld ran, so clear any stale
    reject reason from a prior re-entrant parse (P3a) — EinstoffShapes' Reason must fall
    back to the generic desc-shape reason, not a stale invalid-name reason. *)

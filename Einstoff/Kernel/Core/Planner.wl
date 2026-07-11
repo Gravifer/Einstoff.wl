@@ -13,6 +13,14 @@ PackageScoped[{
 
 irp[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
 
+rejectNonDeclarativePlanInput[compiled_Association] :=
+  If[MatchQ[compiled["Normalized"],
+      irp["FailureRecord"]["NonDeclarativeRHS", _, _Association]],
+    Message[Einstoff::unsupp,
+      "the descriptor RHS must use the declarative shape/sequence grammar; arbitrary WL computation is not executed"];
+    True,
+    False];
+
 planStructuralIR[solved : irp["SolvedDesc"][a_Association], operator_] :=
   Catch[Module[{normalized, na, inputs, outputs, axisSizes, inShapes, outShapes,
           inTerms, outTerms, inAtoms, outAtoms, inKeys, outKeys, currentKeys,
@@ -705,6 +713,8 @@ tryStructuralIRPlan[h_Hold, tensors_List, bindings_List, operator_String,
           normalized, na, inShapes, axisSizes, inAtoms, inKeys},
     compiled = compileHeldDescIR[h, HoldComplete[bindings], operator,
       <|"Targeting" -> targeting|>];
+    If[rejectNonDeclarativePlanInput[compiled],
+      Throw[$Failed, plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
       Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
     solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
@@ -745,6 +755,8 @@ tryReduceIRPlan[h_Hold, tensors_List, bindings_List, reducer_, targeting_,
   Catch[Module[{compiled, solvedBundle, solved, analysis, plan, held, targetIds, reducedIds},
     compiled = compileHeldDescIR[h, HoldComplete[bindings], "Reduce",
       <|"Targeting" -> targeting|>];
+    If[rejectNonDeclarativePlanInput[compiled],
+      Throw[$Failed, plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
       Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
     solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
@@ -786,6 +798,8 @@ tryMapIRPlan[h_Hold, tensors_List, bindings_List, f_, strictQ_, traceAction_] :=
           executed, held},
     operator = If[TrueQ[strictQ], "Operate", "Map"];
     compiled = compileHeldDescIR[h, HoldComplete[bindings], operator, <||>];
+    If[rejectNonDeclarativePlanInput[compiled],
+      Throw[$Failed, plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
       Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
     solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
@@ -813,6 +827,8 @@ tryInnerIRPlan[h_Hold, tensors_List, bindings_List, mul_, add_, targeting_,
     operator = If[mul === Times && add === Plus, "Dot", "Inner"];
     compiled = compileHeldDescIR[h, HoldComplete[bindings], operator,
       <|"Targeting" -> targeting|>];
+    If[rejectNonDeclarativePlanInput[compiled],
+      Throw[$Failed, plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
       Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
     solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
@@ -836,6 +852,8 @@ tryDirectSumIRPlan[h_Hold, tensors_List, bindings_List, direction_String,
     traceAction_] :=
   Catch[Module[{compiled, solvedBundle, solved, analysis, plan, held},
     compiled = compileHeldDescIR[h, HoldComplete[bindings], direction, <||>];
+    If[rejectNonDeclarativePlanInput[compiled],
+      Throw[$Failed, plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
       Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
     solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];

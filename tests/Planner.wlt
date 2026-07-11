@@ -364,4 +364,13 @@ VerificationTest[
   TestID -> "plan-execute-declarative-sequence-zip"
 ];
 
+VerificationTest[
+  Quiet[
+    Einstoff[ArrayReshape][{{a__}} :> {Map[Identity, {a}]},
+      {ArrayReshape[Range[6], {2, 3}]}],
+    {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "plan-public-rejects-nondeclarative-rhs-without-fallback"
+];
+
 EndTestSection[];

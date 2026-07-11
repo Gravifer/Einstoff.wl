@@ -9,7 +9,8 @@
 
 PackageScoped[{
   compileDescIR, compileHeldDescIR, captureDescIR, normalizeCapturedDesc,
-  compileTargetPolicy, normalizedDescAssociation
+  compileTargetPolicy, normalizedDescAssociation, declarativeRhsQ,
+  compileDeclarativeRhsSurface
 }]
 
 iri[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
