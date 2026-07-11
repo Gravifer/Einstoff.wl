@@ -36,13 +36,18 @@ buildConstraintDesc[normalized : irs["NormalizedDesc"][a_Association],
         <|"Expected" -> If[ListQ[shapes], Length[shapes], Missing[]],
           "Actual" -> Length[inputShapes]|>], solverTag]];
     bindings = Replace[a["Bindings"], irs["BindingFacts"][f_List] :> f];
-    Do[
-      AppendTo[constraints,
-        Replace[fact, irs["BindingFact"][id_, size_, source_] :>
-          irs["KnownSize"][id, size, source]]],
-      {fact, bindings}];
     captureState = <|"Lengths" -> <||>, "Members" -> <||>,
       "PointwiseAxes" -> {}|>;
+    Do[
+      With[{id = bindingFactId[fact], size = bindingFactValue[fact],
+          source = bindingFactSource[fact]},
+        If[MissingQ[solverSequenceBindingValue[size]],
+          AppendTo[constraints, irs["KnownSize"][id, size, source]],
+          r = seedBoundSequence[id, solverSequenceBindingValue[size], captureState, source];
+          If[solverFailureQ[r], Throw[r, solverTag]];
+          captureState = r["State"];
+          constraints = Join[constraints, r["Constraints"]]]],
+      {fact, bindings}];
     Do[
       terms = Replace[shapes[[i]], irs["Shape"][t_List] :> t];
       r = expandInputTerms[terms, inputShapes[[i]], i, captureState];
@@ -72,6 +77,31 @@ buildConstraintDesc[other_, inputShapes_] :=
   solverFailure["ExpectedNormalizedDesc", "Constraints",
     <|"Expression" -> HoldComplete[other],
       "InputShapes" -> HoldComplete[inputShapes]|>];
+
+bindingFactId[irs["BindingFact"][id_, _, _]] := id;
+bindingFactValue[irs["BindingFact"][_, value_, _]] := value;
+bindingFactSource[irs["BindingFact"][_, _, source_]] := source;
+
+solverSequenceBindingValue[Verbatim[Inactive][Sequence][xs___]] := {xs};
+solverSequenceBindingValue[_] := Missing["NotSequenceBinding"];
+
+seedBoundSequence[id_, values_List, state_Association, source_] :=
+  If[! AllTrue[values, IntegerQ[#] && # > 0 &],
+    solverFailure["InvalidSequenceBinding", "Constraints", <|
+      "Axis" -> id, "Value" -> HoldComplete[values]|>],
+    Module[{members, constraints},
+      members = MapIndexed[
+        irs["AxisOccurrence"][irs["SequenceOccurrence"][id, First[#2]],
+          irs["SequenceMemberId"][id, First[#2]],
+          <|"Side" -> "Binding", "SequenceIndex" -> First[#2]|>] &,
+        values];
+      constraints = MapThread[
+        irs["EqualSize"][sizeExpression[#1], #2, source] &,
+        {members, values}];
+      <|"State" -> Join[state, <|
+          "Lengths" -> Append[state["Lengths"], id -> Length[values]],
+          "Members" -> Append[state["Members"], id -> members]|>],
+        "Constraints" -> constraints|>]];
 
 sizeExpression[irs["AxisOccurrence"][_, id_, _]] := irs["SizeAxis"][id];
 sizeExpression[irs["LiteralAxis"][_, n_Integer, _]] := irs["SizeLiteral"][n];
@@ -130,19 +160,38 @@ expandInputTerms[terms_List, dims_List, inputIndex_Integer, state_Association] :
             expanded["Terms"]]];
         st = expanded["State"];
         cursor += len,
-        If[MatchQ[terms[[j]], irs["AnonymousAxis"][_, _, _Association]],
-          AppendTo[out, Replace[terms[[j]],
+        expanded = expandBoundSequencesInTerm[terms[[j]], st];
+        If[MatchQ[expanded, irs["AnonymousAxis"][_, _, _Association]],
+          AppendTo[out, Replace[expanded,
             irs["AnonymousAxis"][occ_, _, meta_Association] :>
               irs["LiteralAxis"][occ, dims[[cursor]], meta]]],
-          expanded = sizeExpression[terms[[j]]];
+          AppendTo[out, expanded];
+          expanded = sizeExpression[expanded];
           If[solverFailureQ[expanded], Throw[expanded, solverTag]];
-          AppendTo[out, terms[[j]]];
           AppendTo[constraints, irs["EqualSize"][expanded, dims[[cursor]],
             <|"Input" -> inputIndex, "Dimension" -> cursor|>]]];
         cursor++],
       {j, Length[terms]}];
     <|"Terms" -> out, "Constraints" -> constraints, "State" -> st|>
   ], solverTag];
+
+expandBoundSequencesInTerm[
+    irs["SequenceAxis"][_, id_, meta_Association], state_Association] :=
+  Module[{members = Lookup[state["Members"], id,
+      solverFailure["UnboundSequence", "Constraints", <|"Sequence" -> id|>]]},
+    If[ListQ[members] && Length[members] < Lookup[meta, "Minimum", 0],
+      solverFailure["SequenceMinimum", "Constraints", <|
+        "Sequence" -> id, "Minimum" -> meta["Minimum"],
+        "Actual" -> Length[members]|>],
+      members]];
+expandBoundSequencesInTerm[
+    head_[occ_, children_List, meta_Association], state_Association] /;
+      MemberQ[{irs["ProductAxis"], irs["DirectSumAxis"]}, head] :=
+  Module[{expanded = expandBoundSequencesInTerm[#, state] & /@ children},
+    If[AnyTrue[expanded, solverFailureQ],
+      First @ Select[expanded, solverFailureQ],
+      head[occ, Flatten[expanded, 1], meta]]];
+expandBoundSequencesInTerm[term_, _] := term;
 
 expandCapturedSequence[irs["SequenceAxis"][occ_, id_, meta_Association],
     dims_List, state_Association] :=

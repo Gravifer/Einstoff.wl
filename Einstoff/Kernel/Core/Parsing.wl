@@ -495,16 +495,33 @@ matchStep[envs_, pair_] :=
    gives the fallback memo a per-call scope; when called inside an operator's scope, that
    scope already did both, so pass through.  einAxisCatch turns an un-mintable fallback
    token (a compromised Einstoff`Fallback` context) into a clean ok->False. *)
+SetAttributes[EinstoffMatch, HoldFirst];
 EinstoffMatch[lhsShapes_, inputShapes_, bindingsIn_ : {}] :=
-  If[AssociationQ[$axisFresh],
-    einstoffMatchCore[lhsShapes, inputShapes, bindingsIn],
-    Block[{$axisFallbackMemo = <||>},
-      purgeAxisContext[];
-      einAxisCatch[
-        With[{r = einstoffMatchCore[lhsShapes, inputShapes, bindingsIn]},
-          If[AssociationQ[r], KeyDrop[r, "seq"], r]],
-        <|"ok" -> False, "reason" -> "the internal Einstoff`Fallback` axis-identity \
-context is compromised (a Protected+Locked generated symbol); cannot resolve"|>]]];
+  withAxisScopeDeCanon @ Catch[
+    Module[{compiled, normalized, solvedBundle, solved, solvedAssoc, axes, env},
+      compiled = Quiet[compileMatchIR[lhsShapes, bindingsIn], {Einstoff::unsupp}];
+      normalized = Lookup[compiled, "Normalized", Missing["Normalized"]];
+      If[Head[normalized] =!= Einstoff`Internal`IR`NormalizedDesc,
+        Throw[<|"ok" -> False,
+          "reason" -> publicFailureReason[normalized, None]|>, publicMatchTag]];
+      solvedBundle = solveDescIR[compiled, inputShapes];
+      solved = Lookup[solvedBundle, "Solved", Missing["Solved"]];
+      If[Head[solved] =!= Einstoff`Internal`IR`SolvedDesc,
+        Throw[<|"ok" -> False,
+          "reason" -> publicFailureReason[solved, normalized]|>, publicMatchTag]];
+      solvedAssoc = Replace[solved,
+        Einstoff`Internal`IR`SolvedDesc[a_Association] :> a];
+      axes = publicNormalizedAxes[normalized];
+      env = Association @ KeyValueMap[
+        Function[{id, size}, publicAxisKey[id, axes] -> size],
+        KeySelect[solvedAssoc["AxisSizes"],
+          MatchQ[#, Einstoff`Internal`IR`AxisId[_Integer]] &]];
+      <|"ok" -> True, "env" -> env|>
+    ], publicMatchTag];
+
+SetAttributes[compileMatchIR, HoldFirst];
+compileMatchIR[lhs_, bindings_] :=
+  compileHeldDescIR[Hold[lhs :> {}], HoldComplete[bindings], "Match", <||>];
 
 inlineBindingRules[] :=
   If[ListQ[$inlineBindingFacts],
