@@ -14,7 +14,8 @@ PackageScoped[{descParts, canonHeld, canonBindingList, deCanon, withAxisScope,
   $axisFallbackMemo, $inlineBindingFacts, $axisKind,
   normUnitTerms, flattenDirectSum,
   normShapes, normHeldShapes, firstDuplicateAxis,
-  inlineSizedAxis, prepareInlineHeld, inlineHeldSpecs, inlineSpecInfo,
+  inlineSizedAxis, prepareInlineHeld, collectEstablished, stripInlineSized,
+  inlineHeldSpecs, inlineSpecInfo,
   distinctAxesQ, bracketWrapperQ, hasCirclePlus, einAxisCatch, $einAxisFail}]
 
 (* --- desc-boundary evaluation hygiene: axis-identity canonicalization ------------ *)

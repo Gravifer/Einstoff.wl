@@ -1,11 +1,7 @@
 (* ::Package:: *)
 
-(* Surface capture and normalized IR compilation.
-
-   This is the compatibility migration boundary: it shares the existing held hygiene
-   capture so observable semantics remain stable, but no fresh symbol escapes the
-   CapturedDesc -> NormalizedDesc step.  The explicit constraint solver will consume
-   NormalizedDesc and ultimately replace the compatibility capture itself. *)
+(* Surface capture and normalized IR compilation.  Raw WL syntax is converted directly
+   to private inert capture nodes; no temporary symbol participates in identity. *)
 
 PackageScoped[{
   compileDescIR, compileHeldDescIR, captureDescIR, normalizeCapturedDesc,
@@ -33,7 +29,7 @@ compileDescIR[desc_, bindings_ : {}, operator_ : None, options_ : <||>] :=
   compileHeldDescIR[Hold[desc], HoldComplete[bindings], operator, options];
 
 compileHeldDescIR[h_Hold, hb_HoldComplete, operator_, options_] :=
-  withAxisScope @ Catch[Module[{surface, sourceDesc, captured, normalized},
+  Catch[Module[{surface, sourceDesc, captured, normalized},
     sourceDesc = h /. Hold[x_] :> HoldComplete[x];
     surface = iri["SurfaceDesc"][sourceDesc, hb, operator,
       If[AssociationQ[options], options, <||>]];
@@ -46,21 +42,32 @@ compileHeldDescIR[h_Hold, hb_HoldComplete, operator_, options_] :=
   ], compilerTag];
 
 captureDescIR[h_Hold, hb_HoldComplete, surface_] :=
-  Catch[Module[{hc, lhs, rhsHeld, rawBindings, externalBindings},
+  Block[{$axisFresh = <||>, $axisKind = <||>, $descRejectReason = None,
+      $axisFallbackMemo = <||>, $inlineBindingFacts = {}},
+  Catch[Module[{prepared, hp, specs, established, lhsRaw, rhsRaw, lhs, rhsHeld,
+          rawBindings, externalBindings, inlineFacts},
     If[! MatchQ[h, Hold[_Rule | _RuleDelayed]],
       Throw[compilerFailure["MalformedDescription", "Capture",
         <|"Source" -> surface|>], compilerTag]];
-    hc = canonHeld[h];
-    If[hc === $Failed,
+    prepared = prepareInlineHeld[h];
+    If[prepared === $Failed,
       Throw[compilerFailure["CaptureRejected", "Capture",
         <|"Reason" -> descFailReason[], "Source" -> surface|>], compilerTag]];
-    lhs = normShapes @ Extract[hc, {1, 1}];
-    rhsHeld = compileDeclarativeRhsSurface[
-      normHeldShapes @ Extract[hc, {1, 2}, Hold]];
-    If[! declarativeRhsQ[rhsHeld],
+    hp = prepared["Held"]; specs = prepared["Specs"];
+    established = collectEstablished[hp];
+    If[established === $Failed,
+      Throw[compilerFailure["CaptureRejected", "Capture",
+        <|"Reason" -> descFailReason[], "Source" -> surface|>], compilerTag]];
+    established = DeleteDuplicates @ Join[established, surfaceBinderNames[hp]];
+    $axisFresh = AssociationMap[surfaceAxisKey, established];
+    lhsRaw = normShapes @ Extract[hp, {1, 1}];
+    rhsRaw = compileDeclarativeRhsSurface[
+      normHeldShapes @ Extract[hp, {1, 2}, Hold]];
+    If[! declarativeRhsQ[rhsRaw],
       Throw[compilerFailure["NonDeclarativeRHS", "Capture",
-        <|"Source" -> With[{held = rhsHeld},
-          iri["SourceRef"][{2}, HoldComplete[held]]]|>], compilerTag]];
+        <|"Source" -> iri["SourceRef"][{2}, HoldComplete[rhsRaw]]|>], compilerTag]];
+    lhs = captureSurfaceSide[lhsRaw, "LHS", established];
+    rhsHeld = captureSurfaceHeld[rhsRaw, "RHS", established];
     rawBindings = Quiet @ Check[ReleaseHold[hb], $Failed];
     If[rawBindings === $Failed,
       Throw[compilerFailure["InvalidBindings", "Capture",
@@ -74,17 +81,113 @@ captureDescIR[h_Hold, hb_HoldComplete, surface_] :=
     If[StringQ[externalBindings],
       Throw[compilerFailure["InvalidBindings", "Capture",
         <|"Reason" -> externalBindings, "Source" -> surface|>], compilerTag]];
+    inlineFacts = captureInlineFacts[specs];
+    If[compilerFailureQ[inlineFacts], Throw[inlineFacts, compilerTag]];
     iri["CapturedDesc"][<|
       "Surface" -> surface,
       "CanonicalLHS" -> lhs,
       "CanonicalRHS" -> rhsHeld,
-      "AxisNames" -> Association[$axisFresh],
+      "EstablishedNames" -> established,
       "AxisKinds" -> Association[$axisKind],
-      "InlineBindingFacts" -> $inlineBindingFacts,
+      "InlineBindingFacts" -> inlineFacts,
       "ExternalBindings" -> externalBindings,
       "Bindings" -> hb
     |>]
-  ], compilerTag];
+  ], compilerTag]];
+
+captureInlineFacts[specs_List] :=
+  Catch[Map[Function[spec,
+    Module[{info = inlineSpecInfo[spec["Spec"]], size},
+      If[info === $Failed,
+        Throw[compilerFailure["InvalidInlineBinding", "Capture", <|
+          "Source" -> spec|>], compilerTag]];
+      size = Quiet @ Check[ReleaseHold[spec["Size"]], $Failed];
+      <|"Key" -> surfaceAxisKey[info["Name"]], "Size" -> size,
+        "Name" -> info["Name"], "Kind" -> info["Kind"],
+        "Binder" -> info["Binder"], "TargetHead" -> info["TargetHead"],
+        "Source" -> spec["Source"], "SourceExpression" -> spec|>]], specs],
+    compilerTag];
+
+captureSurfaceHeld[h_Hold, side_String, established_List] :=
+  h /. {
+    inlineSizedAxis[s_String, _, _] :> capturedLogicalAxis[s, "String"],
+    inlineSizedAxis[s_Symbol, _, _] /; Context[Unevaluated[s]] =!= "System`" :>
+      capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"],
+    inlineSizedAxis[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]], _, _] :>
+      capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"],
+    Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]] :>
+      capturedBinder[SymbolName[Unevaluated[s]]],
+    Verbatim[Pattern][s_Symbol, Verbatim[BlankSequence[]]] :>
+      capturedNamedSequence[SymbolName[Unevaluated[s]], 1, Blank[]],
+    Verbatim[Pattern][s_Symbol, Verbatim[BlankNullSequence[]]] :>
+      capturedNamedSequence[SymbolName[Unevaluated[s]], 0, Blank[]],
+    (head : (Slot | Highlighted | Framed))[s_String] :>
+      head[capturedLogicalAxis[s, "String"]],
+    (head : (Slot | Highlighted | Framed))[s_Symbol] /;
+        Context[Unevaluated[s]] =!= "System`" :>
+      head[capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"]],
+    s_String :> capturedLogicalAxis[s, "String"],
+    s_Symbol /; Context[Unevaluated[s]] =!= "System`" &&
+        Unevaluated[s] =!= sequenceZipSurface &&
+        Unevaluated[s] =!= inlineSizedAxis &&
+        MemberQ[established, SymbolName[Unevaluated[s]]] :>
+      capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"],
+    s_Symbol /; Context[Unevaluated[s]] =!= "System`" &&
+        Unevaluated[s] =!= sequenceZipSurface &&
+        Unevaluated[s] =!= inlineSizedAxis && ValueQ[s] :> s,
+    s_Symbol /; Context[Unevaluated[s]] =!= "System`" &&
+        Unevaluated[s] =!= sequenceZipSurface &&
+        Unevaluated[s] =!= inlineSizedAxis :>
+      capturedAmbientAxis[Context[Unevaluated[s]], SymbolName[Unevaluated[s]]]
+  };
+
+surfaceBinderNames[h_Hold] := DeleteDuplicates @ Cases[h,
+  Verbatim[Pattern][s_Symbol,
+      Verbatim[Blank[]] | Verbatim[BlankSequence[]] |
+      Verbatim[BlankNullSequence[]] | Verbatim[Repeated][_] |
+      Verbatim[RepeatedNull][_]] :> SymbolName[Unevaluated[s]], Infinity];
+
+captureSurfaceSide[shapes_List, side_String, established_List] :=
+  Map[Function[shape,
+    If[ListQ[shape], captureSurfaceTerm[#, side, established] & /@ shape, shape]],
+    shapes];
+
+captureSurfaceTerm[inlineSizedAxis[x_, _, _], side_, established_] :=
+  captureExplicitSurfaceTerm[x, side, established];
+captureSurfaceTerm[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]], _, _] :=
+  capturedBinder[SymbolName[Unevaluated[s]]];
+captureSurfaceTerm[Verbatim[Pattern][s_Symbol, Verbatim[BlankSequence[]]], _, _] :=
+  capturedNamedSequence[SymbolName[Unevaluated[s]], 1, Blank[]];
+captureSurfaceTerm[Verbatim[Pattern][s_Symbol, Verbatim[BlankNullSequence[]]], _, _] :=
+  capturedNamedSequence[SymbolName[Unevaluated[s]], 0, Blank[]];
+captureSurfaceTerm[Verbatim[Pattern][s_Symbol, Verbatim[Repeated][body_]], side_, est_] :=
+  capturedNamedSequence[SymbolName[Unevaluated[s]], 1,
+    captureSurfaceTerm[body, side, est]];
+captureSurfaceTerm[Verbatim[Pattern][s_Symbol, Verbatim[RepeatedNull][body_]], side_, est_] :=
+  capturedNamedSequence[SymbolName[Unevaluated[s]], 0,
+    captureSurfaceTerm[body, side, est]];
+captureSurfaceTerm[(head : (Slot | Highlighted | Framed))[x_], side_, est_] :=
+  head[captureExplicitSurfaceTerm[x, side, est]];
+captureSurfaceTerm[CircleTimes[xs__], side_, est_] :=
+  CircleTimes @@ (captureSurfaceTerm[#, side, est] & /@ {xs});
+captureSurfaceTerm[CirclePlus[xs__], side_, est_] :=
+  CirclePlus @@ (captureSurfaceTerm[#, side, est] & /@ {xs});
+captureSurfaceTerm[Verbatim[Repeated][x_], side_, est_] :=
+  Repeated[captureSurfaceTerm[x, side, est]];
+captureSurfaceTerm[Verbatim[RepeatedNull][x_], side_, est_] :=
+  RepeatedNull[captureSurfaceTerm[x, side, est]];
+captureSurfaceTerm[s_String, _, _] := capturedLogicalAxis[s, "String"];
+captureSurfaceTerm[s_Symbol, side_, est_] /; Context[Unevaluated[s]] =!= "System`" :=
+  Module[{name = SymbolName[Unevaluated[s]]},
+    If[side === "RHS" && MemberQ[est, name],
+      capturedLogicalAxis[name, "Symbol"],
+      capturedAmbientAxis[Context[Unevaluated[s]], name]]];
+captureSurfaceTerm[x_, _, _] := x;
+
+captureExplicitSurfaceTerm[s_String, _, _] := capturedLogicalAxis[s, "String"];
+captureExplicitSurfaceTerm[s_Symbol, _, _] /; Context[Unevaluated[s]] =!= "System`" :=
+  capturedLogicalAxis[SymbolName[Unevaluated[s]], "Symbol"];
+captureExplicitSurfaceTerm[x_, side_, est_] := captureSurfaceTerm[x, side, est];
 
 (* Inspect held compound heads before releasing the RHS.  Only the declarative shape
    vocabulary is allowed; atoms (including axis symbols and strings) contribute no
@@ -94,7 +197,7 @@ declarativeRhsQ[h_Hold] :=
     allowed = {Hold, List, CircleTimes, CirclePlus, Pattern, Blank,
       BlankSequence, BlankNullSequence, Repeated, RepeatedNull,
       Slot, SlotSequence, Highlighted, Framed, Inactive, Sequence,
-      sequenceZipSurface};
+      sequenceZipSurface, inlineSizedAxis};
     heads = DeleteDuplicates @ Cases[h,
       e_[___] :> Unevaluated[e], {0, Infinity}, Heads -> False];
     AllTrue[heads, MemberQ[allowed, #] &]
@@ -147,8 +250,7 @@ normalizedDescAssociation[_] := Missing["NotNormalized"];
 
 compilerState[captured_Association] := <|
   "IRState" -> irNewState[],
-  "FreshToName" -> Association @ KeyValueMap[(#2 -> #1) &,
-    captured["AxisNames"]],
+  "EstablishedNames" -> captured["EstablishedNames"],
   "AxisKinds" -> captured["AxisKinds"],
   "SequenceAxes" -> <||>,
   "AnonymousSequences" -> <|"LHS" -> {}, "RHSUsed" -> {}|>,
@@ -170,18 +272,18 @@ compilerOccurrence[state_Association] :=
   ];
 
 compilerAxisForSymbol[s_Symbol, side_String, state_Association] :=
-  Module[{name, freshName, key, metadata},
-    freshName = Lookup[state["FreshToName"], Unevaluated[s], Missing["Ambient"]];
-    If[MissingQ[freshName],
-      name = SymbolName[Unevaluated[s]];
-      key = "ambient:" <> Context[Unevaluated[s]] <> name;
-      metadata = <|"Origin" -> "Ambient", "Context" -> Context[Unevaluated[s]]|>,
-      name = freshName;
-      key = "axis:" <> name;
-      metadata = <|"Origin" -> "Established",
-        "SurfaceKinds" -> Lookup[state["AxisKinds"], name, {}]|>];
-    compilerIntern[key, name, metadata, state]
-  ];
+  Module[{name = SymbolName[Unevaluated[s]]},
+    If[side === "RHS" && MemberQ[state["EstablishedNames"], name],
+      compilerAxisForName[name, state],
+      compilerAmbientAxis[Context[Unevaluated[s]], name, state]]];
+
+compilerAxisForName[name_String, state_Association] :=
+  compilerIntern["axis:" <> name, name, <|"Origin" -> "Established",
+    "SurfaceKinds" -> Lookup[state["AxisKinds"], name, {}]|>, state];
+
+compilerAmbientAxis[context_String, name_String, state_Association] :=
+  compilerIntern["ambient:" <> context <> name, name,
+    <|"Origin" -> "Ambient", "Context" -> context|>, state];
 
 compileShapeList[shapes_List, side_String, state_Association] :=
   Catch[Module[{out = {}, st = state, r},
@@ -209,6 +311,16 @@ compileTerms[terms_List, side_String, state_Association] :=
 
 compileTerm[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]], side_, target_, state_] :=
   compileNamedOccurrence[s, side, "Binder", target, state];
+
+compileTerm[capturedBinder[name_String], side_, target_, state_] :=
+  compileNamedOccurrenceByName[name, side, "Binder", target, state];
+compileTerm[capturedLogicalAxis[name_String, _], side_, target_, state_] :=
+  compileNamedOccurrenceByName[name, side, If[side === "RHS", "Reference", "Named"],
+    target, state];
+compileTerm[capturedAmbientAxis[context_String, name_String], side_, target_, state_] :=
+  compileAmbientOccurrence[context, name, side, target, state];
+compileTerm[capturedNamedSequence[name_String, min_Integer, body_], side_, target_, state_] :=
+  compileNamedSequenceByName[name, side, min, body, target, state];
 
 compileTerm[Verbatim[Pattern][s_Symbol, Verbatim[BlankSequence[]]], side_, target_, state_] :=
   compileNamedSequence[s, side, 1, Blank[], target, state];
@@ -266,6 +378,28 @@ compileNamedOccurrence[s_Symbol, side_, role_, target_, state_] :=
           "TargetHead" -> target|>], st}]
   ];
 
+compileNamedOccurrenceByName[name_String, side_, role_, target_, state_] :=
+  Module[{id, occ, st},
+    {id, st} = compilerAxisForName[name, state];
+    {occ, st} = compilerOccurrence[st];
+    If[side === "RHS" && KeyExistsQ[st["SequenceAxes"], id],
+      {iri["SequenceAxis"][occ, id,
+        <|"Side" -> side, "Minimum" -> 0, "Pattern" -> None,
+          "SyntaxRole" -> "SequenceReference", "TargetHead" -> target|>], st},
+      {iri["AxisOccurrence"][occ, id,
+        <|"Side" -> side, "SyntaxRole" -> role,
+          "TargetHead" -> target|>], st}]
+  ];
+
+compileAmbientOccurrence[context_, name_, side_, target_, state_] :=
+  Module[{id, occ, st},
+    {id, st} = compilerAmbientAxis[context, name, state];
+    {occ, st} = compilerOccurrence[st];
+    {iri["AxisOccurrence"][occ, id,
+      <|"Side" -> side, "SyntaxRole" -> If[side === "RHS", "Reference", "Ambient"],
+        "TargetHead" -> target|>], st}
+  ];
+
 compileNamedSequence[s_Symbol, side_, min_, body_, target_, state_] :=
   Module[{id, occ, st, child, r},
     {id, st} = compilerAxisForSymbol[Unevaluated[s], side, state];
@@ -274,6 +408,21 @@ compileNamedSequence[s_Symbol, side_, min_, body_, target_, state_] :=
     {occ, st} = compilerOccurrence[st];
     If[MatchQ[Unevaluated[body], Verbatim[Blank[]]],
       child = None,
+      r = compileTerm[body, side, None, st];
+      If[compilerResultFailureQ[r], Throw[r, compilerTag]];
+      child = First[r]; st = Last[r]];
+    {iri["SequenceAxis"][occ, id,
+      <|"Side" -> side, "Minimum" -> min, "Pattern" -> child,
+        "TargetHead" -> target|>], st}
+  ];
+
+compileNamedSequenceByName[name_String, side_, min_, body_, target_, state_] :=
+  Module[{id, occ, st, child, r},
+    {id, st} = compilerAxisForName[name, state];
+    If[side === "LHS",
+      st = Append[st, "SequenceAxes" -> Append[st["SequenceAxes"], id -> True]]];
+    {occ, st} = compilerOccurrence[st];
+    If[MatchQ[Unevaluated[body], Verbatim[Blank[]]], child = None,
       r = compileTerm[body, side, None, st];
       If[compilerResultFailureQ[r], Throw[r, compilerTag]];
       child = First[r]; st = Last[r]];
@@ -341,10 +490,12 @@ compileRepeated[body_, side_, min_, target_, state_] :=
 compileSequenceZip[symbols_List, side_, target_, state_Association] :=
   Catch[Module[{st = state, refs = {}, id, occ},
     Do[
-      If[Head[symbol] =!= Symbol,
-        Throw[{compilerFailure["InvalidSequenceZipReference", "Normalize", <|
-          "Expression" -> HoldComplete[symbol]|>], st}, compilerTag]];
-      {id, st} = compilerAxisForSymbol[symbol, side, st];
+      If[MatchQ[symbol, capturedLogicalAxis[_String, _]],
+        {id, st} = compilerAxisForName[First[symbol], st],
+        If[Head[symbol] =!= Symbol,
+          Throw[{compilerFailure["InvalidSequenceZipReference", "Normalize", <|
+            "Expression" -> HoldComplete[symbol]|>], st}, compilerTag]];
+        {id, st} = compilerAxisForSymbol[symbol, side, st]];
       AppendTo[refs, iri["SequenceReference"][id]],
       {symbol, symbols}];
     {occ, st} = compilerOccurrence[st];
@@ -386,14 +537,12 @@ compileBindingFacts[inline_List, external_List, state_Association] :=
     out
   ], compilerTag];
 
+compilerBindingAxisId[surfaceAxisKey[name_String], state_Association] :=
+  Lookup[state["IRState"]["NameToAxisId"], "axis:" <> name, Missing["UnknownAxis"]];
 compilerBindingAxisId[key_Symbol, state_Association] :=
-  Module[{name, internalKey},
-    name = Lookup[state["FreshToName"], Unevaluated[key], Missing["Ambient"]];
-    internalKey = If[MissingQ[name],
-      "ambient:" <> Context[Unevaluated[key]] <> SymbolName[Unevaluated[key]],
-      "axis:" <> name];
-    Lookup[state["IRState"]["NameToAxisId"], internalKey, Missing["UnknownAxis"]]
-  ];
+  Lookup[state["IRState"]["NameToAxisId"],
+    "ambient:" <> Context[Unevaluated[key]] <> SymbolName[Unevaluated[key]],
+    Missing["UnknownAxis"]];
 compilerBindingAxisId[_, _] := Missing["UnknownAxis"];
 
 bindingFactAxisId[iri["BindingFact"][id_, _, _]] := id;
