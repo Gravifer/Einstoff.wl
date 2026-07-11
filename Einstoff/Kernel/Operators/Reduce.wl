@@ -114,7 +114,8 @@ Einstoff[\"ArrayContract\"] / Einstoff[\"einsum\"]"];
 
     planned = tryReduceIRPlan[Hold[desc], tensors, bindings, reducer, targeting,
       traceAction];
-    If[! MissingQ[planned], Return[planned]];
+    If[plannerFailureQ[planned], Return[reportPlannerFailure[planned]]];
+    Return[planned];
 
     inShapes = Dimensions /@ tensors;
     m = EinstoffMatch[lhs, inShapes, bindings];

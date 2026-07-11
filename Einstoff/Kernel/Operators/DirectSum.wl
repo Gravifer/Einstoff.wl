@@ -205,12 +205,8 @@ directSumConcat[desc_, tensors_, bindings_List, traceAction_ : None] :=
   Module[{planned = tryDirectSumIRPlan[
       Hold[desc], tensors, bindings, "Join", traceAction]},
     Which[
-      MissingQ[planned],
-        directSumConcatLegacy[desc, tensors, bindings, traceAction],
       plannerFailureQ[planned],
-        Message[Einstoff::unsupp,
-          "the direct-sum concatenation plan could not be executed"];
-        $Failed,
+        reportPlannerFailure[planned],
       True,
         planned
     ]
@@ -356,12 +352,8 @@ directSumSplit[desc_, tensors_, bindings_List, traceAction_ : None] :=
   Module[{planned = tryDirectSumIRPlan[
       Hold[desc], tensors, bindings, "Split", traceAction]},
     Which[
-      MissingQ[planned],
-        directSumSplitLegacy[desc, tensors, bindings, traceAction],
       plannerFailureQ[planned],
-        Message[Einstoff::unsupp,
-          "the direct-sum split plan could not be executed"];
-        $Failed,
+        reportPlannerFailure[planned],
       True,
         planned
     ]

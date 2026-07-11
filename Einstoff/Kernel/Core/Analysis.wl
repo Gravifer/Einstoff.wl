@@ -31,7 +31,7 @@ operationSpec["Dot"] := ira["OperationSpec"][<|
   "CrossContract" -> True, "DirectSum" -> False|>];
 operationSpec["Inner"] := operationSpec["Dot"];
 operationSpec["Join"] := ira["OperationSpec"][<|
-  "Broadcast" -> True, "Reduce" -> False, "WithinContract" -> False,
+  "Broadcast" -> True, "Reduce" -> True, "WithinContract" -> False,
   "CrossContract" -> False, "DirectSum" -> True|>];
 operationSpec["Split"] := operationSpec["Join"];
 operationSpec[other_] := ira["FailureRecord"]["UnknownOperatorSpec", "Analysis",
@@ -63,10 +63,11 @@ analyzeSolvedDesc[solved : ira["SolvedDesc"][a_Association], operator_, targetin
       Select[outRecords, # ["Axis"] === id &]]], {id, broadcastIds}];
     (* A kept axis may still have a targeted pair contracted while an untargeted
        occurrence carries the result (Einstoff's within-tensor extension). *)
-    Do[
-      With[{effect = classifyKeptTargetPair[id, inRecords, outRecords]},
-        If[effect =!= None, AppendTo[effects, effect]]],
-      {id, carriedIds}];
+    If[targeting =!= False,
+      Do[
+        With[{effect = classifyKeptTargetPair[id, inRecords, outRecords]},
+          If[effect =!= None, AppendTo[effects, effect]]],
+        {id, carriedIds}]];
     directSums = Join[
       Cases[inputs, d : ira["DirectSumAxis"][___] :> d, Infinity],
       Cases[outputs, d : ira["DirectSumAxis"][___] :> d, Infinity]];
@@ -128,7 +129,7 @@ classifyKeptTargetPair[id_, in_, out_] :=
       ira["Contracted"][id, "WithinTargetPair", targeted], None]
   ];
 
-validateEffects[effects_List, ira["OperationSpec"][spec_Association], _] :=
+validateEffects[effects_List, ira["OperationSpec"][spec_Association], sizes_Association] :=
   Module[{violations = {}, broadcasts, reduced, forbiddenReduced, within, cross,
           sums},
     broadcasts = Cases[effects, b : ira["Broadcast"][___] :> b];
@@ -142,6 +143,8 @@ validateEffects[effects_List, ira["OperationSpec"][spec_Association], _] :=
     If[spec["Broadcast"] === "UnitOnly" &&
         AnyTrue[broadcasts, Replace[#, ira["Broadcast"][_, n_, _] :> n > 1] &],
       AppendTo[violations, ira["Violation"]["NonUnitBroadcast", broadcasts]]];
+    reduced = Select[reduced, Replace[#,
+      ira["Reduced"][id_, _] :> Lookup[sizes, id, 2] > 1] &];
     forbiddenReduced = If[TrueQ[Lookup[spec, "TargetDrop", False]],
       Select[reduced, Replace[#,
         ira["Reduced"][_, records_List] :>

@@ -8,7 +8,7 @@ PackageScoped[{
   planDirectSumIR,
   executeExecutionPlan,
   renderExecutionPlan, tryStructuralIRPlan, tryReduceIRPlan, tryMapIRPlan,
-  tryInnerIRPlan, tryDirectSumIRPlan, plannerFailureQ
+  tryInnerIRPlan, tryDirectSumIRPlan, plannerFailureQ, reportPlannerFailure
 }]
 
 irp[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
@@ -260,7 +260,9 @@ planMapIR[solved : irp["SolvedDesc"][a_Association], f_, strictQ_] :=
       ! MemberQ[outKeys, planAtomKey[#]] && planAtomSize[#] > 1 &];
     If[dropped =!= {} ||
         (TrueQ[strictQ] &&
-          AnyTrue[targetAtoms, ! MemberQ[outKeys, planAtomKey[#]] &]),
+          AnyTrue[targetAtoms,
+            Function[inputAtom,
+              ! AnyTrue[outAtoms, mapOutputAtomCorrespondsQ[inputAtom, #] &]]]),
       Throw[plannerFailure["ShapeChangingMap", <|"Dropped" -> dropped|>], plannerTag]];
     AppendTo[steps, irp["ReshapeStep"][planAtomSize /@ inAtoms]];
     order = Join[vmapAtoms, targetAtoms];
@@ -331,9 +333,14 @@ planInnerIR[solved : irp["SolvedDesc"][a_Association], mul_, add_, targeting_] :
       Replace[First[outShapes], irp["Shape"][x_List] :> x], axisSizes];
     If[AnyTrue[inputAtoms, plannerFailureQ] || plannerFailureQ[outputAtoms],
       Throw[plannerFailure["UnsupportedInnerTerm", <||>], plannerTag]];
-    If[Cases[Join[Flatten[inputAtoms], outputAtoms],
+    If[Cases[Flatten[inputAtoms],
+        atom_Association /; atom["Kind"] === "Literal" && atom["Size"] =!= 1] =!= {} ||
+       Cases[outputAtoms,
         atom_Association /; atom["Kind"] =!= "Axis"] =!= {},
       Throw[plannerFailure["InnerLiteralAxis", <||>], plannerTag]];
+    inputAtoms = DeleteCases[#,
+        atom_Association /; atom["Kind"] === "Literal" && atom["Size"] === 1] & /@
+      inputAtoms;
     inputKeys = (planAtomKey /@ #) & /@ inputAtoms;
     outputKeys = planAtomKey /@ outputAtoms;
     If[AnyTrue[inputKeys, ! DuplicateFreeQ[#] &] || ! DuplicateFreeQ[outputKeys],
@@ -737,15 +744,16 @@ tryStructuralIRPlan[h_Hold, tensors_List, bindings_List, operator_String,
     If[rejectNonDeclarativePlanInput[compiled],
       Throw[$Failed, plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+      Throw[compiled["Normalized"], plannerFallbackTag]];
     solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
     solved = solvedBundle["Solved"];
     If[Head[solved] =!= irp["SolvedDesc"],
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+      Throw[solved, plannerFallbackTag]];
     analysis = analyzeSolvedDesc[solved, operator, targeting];
     If[Head[analysis] =!= irp["OperationAnalysis"] ||
         ! TrueQ[Replace[analysis, irp["OperationAnalysis"][a_Association] :> a["Valid"]]],
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+      Throw[plannerFailure["AnalysisRejected", <|"Analysis" -> analysis|>],
+        plannerFallbackTag]];
     normalized = Replace[solved,
       irp["SolvedDesc"][sa_Association] :> sa["Normalized"]];
     na = Replace[normalized, irp["NormalizedDesc"][x_Association] :> x];
@@ -763,10 +771,10 @@ tryStructuralIRPlan[h_Hold, tensors_List, bindings_List, operator_String,
     plan = If[inKeys =!= {} && ! DuplicateFreeQ[inKeys],
       planSelfContractIR[solved, operator, targeting],
       planStructuralIR[solved, operator]];
-    If[plannerFailureQ[plan], Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    If[plannerFailureQ[plan], Throw[plan, plannerFallbackTag]];
     If[traceActionEnabledQ[traceAction],
       held = renderExecutionPlan[plan, tensors];
-      If[plannerFailureQ[held], Missing["UnsupportedIR"],
+      If[plannerFailureQ[held], held,
         traceReturnHeld[held, traceAction]],
       executeExecutionPlan[plan, tensors]]
   ], plannerFallbackTag];
@@ -779,19 +787,16 @@ tryReduceIRPlan[h_Hold, tensors_List, bindings_List, reducer_, targeting_,
     If[rejectNonDeclarativePlanInput[compiled],
       Throw[$Failed, plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+      Throw[compiled["Normalized"], plannerFallbackTag]];
     solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
     solved = solvedBundle["Solved"];
     If[Head[solved] =!= irp["SolvedDesc"],
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
-    If[Cases[solved,
-        irp["SequenceMemberId"][irp["OccurrenceId"][_Integer], _Integer],
-        Infinity] =!= {},
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+      Throw[solved, plannerFallbackTag]];
     analysis = analyzeSolvedDesc[solved, "Reduce", targeting];
     If[Head[analysis] =!= irp["OperationAnalysis"] ||
         ! TrueQ[Replace[analysis, irp["OperationAnalysis"][a_Association] :> a["Valid"]]],
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+      Throw[plannerFailure["AnalysisRejected", <|"Analysis" -> analysis|>],
+        plannerFallbackTag]];
     (* A kept target belongs to Map/Operate, not reduction. *)
     targetIds = DeleteDuplicates @ Cases[analysis,
       r_Association /; TrueQ[Lookup[r, "Targeted", False]] :> Lookup[r, "Axis"],
@@ -800,16 +805,21 @@ tryReduceIRPlan[h_Hold, tensors_List, bindings_List, reducer_, targeting_,
       irp["Reduced"][id_, _] :> id, Infinity];
     Which[
       targeting === True && Complement[reducedIds, targetIds] =!= {},
-        Throw[Missing["UnsupportedIR"], plannerFallbackTag],
+        Throw[plannerFailure["ReductionTargetRequired", <||>], plannerFallbackTag],
       targeting === Automatic && targetIds =!= {} &&
           Sort[reducedIds] =!= Sort[targetIds],
-        Throw[Missing["UnsupportedIR"], plannerFallbackTag],
+        Throw[plannerFailure["ReductionTargetMismatch", <||>], plannerFallbackTag],
       True, Null];
+    If[AnyTrue[reducedIds,
+        MatchQ[#, irp["SequenceMemberId"][irp["OccurrenceId"][_], _]] &&
+          ! MemberQ[targetIds, #] &],
+      Throw[plannerFailure["AnonymousReductionTargetRequired", <||>],
+        plannerFallbackTag]];
     plan = planReduceIR[solved, reducer];
-    If[plannerFailureQ[plan], Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    If[plannerFailureQ[plan], Throw[plan, plannerFallbackTag]];
     If[traceActionEnabledQ[traceAction],
       held = renderExecutionPlan[plan, tensors];
-      If[plannerFailureQ[held], Missing["UnsupportedIR"],
+      If[plannerFailureQ[held], held,
         traceReturnHeld[held, traceAction]],
       executeExecutionPlan[plan, tensors]]
   ], plannerFallbackTag];
@@ -822,18 +832,19 @@ tryMapIRPlan[h_Hold, tensors_List, bindings_List, f_, strictQ_, traceAction_] :=
     If[rejectNonDeclarativePlanInput[compiled],
       Throw[$Failed, plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+      Throw[compiled["Normalized"], plannerFallbackTag]];
     solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
     solved = solvedBundle["Solved"];
     If[Head[solved] =!= irp["SolvedDesc"],
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+      Throw[solved, plannerFallbackTag]];
     analysis = analyzeSolvedDesc[solved, operator, Automatic];
     If[Head[analysis] =!= irp["OperationAnalysis"] ||
         ! TrueQ[Replace[analysis,
           irp["OperationAnalysis"][a_Association] :> a["Valid"]]],
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+      Throw[plannerFailure["AnalysisRejected", <|"Analysis" -> analysis|>],
+        plannerFallbackTag]];
     plan = planMapIR[solved, f, strictQ];
-    If[plannerFailureQ[plan], Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    If[plannerFailureQ[plan], Throw[plan, plannerFallbackTag]];
     executed = executeExecutionPlan[plan, tensors];
     If[plannerFailureQ[executed], executed,
       If[traceActionEnabledQ[traceAction],
@@ -851,18 +862,19 @@ tryInnerIRPlan[h_Hold, tensors_List, bindings_List, mul_, add_, targeting_,
     If[rejectNonDeclarativePlanInput[compiled],
       Throw[$Failed, plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+      Throw[compiled["Normalized"], plannerFallbackTag]];
     solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
     solved = solvedBundle["Solved"];
     If[Head[solved] =!= irp["SolvedDesc"],
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+      Throw[solved, plannerFallbackTag]];
     analysis = analyzeSolvedDesc[solved, operator, targeting];
     If[Head[analysis] =!= irp["OperationAnalysis"] ||
         ! TrueQ[Replace[analysis,
           irp["OperationAnalysis"][a_Association] :> a["Valid"]]],
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+      Throw[plannerFailure["AnalysisRejected", <|"Analysis" -> analysis|>],
+        plannerFallbackTag]];
     plan = planInnerIR[solved, mul, add, targeting];
-    If[plannerFailureQ[plan], Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    If[plannerFailureQ[plan], Throw[plan, plannerFallbackTag]];
     If[traceActionEnabledQ[traceAction],
       held = renderExecutionPlan[plan, tensors];
       If[plannerFailureQ[held], held, traceReturnHeld[held, traceAction]],
@@ -872,27 +884,49 @@ tryInnerIRPlan[h_Hold, tensors_List, bindings_List, mul_, add_, targeting_,
 tryDirectSumIRPlan[h_Hold, tensors_List, bindings_List, direction_String,
     traceAction_] :=
   Catch[Module[{compiled, solvedBundle, solved, analysis, plan, held},
+    If[heldRepeatedInputQ[h],
+      Throw[plannerFailure["RepeatedDirectSumAtom", <||>], plannerFallbackTag]];
     compiled = compileHeldDescIR[h, HoldComplete[bindings], direction, <||>];
     If[rejectNonDeclarativePlanInput[compiled],
       Throw[$Failed, plannerFallbackTag]];
+    If[capturedRepeatedInputQ[Lookup[compiled, "Captured", None]],
+      Throw[plannerFailure["RepeatedDirectSumAtom", <||>], plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+      Throw[compiled["Normalized"], plannerFallbackTag]];
+    If[normalizedRepeatedInputQ[compiled["Normalized"]],
+      Throw[plannerFailure["RepeatedDirectSumAtom", <||>], plannerFallbackTag]];
     solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
     solved = solvedBundle["Solved"];
     If[Head[solved] =!= irp["SolvedDesc"],
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+      Throw[solved, plannerFallbackTag]];
     analysis = analyzeSolvedDesc[solved, direction, Automatic];
     If[Head[analysis] =!= irp["OperationAnalysis"] ||
         ! TrueQ[Replace[analysis,
           irp["OperationAnalysis"][a_Association] :> a["Valid"]]],
-      Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+      Throw[plannerFailure["AnalysisRejected", <|"Analysis" -> analysis|>],
+        plannerFallbackTag]];
     plan = planDirectSumIR[solved, direction];
-    If[plannerFailureQ[plan], Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
+    If[plannerFailureQ[plan], Throw[plan, plannerFallbackTag]];
     If[traceActionEnabledQ[traceAction],
       held = renderExecutionPlan[plan, tensors];
       If[plannerFailureQ[held], held, traceReturnHeld[held, traceAction]],
       executeExecutionPlan[plan, tensors]]
   ], plannerFallbackTag];
+
+normalizedRepeatedInputQ[irp["NormalizedDesc"][a_Association]] :=
+  AnyTrue[Replace[a["Inputs"], irp["Inputs"][shapes_List] :> shapes],
+    Function[shape, With[{ids = Cases[shape,
+        irp["AxisOccurrence"][_, id_, _] :> id, Infinity]},
+      ! DuplicateFreeQ[ids]]]];
+normalizedRepeatedInputQ[_] := False;
+
+capturedRepeatedInputQ[irp["CapturedDesc"][a_Association]] :=
+  ! distinctAxesQ[a["CanonicalLHS"]];
+capturedRepeatedInputQ[_] := False;
+
+heldRepeatedInputQ[h_Hold] :=
+  Replace[h, Hold[(Rule | RuleDelayed)[lhs_, _]] :> ! distinctAxesQ[lhs]];
+heldRepeatedInputQ[_] := False;
 
 executeNestedPlan[irp["ExecutionPlan"][steps_List, _Association], value_] :=
   Catch[Fold[
@@ -1011,3 +1045,30 @@ plannerHeldScalarBlock[HoldComplete[e_]] :=
 plannerFailure[tag_, details_Association] :=
   irp["FailureRecord"][tag, "Plan", details];
 plannerFailureQ[expr_] := Head[Unevaluated[expr]] === irp["FailureRecord"];
+
+reportPlannerFailure[irp["FailureRecord"][tag_, stage_, details_Association]] :=
+  Module[{text = Lookup[details, "Reason",
+      "the staged compiler rejected the description (" <> ToString[tag] <> ")"],
+      numericUnsupported, analysisReduction, unsatQ},
+    numericUnsupported = tag === "UnsupportedTerm" &&
+      ! FreeQ[Lookup[details, "Expression", HoldComplete[]],
+        _Integer | _Real | _Rational];
+    analysisReduction = tag === "AnalysisRejected" &&
+      directSumReductionAnalysisQ[Lookup[details, "Analysis", None]];
+    unsatQ = (MemberQ[{"Constraints", "Solve"}, stage] &&
+        tag =!= "OperandCountMismatch") ||
+      MemberQ[{"InvalidBindings", "ConflictingBindingFacts",
+        "DroppedNonUnitAtom", "DroppedBlockAtom", "KeptLiteralAxis"}, tag] ||
+      numericUnsupported || analysisReduction;
+    If[unsatQ,
+      Message[Einstoff::unsat, text],
+      Message[Einstoff::unsupp, text]];
+    $Failed];
+reportPlannerFailure[$Failed] := $Failed;
+reportPlannerFailure[_] := (Message[Einstoff::unsupp,
+    "the staged compiler could not produce an execution plan"]; $Failed);
+
+directSumReductionAnalysisQ[irp["OperationAnalysis"][a_Association]] :=
+  MemberQ[{"Join", "Split"}, Lookup[a, "Operator", None]] &&
+    ! FreeQ[Lookup[a, "Violations", {}], irp["Violation"]["Reduce", _], Infinity];
+directSumReductionAnalysisQ[_] := False;

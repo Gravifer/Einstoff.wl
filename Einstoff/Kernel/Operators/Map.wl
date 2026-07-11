@@ -274,20 +274,19 @@ target block shape"];
 
 mapCore[fSpec_, desc_, tensors_, bindings_List, traceAction_, strictQ_] :=
   Module[{f = mapFunction[fSpec], planned},
-    planned = If[MissingQ[f], Missing["UnsupportedIR"],
+    planned = If[MissingQ[f],
+      Einstoff`Internal`IR`FailureRecord["UnknownMapOp", "Plan",
+        <|"Value" -> HoldComplete[fSpec]|>],
       tryMapIRPlan[Hold[desc], tensors, bindings, f, strictQ, traceAction]];
     Which[
-      MissingQ[planned],
-        mapLegacyCore[fSpec, desc, tensors, bindings, traceAction, strictQ],
       plannerFailureQ[planned],
         If[MatchQ[planned,
             Einstoff`Internal`IR`FailureRecord[
               "TargetBlockShape", "Plan", _Association]],
           Message[Einstoff::unsat,
-            "the map function returned block dimensions that do not match the RHS"],
-          Message[Einstoff::unsupp,
-            "the operation function did not return the statically expected target block shape"]];
-        $Failed,
+            "the map function returned block dimensions that do not match the RHS"];
+          $Failed,
+          reportPlannerFailure[planned]],
       True,
         planned
     ]

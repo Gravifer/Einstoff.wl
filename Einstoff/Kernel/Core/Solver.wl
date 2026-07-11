@@ -304,6 +304,12 @@ expandOutputTerm[irs["SequenceZip"][occ_, CircleTimes, refs_List,
           memberLists[[All, k]], Join[meta, <|"SequenceIndex" -> k|>]],
           {k, First[lengths]}]]]
   ];
+expandOutputTerm[head_[occ_, children_List, meta_Association], state_Association] /;
+    MemberQ[{irs["ProductAxis"], irs["DirectSumAxis"]}, head] :=
+  Module[{expanded = expandOutputTerm[#, state] & /@ children},
+    If[AnyTrue[Flatten[expanded, 1], solverFailureQ],
+      {First @ Select[Flatten[expanded, 1], solverFailureQ]},
+      {head[occ, Flatten[expanded, 1], meta]}]];
 expandOutputTerm[term_, _] := {term};
 
 specializeOutputSequenceTerm[

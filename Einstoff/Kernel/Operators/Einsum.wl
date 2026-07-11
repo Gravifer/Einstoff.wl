@@ -36,7 +36,7 @@ Einstoff["Einsum"] := EinstoffEinsum;
 Options[EinstoffEinsum] = {TraceAction -> None, "Targeting" -> Automatic};
 
 EinstoffEinsum[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] := withAxisScope @
-  Module[{parts, lhs, rhs, opAtoms, rhsAtoms, allLhs, traceAction, targeting},
+  Module[{parts, lhs, rhs, opAtoms, rhsAtoms, allLhs, dropped, traceAction, targeting},
     traceAction = OptionValue[TraceAction];
     targeting = einCatch[validateTargetingOption[OptionValue["Targeting"]]];
     If[targeting === $Failed, Return[$Failed]];
@@ -67,6 +67,11 @@ EinstoffEinsum[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] := 
       Message[Einstoff::unsupp,
         "einsum cannot introduce a new output axis: a literal integer axis, or a name \
 absent from every input, is repetition / broadcast (use Einstoff[\"Massage\"])"];
+      Return[$Failed]];
+    dropped = Select[DeleteDuplicates[allLhs], ! MemberQ[rhsAtoms, #] &];
+    If[AnyTrue[dropped, Count[allLhs, #] === 1 &],
+      Message[Einstoff::unsupp,
+        "einsum does not perform single-axis reduction; use Einstoff[ArrayReduce]"];
       Return[$Failed]];
 
     Which[

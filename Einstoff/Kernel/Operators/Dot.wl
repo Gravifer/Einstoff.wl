@@ -316,12 +316,8 @@ innerLower[mul_, add_, desc_, tensors_, bindings_List, traceAction_, targeting_]
   Module[{planned = tryInnerIRPlan[Hold[desc], tensors, bindings, mul, add,
       targeting, traceAction]},
     Which[
-      MissingQ[planned],
-        innerLegacyLower[mul, add, desc, tensors, bindings, traceAction, targeting],
       plannerFailureQ[planned],
-        Message[Einstoff::unsupp,
-          "the contraction execution plan could not be executed"];
-        $Failed,
+        reportPlannerFailure[planned],
       True,
         planned
     ]

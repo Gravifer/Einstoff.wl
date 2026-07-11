@@ -122,7 +122,8 @@ massageCore[desc_, tensors_, bindings_List, policy_, traceAction_, targeting_] :
       True, "Massage"];
     planned = tryStructuralIRPlan[Hold[desc], tensors, bindings, planOperator,
       targetingMode, traceAction];
-    If[! MissingQ[planned], Return[planned]];
+    If[plannerFailureQ[planned], Return[reportPlannerFailure[planned]]];
+    Return[planned];
 
     (* Bind axis sizes.  EinstoffMatch (not EinstoffShapes) so a within-tensor
        repeated index is allowed — unify binds it from the first occurrence and

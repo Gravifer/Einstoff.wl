@@ -151,6 +151,7 @@ compilerState[captured_Association] := <|
     captured["AxisNames"]],
   "AxisKinds" -> captured["AxisKinds"],
   "SequenceAxes" -> <||>,
+  "AnonymousSequences" -> <|"LHS" -> {}, "RHSUsed" -> {}|>,
   "SourceMap" -> <||>
 |>;
 
@@ -226,14 +227,11 @@ compileTerm[n_Integer, side_, target_, state_] :=
 compileTerm[Verbatim[Blank[]], side_, target_, state_] :=
   compileLeaf["AnonymousAxis", "One", side, target, state];
 compileTerm[Verbatim[BlankSequence[]], side_, target_, state_] :=
-  compileLeaf["SequenceAxis", <|"Minimum" -> 1, "Named" -> False|>, side,
-    target, state];
+  compileAnonymousSequence[side, 1, target, state];
 compileTerm[Verbatim[BlankNullSequence[]], side_, target_, state_] :=
-  compileLeaf["SequenceAxis", <|"Minimum" -> 0, "Named" -> False|>, side,
-    target, state];
+  compileAnonymousSequence[side, 0, target, state];
 compileTerm[SlotSequence[1], side_, _, state_] :=
-  compileLeaf["SequenceAxis", <|"Minimum" -> 0, "Named" -> False|>, side,
-    SlotSequence, state];
+  compileAnonymousSequence[side, 0, SlotSequence, state];
 
 compileTerm[Slot[x_], side_, _, state_] := compileTerm[x, side, Slot, state];
 compileTerm[Highlighted[x_], side_, _, state_] :=
@@ -282,6 +280,32 @@ compileNamedSequence[s_Symbol, side_, min_, body_, target_, state_] :=
     {iri["SequenceAxis"][occ, id,
       <|"Side" -> side, "Minimum" -> min, "Pattern" -> child,
         "TargetHead" -> target|>], st}
+  ];
+
+compileAnonymousSequence[side_, min_, target_, state_Association] :=
+  Module[{occ, id, st, records, used, candidates, chosen, record},
+    {occ, st} = compilerOccurrence[state];
+    If[side === "LHS",
+      id = occ;
+      record = <|"Id" -> id, "Targeted" -> (target =!= None)|>;
+      st = Append[st, "AnonymousSequences" ->
+        Append[st["AnonymousSequences"], "LHS" ->
+          Append[st["AnonymousSequences"]["LHS"], record]]],
+      records = st["AnonymousSequences"]["LHS"];
+      used = st["AnonymousSequences"]["RHSUsed"];
+      candidates = Select[records,
+        # ["Targeted"] === (target =!= None) && ! MemberQ[used, # ["Id"]] &];
+      If[candidates === {},
+        id = Missing["Unbound"],
+        chosen = First[candidates]; id = chosen["Id"];
+        st = Append[st, "AnonymousSequences" ->
+          Append[st["AnonymousSequences"], "RHSUsed" -> Append[used, id]]]]];
+    If[MissingQ[id],
+      {compilerFailure["UnboundAnonymousSequence", "Normalize", <|
+        "Side" -> side, "TargetHead" -> target|>], st},
+      {iri["SequenceAxis"][occ, id,
+        <|"Side" -> side, "Minimum" -> min, "Named" -> False,
+          "Pattern" -> None, "TargetHead" -> target|>], st}]
   ];
 
 compileLeaf[head_, payload_, side_, target_, state_] :=
