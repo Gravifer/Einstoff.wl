@@ -20,8 +20,12 @@ operationSpec["Reduce"] := ira["OperationSpec"][<|
   "CrossContract" -> False, "DirectSum" -> False|>];
 operationSpec["Map"] := ira["OperationSpec"][<|
   "Broadcast" -> True, "Reduce" -> False, "WithinContract" -> False,
-  "CrossContract" -> False, "DirectSum" -> False|>];
-operationSpec["Operate"] := operationSpec["Map"];
+  "CrossContract" -> False, "DirectSum" -> False,
+  "TargetDrop" -> True|>];
+operationSpec["Operate"] := ira["OperationSpec"][<|
+  "Broadcast" -> True, "Reduce" -> False, "WithinContract" -> False,
+  "CrossContract" -> False, "DirectSum" -> False,
+  "TargetDrop" -> False|>];
 operationSpec["Dot"] := ira["OperationSpec"][<|
   "Broadcast" -> True, "Reduce" -> False, "WithinContract" -> False,
   "CrossContract" -> True, "DirectSum" -> False|>];
@@ -125,7 +129,8 @@ classifyKeptTargetPair[id_, in_, out_] :=
   ];
 
 validateEffects[effects_List, ira["OperationSpec"][spec_Association], _] :=
-  Module[{violations = {}, broadcasts, reduced, within, cross, sums},
+  Module[{violations = {}, broadcasts, reduced, forbiddenReduced, within, cross,
+          sums},
     broadcasts = Cases[effects, b : ira["Broadcast"][___] :> b];
     reduced = Cases[effects, r : ira["Reduced"][___] :> r];
     within = Cases[effects,
@@ -137,8 +142,13 @@ validateEffects[effects_List, ira["OperationSpec"][spec_Association], _] :=
     If[spec["Broadcast"] === "UnitOnly" &&
         AnyTrue[broadcasts, Replace[#, ira["Broadcast"][_, n_, _] :> n > 1] &],
       AppendTo[violations, ira["Violation"]["NonUnitBroadcast", broadcasts]]];
-    If[! TrueQ[spec["Reduce"]] && reduced =!= {},
-      AppendTo[violations, ira["Violation"]["Reduce", reduced]]];
+    forbiddenReduced = If[TrueQ[Lookup[spec, "TargetDrop", False]],
+      Select[reduced, Replace[#,
+        ira["Reduced"][_, records_List] :>
+          ! AllTrue[records, TrueQ[Lookup[#, "Targeted", False]] &]] &],
+      reduced];
+    If[! TrueQ[spec["Reduce"]] && forbiddenReduced =!= {},
+      AppendTo[violations, ira["Violation"]["Reduce", forbiddenReduced]]];
     If[! TrueQ[spec["WithinContract"]] && within =!= {},
       AppendTo[violations, ira["Violation"]["WithinContract", within]]];
     If[! TrueQ[spec["CrossContract"]] && cross =!= {},

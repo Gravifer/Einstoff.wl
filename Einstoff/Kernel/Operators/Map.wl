@@ -280,8 +280,13 @@ mapCore[fSpec_, desc_, tensors_, bindings_List, traceAction_, strictQ_] :=
       MissingQ[planned],
         mapLegacyCore[fSpec, desc, tensors, bindings, traceAction, strictQ],
       plannerFailureQ[planned],
-        Message[Einstoff::unsupp,
-          "the operation function did not return the statically expected target block shape"];
+        If[MatchQ[planned,
+            Einstoff`Internal`IR`FailureRecord[
+              "TargetBlockShape", "Plan", _Association]],
+          Message[Einstoff::unsat,
+            "the map function returned block dimensions that do not match the RHS"],
+          Message[Einstoff::unsupp,
+            "the operation function did not return the statically expected target block shape"]];
         $Failed,
       True,
         planned

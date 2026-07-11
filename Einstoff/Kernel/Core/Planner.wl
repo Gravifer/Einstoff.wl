@@ -225,8 +225,9 @@ planReduceIR[other_, reducer_] := plannerFailure["ExpectedSolvedDesc", <|
 
 planMapIR[solved : irp["SolvedDesc"][a_Association], f_, strictQ_] :=
   Catch[Module[{normalized, na, inShapes, outShapes, axisSizes, inTerms, outTerms,
-          inAtoms, outAtoms, inKeys, outKeys, targetAtoms, vmapAtoms, currentAtoms,
-          currentKeys, order, perm, steps = {}, dropped, broadcastResult, key, size},
+          inAtoms, outAtoms, inKeys, outKeys, targetAtoms, targetKeys, vmapAtoms,
+          vmapKeys, functionOutAtoms, currentAtoms, currentKeys, order, perm,
+          steps = {}, dropped, broadcastResult, key, size},
     normalized = a["Normalized"];
     na = Replace[normalized, irp["NormalizedDesc"][x_Association] :> x];
     inShapes = Replace[Lookup[a, "Inputs", na["Inputs"]],
@@ -249,27 +250,40 @@ planMapIR[solved : irp["SolvedDesc"][a_Association], f_, strictQ_] :=
         "InputKeys" -> inKeys, "OutputKeys" -> outKeys|>], plannerTag]];
     targetAtoms = Select[inAtoms, TrueQ[Lookup[#, "Targeted", False]] &];
     vmapAtoms = Select[inAtoms, ! TrueQ[Lookup[#, "Targeted", False]] &];
+    targetKeys = planAtomKey /@ targetAtoms;
+    vmapKeys = planAtomKey /@ vmapAtoms;
     If[TrueQ[strictQ] && targetAtoms === {},
       Throw[plannerFailure["TargetRequired", <||>], plannerTag]];
-    (* The first map-plan increment owns only statically shape-preserving blocks.
-       Shape-changing target blocks remain on the compatibility path until the
-       declarative RHS projection IR can name their produced dimensions. *)
-    dropped = Select[inAtoms,
+    (* Map may change or collapse the targeted block, but it may not silently
+       reduce an untargeted carrier.  Operate remains strictly shape-preserving. *)
+    dropped = Select[vmapAtoms,
       ! MemberQ[outKeys, planAtomKey[#]] && planAtomSize[#] > 1 &];
     If[dropped =!= {} ||
-        AnyTrue[targetAtoms, ! MemberQ[outKeys, planAtomKey[#]] &] ||
-        (targetAtoms === {} && Complement[outKeys, inKeys] =!= {}),
+        (TrueQ[strictQ] &&
+          AnyTrue[targetAtoms, ! MemberQ[outKeys, planAtomKey[#]] &]),
       Throw[plannerFailure["ShapeChangingMap", <|"Dropped" -> dropped|>], plannerTag]];
     AppendTo[steps, irp["ReshapeStep"][planAtomSize /@ inAtoms]];
     order = Join[vmapAtoms, targetAtoms];
     perm = Flatten[FirstPosition[inKeys, planAtomKey[#]] & /@ order];
     If[Length[perm] > 1 && perm =!= Range[Length[perm]],
       AppendTo[steps, irp["TransposeStep"][InversePermutation[perm]]]];
+    (* With explicit targets, retained target identities describe the function's
+       result block; other output-only axes are broadcasts.  With no targets the
+       scalar function may append a literal/declaratively-sized result suffix. *)
+    functionOutAtoms = If[targetAtoms === {},
+      Select[outAtoms, ! MemberQ[vmapKeys, planAtomKey[#]] &],
+      DeleteMissing[Map[
+        Function[inputAtom, SelectFirst[outAtoms,
+          mapOutputAtomCorrespondsQ[inputAtom, #] &, Missing["DroppedTarget"]]],
+        targetAtoms]]];
     AppendTo[steps, irp["TargetBlockStep"][f, Length[vmapAtoms],
-      Join[planAtomSize /@ vmapAtoms, planAtomSize /@ targetAtoms]]];
-    currentAtoms = Select[order,
-      MemberQ[outKeys, planAtomKey[#]] || planAtomSize[#] > 1 &];
-    If[Length[currentAtoms] =!= Length[order],
+      Join[planAtomSize /@ vmapAtoms, planAtomSize /@ functionOutAtoms]]];
+    currentAtoms = Join[
+      Select[vmapAtoms,
+        MemberQ[outKeys, planAtomKey[#]] || planAtomSize[#] > 1 &],
+      functionOutAtoms];
+    If[planAtomSize /@ currentAtoms =!=
+        Join[planAtomSize /@ vmapAtoms, planAtomSize /@ functionOutAtoms],
       AppendTo[steps, irp["ReshapeStep"][planAtomSize /@ currentAtoms]]];
     currentKeys = planAtomKey /@ currentAtoms;
     broadcastResult = Catch[
@@ -602,6 +616,13 @@ flattenPlanTerm[other_, _] := plannerFailure["UnsupportedPlanTerm", <|
 
 planAtomKey[a_Association] := a["Key"];
 planAtomSize[a_Association] := a["Size"];
+
+mapOutputAtomCorrespondsQ[input_Association, output_Association] :=
+  If[input["Kind"] === "Axis",
+    output["Kind"] === "Axis" && input["Key"] === output["Key"],
+    input["Kind"] === "Literal" && output["Kind"] === "Literal" &&
+      TrueQ[input["Targeted"]] && TrueQ[output["Targeted"]] &&
+      input["Size"] === output["Size"]];
 
 executeExecutionPlan[irp["ExecutionPlan"][steps_List, meta_Association],
     tensors_List] :=
