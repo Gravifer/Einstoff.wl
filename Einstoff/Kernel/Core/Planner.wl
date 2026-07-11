@@ -4,7 +4,8 @@
    execution and held TraceAction rendering interpret the same ExecutionPlan. *)
 
 PackageScoped[{
-  planStructuralIR, planReduceIR, planMapIR, planInnerIR, planDirectSumIR,
+  planStructuralIR, planSelfContractIR, planReduceIR, planMapIR, planInnerIR,
+  planDirectSumIR,
   executeExecutionPlan,
   renderExecutionPlan, tryStructuralIRPlan, tryReduceIRPlan, tryMapIRPlan,
   tryInnerIRPlan, tryDirectSumIRPlan, plannerFailureQ
@@ -78,6 +79,76 @@ planStructuralIR[solved : irp["SolvedDesc"][a_Association], operator_] :=
 planStructuralIR[other_, operator_] :=
   plannerFailure["ExpectedSolvedDesc", <|
     "Expression" -> HoldComplete[other], "Operator" -> operator|>];
+
+planSelfContractIR[solved : irp["SolvedDesc"][a_Association], operator_,
+    targeting_] :=
+  Catch[Module[{normalized, na, inShapes, outShapes, axisSizes, inTerms,
+          outTerms, inAtoms, outAtoms, inKeys, outKeys, uniqueKeys,
+          anyTargeted, groups = {}, positions, targetedPositions, currentAtoms,
+          tailSteps},
+    normalized = a["Normalized"];
+    na = Replace[normalized, irp["NormalizedDesc"][x_Association] :> x];
+    inShapes = Replace[na["Inputs"], irp["Inputs"][x_List] :> x];
+    outShapes = Replace[na["Outputs"], irp["Outputs"][x_List] :> x];
+    If[Length[inShapes] =!= 1 || Length[outShapes] =!= 1,
+      Throw[plannerFailure["SelfContractArity", <|
+        "Inputs" -> Length[inShapes], "Outputs" -> Length[outShapes]|>], plannerTag]];
+    axisSizes = a["AxisSizes"];
+    inTerms = Replace[First[inShapes], irp["Shape"][x_List] :> x];
+    outTerms = Replace[First[outShapes], irp["Shape"][x_List] :> x];
+    inAtoms = flattenPlanTerms[inTerms, axisSizes];
+    outAtoms = flattenPlanTerms[outTerms, axisSizes];
+    If[plannerFailureQ[inAtoms] || plannerFailureQ[outAtoms],
+      Throw[plannerFailure["UnsupportedSelfContractTerm", <||>], plannerTag]];
+    inKeys = planAtomKey /@ inAtoms; outKeys = planAtomKey /@ outAtoms;
+    If[! DuplicateFreeQ[outKeys],
+      Throw[plannerFailure["RepeatedSelfContractOutput", <||>], plannerTag]];
+    uniqueKeys = DeleteDuplicates[inKeys];
+    anyTargeted = AnyTrue[inAtoms, TrueQ[Lookup[#, "Targeted", False]] &];
+    Do[
+      positions = Flatten @ Position[inKeys, key];
+      targetedPositions = Select[positions,
+        TrueQ[Lookup[inAtoms[[#]], "Targeted", False]] &];
+      Switch[Length[positions],
+        1,
+          Null,
+        2,
+          If[MemberQ[outKeys, key],
+            Throw[plannerFailure["KeptDiagonal", <|"Axis" -> key|>], plannerTag]];
+          If[targeting === True && Length[targetedPositions] =!= 2,
+            Throw[plannerFailure["SelfContractTargetsRequired", <|
+              "Axis" -> key|>], plannerTag]];
+          If[targeting === Automatic && anyTargeted &&
+              Length[targetedPositions] =!= 2,
+            Throw[plannerFailure["SelfContractTargetMismatch", <|
+              "Axis" -> key|>], plannerTag]];
+          AppendTo[groups, positions],
+        3,
+          If[targeting === False || ! MemberQ[outKeys, key] ||
+              Length[targetedPositions] =!= 2,
+            Throw[plannerFailure["UnsupportedKeptCarrier", <|
+              "Axis" -> key|>], plannerTag]];
+          AppendTo[groups, targetedPositions],
+        _,
+          Throw[plannerFailure["SuperDiagonal", <|
+            "Axis" -> key, "Count" -> Length[positions]|>], plannerTag]],
+      {key, uniqueKeys}];
+    If[groups === {},
+      Throw[plannerFailure["NoSelfContraction", <||>], plannerTag]];
+    currentAtoms = Delete[inAtoms, List /@ Sort[Flatten[groups]]];
+    tailSteps = planAtomTransformSteps[currentAtoms, outAtoms,
+      a["OutputShapes"][[1]], operator === "Massage"];
+    If[plannerFailureQ[tailSteps], Throw[tailSteps, plannerTag]];
+    irp["ExecutionPlan"][Join[
+      {irp["ReshapeStep"][planAtomSize /@ inAtoms],
+       irp["ContractStep"][groups]},
+      tailSteps], <|
+        "Operator" -> operator, "InputCount" -> 1,
+        "OutputShapes" -> a["OutputShapes"], "Solved" -> solved|>]
+  ], plannerTag];
+planSelfContractIR[other_, operator_, targeting_] := plannerFailure[
+  "ExpectedSolvedDesc", <|"Expression" -> HoldComplete[other],
+    "Operator" -> operator, "Targeting" -> targeting|>];
 
 planReduceIR[solved : irp["SolvedDesc"][a_Association], reducer_] :=
   Catch[Module[{normalized, na, inShapes, outShapes, axisSizes, inTerms, outTerms,
@@ -533,6 +604,8 @@ executePlanStep[value_, irp["ReshapeStep"][dims_List]] := reshapeTo[value, dims]
 executePlanStep[value_, irp["BroadcastStep"][n_Integer, _]] := ConstantArray[value, n];
 executePlanStep[value_, irp["ReduceStep"][reducer_, pos_List]] :=
   ArrayReduce[reducer, value, pos];
+executePlanStep[value_, irp["ContractStep"][groups_List]] :=
+  TensorContract[value, groups];
 executePlanStep[value_, irp["TargetBlockStep"][f_, level_Integer, expected_List]] :=
   Module[{mapped = If[level === 0, f[value], Map[f, value, {level}]]},
     If[Dimensions[mapped] === expected, mapped,
@@ -585,6 +658,8 @@ renderPlanStep[held_HoldComplete, irp["BroadcastStep"][n_Integer, _]] :=
   heldConstantArray[held, n];
 renderPlanStep[held_HoldComplete, irp["ReduceStep"][reducer_, pos_List]] :=
   heldArrayReduce[held, reducer, pos];
+renderPlanStep[HoldComplete[value_], irp["ContractStep"][groups_List]] :=
+  With[{g = groups}, HoldComplete[TensorContract[value, g]]];
 renderPlanStep[held_HoldComplete,
     irp["TargetBlockStep"][f_, level_Integer, _List]] :=
   If[level === 0, heldApply[held, f], heldMapAt[held, f, level]];
@@ -614,7 +689,8 @@ renderPlanStep[_, other_] := plannerFailure["UnsupportedPlanStep", <|
    It intentionally emits no public message on fallback. *)
 tryStructuralIRPlan[h_Hold, tensors_List, bindings_List, operator_String,
     targeting_, traceAction_] :=
-  Catch[Module[{compiled, solvedBundle, solved, analysis, plan, held},
+  Catch[Module[{compiled, solvedBundle, solved, analysis, plan, held,
+          normalized, na, inShapes, axisSizes, inAtoms, inKeys},
     compiled = compileHeldDescIR[h, HoldComplete[bindings], operator,
       <|"Targeting" -> targeting|>];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
@@ -627,7 +703,20 @@ tryStructuralIRPlan[h_Hold, tensors_List, bindings_List, operator_String,
     If[Head[analysis] =!= irp["OperationAnalysis"] ||
         ! TrueQ[Replace[analysis, irp["OperationAnalysis"][a_Association] :> a["Valid"]]],
       Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
-    plan = planStructuralIR[solved, operator];
+    normalized = Replace[solved,
+      irp["SolvedDesc"][sa_Association] :> sa["Normalized"]];
+    na = Replace[normalized, irp["NormalizedDesc"][x_Association] :> x];
+    inShapes = Replace[na["Inputs"], irp["Inputs"][x_List] :> x];
+    axisSizes = Replace[solved,
+      irp["SolvedDesc"][sa_Association] :> sa["AxisSizes"]];
+    inAtoms = If[Length[inShapes] === 1,
+      flattenPlanTerms[
+        Replace[First[inShapes], irp["Shape"][x_List] :> x], axisSizes],
+      plannerFailure["StructuralArity", <||>]];
+    inKeys = If[plannerFailureQ[inAtoms], {}, planAtomKey /@ inAtoms];
+    plan = If[inKeys =!= {} && ! DuplicateFreeQ[inKeys],
+      planSelfContractIR[solved, operator, targeting],
+      planStructuralIR[solved, operator]];
     If[plannerFailureQ[plan], Throw[Missing["UnsupportedIR"], plannerFallbackTag]];
     If[traceActionEnabledQ[traceAction],
       held = renderExecutionPlan[plan, tensors];

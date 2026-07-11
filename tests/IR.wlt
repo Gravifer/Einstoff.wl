@@ -59,6 +59,7 @@ VerificationTest[
       Einstoff`Private`solveDescIR,
       Einstoff`Private`analyzeSolvedDesc,
       Einstoff`Private`planStructuralIR,
+      Einstoff`Private`planSelfContractIR,
       Einstoff`Private`planReduceIR,
       Einstoff`Private`planMapIR,
       Einstoff`Private`tryMapIRPlan,

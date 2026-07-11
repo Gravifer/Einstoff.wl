@@ -7,6 +7,7 @@ ClearAll[a, b, c, h, r, w];
 compile = Symbol["Einstoff`PackageScope`compileDescIR"];
 solve = Symbol["Einstoff`PackageScope`solveDescIR"];
 plan = Symbol["Einstoff`PackageScope`planStructuralIR"];
+planContract = Symbol["Einstoff`PackageScope`planSelfContractIR"];
 execute = Symbol["Einstoff`PackageScope`executeExecutionPlan"];
 render = Symbol["Einstoff`PackageScope`renderExecutionPlan"];
 planReduce = Symbol["Einstoff`PackageScope`planReduceIR"];
@@ -285,6 +286,53 @@ VerificationTest[
     {Head[held], ReleaseHold[held] === execute[p, {x}]}],
   {HoldComplete, True},
   TestID -> "plan-render-direct-sum-split-parity"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[16], {2, 2, 2, 2}], p},
+    p = planContract[
+      solve[compile[{{a_, b_, a_, c_}} :> {{c, b}}],
+        {Dimensions[x]}]["Solved"],
+      "Contract", Automatic];
+    execute[p, {x}]],
+  Transpose @ TensorContract[ArrayReshape[Range[16], {2, 2, 2, 2}],
+    {{1, 3}}],
+  TestID -> "plan-execute-self-contraction"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[27], {3, 3, 3}], p},
+    p = planContract[
+      solve[compile[
+        {{"a", Highlighted["a"], Highlighted["a"]}} :> {{"a"}}],
+        {Dimensions[x]}]["Solved"],
+      "Contract", Automatic];
+    execute[p, {x}]],
+  With[{x = ArrayReshape[Range[27], {3, 3, 3}]},
+    Table[Sum[x[[i, j, j]], {j, 3}], {i, 3}]],
+  TestID -> "plan-execute-targeted-pair-with-carrier"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[9], {3, 3}], p, held},
+    p = planContract[
+      solve[compile[{{a_, a_}} :> {{}}], {Dimensions[x]}]["Solved"],
+      "Contract", Automatic];
+    held = render[p, {x}];
+    {Head[held], ReleaseHold[held] === execute[p, {x}]}],
+  {HoldComplete, True},
+  TestID -> "plan-render-self-contraction-parity"
+];
+
+VerificationTest[
+  Module[{x = ArrayReshape[Range[16], {2, 2, 2, 2}], held},
+    held = Einstoff["einsum"][{{a_, b_, a_, c_}} :> {{c, b}},
+      {x}, {}, TraceAction -> Hold];
+    {! FreeQ[held, _TensorContract],
+      ReleaseHold[held] ===
+        Einstoff["einsum"][{{a_, b_, a_, c_}} :> {{c, b}}, {x}]}],
+  {True, True},
+  TestID -> "plan-public-einsum-self-contraction-trace"
 ];
 
 EndTestSection[];
