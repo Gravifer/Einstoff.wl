@@ -84,7 +84,8 @@ EinstoffContract[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :
    holds the RHS, so only a bare reference to a globally bound symbol is substituted. *)
 massageCore[desc_, tensors_, bindings_List, policy_, traceAction_, targeting_] := withAxisScope @
   Module[{parts, lhs, rhs, m, env, decomp, rhsTerms, lhsAtoms, rhsAtoms, sc,
-          lhsBr, xc, atomsc, result, outOnly, repeated, contracted, targetingMode},
+          lhsBr, xc, atomsc, result, outOnly, repeated, contracted, targetingMode,
+          planned, planOperator},
     targetingMode = einCatch[validateTargetingOption[targeting]];
     If[targetingMode === $Failed, Return[$Failed]];
     parts = descParts[Hold[desc]];
@@ -111,6 +112,17 @@ massageCore[desc_, tensors_, bindings_List, policy_, traceAction_, targeting_] :
         "Massage lowering takes exactly one input and one output tensor \
 (cross-tensor contraction is a separate path)"];
       Return[$Failed]];
+
+    (* The staged compiler owns the structural subset.  Unsupported sequence/direct-
+       sum/contraction cases return Missing without messages and continue through the
+       legacy lowering until their corresponding plan steps are migrated. *)
+    planOperator = Which[
+      policy === "Reshape", "Reshape",
+      policy === "Contract", "Contract",
+      True, "Massage"];
+    planned = tryStructuralIRPlan[Hold[desc], tensors, bindings, planOperator,
+      targetingMode, traceAction];
+    If[! MissingQ[planned], Return[planned]];
 
     (* Bind axis sizes.  EinstoffMatch (not EinstoffShapes) so a within-tensor
        repeated index is allowed — unify binds it from the first occurrence and

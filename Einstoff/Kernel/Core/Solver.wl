@@ -22,7 +22,7 @@ solveDescIR[compiled_Association, inputShapes_] :=
 
 buildConstraintDesc[normalized : irs["NormalizedDesc"][a_Association],
     inputShapes_] :=
-  Module[{inputIR, shapes, constraints = {}, bindings, terms, r},
+  Catch[Module[{inputIR, shapes, constraints = {}, bindings, terms, r},
     If[! MatchQ[inputShapes, {___List}],
       Return[solverFailure["InvalidInputShapes", "Constraints",
         <|"InputShapes" -> HoldComplete[inputShapes]|>]]];
@@ -41,12 +41,12 @@ buildConstraintDesc[normalized : irs["NormalizedDesc"][a_Association],
     Do[
       terms = Replace[shapes[[i]], irs["Shape"][t_List] :> t];
       If[! ListQ[terms] || Length[terms] =!= Length[inputShapes[[i]]],
-        Return[solverFailure["RankMismatch", "Constraints",
+        Throw[solverFailure["RankMismatch", "Constraints",
           <|"Input" -> i, "Expected" -> If[ListQ[terms], Length[terms], Missing[]],
-            "Actual" -> Length[inputShapes[[i]]]|>]]];
+            "Actual" -> Length[inputShapes[[i]]]|>], solverTag]];
       Do[
         r = sizeExpression[terms[[j]]];
-        If[solverFailureQ[r], Return[r]];
+        If[solverFailureQ[r], Throw[r, solverTag]];
         AppendTo[constraints, irs["EqualSize"][r, inputShapes[[i, j]],
           <|"Input" -> i, "Dimension" -> j|>]],
         {j, Length[terms]}],
@@ -56,7 +56,7 @@ buildConstraintDesc[normalized : irs["NormalizedDesc"][a_Association],
       "InputShapes" -> inputShapes,
       "Constraints" -> irs["Constraints"][constraints]
     |>]
-  ];
+  ], solverTag];
 buildConstraintDesc[other_, inputShapes_] :=
   solverFailure["ExpectedNormalizedDesc", "Constraints",
     <|"Expression" -> HoldComplete[other],
@@ -72,14 +72,14 @@ sizeExpression[other_] := solverFailure["UnsupportedSizeTerm", "Constraints",
   <|"Expression" -> HoldComplete[other]|>];
 
 sizeComposite[head_String, children_List] :=
-  Module[{out = {}, r},
+  Catch[Module[{out = {}, r},
     Do[
       r = sizeExpression[child];
-      If[solverFailureQ[r], Return[r]];
+      If[solverFailureQ[r], Throw[r, solverTag]];
       AppendTo[out, r],
       {child, children}];
     irs[head][out]
-  ];
+  ], solverTag];
 
 solveConstraintDesc[constraint : irs["ConstraintDesc"][a_Association]] :=
   Module[{normalized, constraints, axisIds, variables, idToVariable, equations,
@@ -140,19 +140,19 @@ algebraicSize[irs["SizeSum"][xs_List], vars_Association] :=
   Plus @@ Table[algebraicSize[x, vars], {x, xs}];
 
 concreteOutputShapes[irs["Outputs"][shapes_List], sizes_Association] :=
-  Module[{out = {}, terms, dims, value},
+  Catch[Module[{out = {}, terms, dims, value},
     Do[
       terms = Replace[shape, irs["Shape"][t_List] :> t];
       dims = {};
       Do[
         value = concreteTermSize[term, sizes];
-        If[solverFailureQ[value], Return[value]];
+        If[solverFailureQ[value], Throw[value, solverTag]];
         AppendTo[dims, value],
         {term, terms}];
       AppendTo[out, dims],
       {shape, shapes}];
     out
-  ];
+  ], solverTag];
 concreteOutputShapes[other_, _] := solverFailure["InvalidOutputIR", "Solve",
   <|"Expression" -> HoldComplete[other]|>];
 

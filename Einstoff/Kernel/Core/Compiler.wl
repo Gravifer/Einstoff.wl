@@ -8,7 +8,7 @@
    NormalizedDesc and ultimately replace the compatibility capture itself. *)
 
 PackageScoped[{
-  compileDescIR, captureDescIR, normalizeCapturedDesc,
+  compileDescIR, compileHeldDescIR, captureDescIR, normalizeCapturedDesc,
   compileTargetPolicy, normalizedDescAssociation
 }]
 
@@ -165,27 +165,28 @@ compilerAxisForSymbol[s_Symbol, side_String, state_Association] :=
   ];
 
 compileShapeList[shapes_List, side_String, state_Association] :=
-  Module[{out = {}, st = state, r},
+  Catch[Module[{out = {}, st = state, r},
     Do[
       If[! ListQ[shape],
-        Return[{compilerFailure["ExpectedShape", "Normalize",
-          <|"Side" -> side, "Expression" -> HoldComplete[shape]|>], st}]];
+        Throw[{compilerFailure["ExpectedShape", "Normalize",
+          <|"Side" -> side, "Expression" -> HoldComplete[shape]|>], st},
+          compilerTag]];
       r = compileTerms[shape, side, st];
-      If[compilerResultFailureQ[r], Return[r]];
+      If[compilerResultFailureQ[r], Throw[r, compilerTag]];
       AppendTo[out, iri["Shape"][First[r]]]; st = Last[r],
       {shape, shapes}];
     {out, st}
-  ];
+  ], compilerTag];
 
 compileTerms[terms_List, side_String, state_Association] :=
-  Module[{out = {}, st = state, r},
+  Catch[Module[{out = {}, st = state, r},
     Do[
       r = compileTerm[terms[[i]], side, None, st];
-      If[compilerResultFailureQ[r], Return[r]];
+      If[compilerResultFailureQ[r], Throw[r, compilerTag]];
       AppendTo[out, First[r]]; st = Last[r],
       {i, Length[terms]}];
     {out, st}
-  ];
+  ], compilerTag];
 
 compileTerm[Verbatim[Pattern][s_Symbol, Verbatim[Blank[]]], side_, target_, state_] :=
   compileNamedOccurrence[s, side, "Binder", target, state];
@@ -244,11 +245,14 @@ compileNamedOccurrence[s_Symbol, side_, role_, target_, state_] :=
   ];
 
 compileNamedSequence[s_Symbol, side_, min_, body_, target_, state_] :=
-  Module[{id, occ, st, child},
+  Module[{id, occ, st, child, r},
     {id, st} = compilerAxisForSymbol[Unevaluated[s], side, state];
     {occ, st} = compilerOccurrence[st];
-    child = If[MatchQ[Unevaluated[body], Verbatim[Blank[]]], None,
-      First @ compileTerm[body, side, None, st]];
+    If[MatchQ[Unevaluated[body], Verbatim[Blank[]]],
+      child = None,
+      r = compileTerm[body, side, None, st];
+      If[compilerResultFailureQ[r], Return[r]];
+      child = First[r]; st = Last[r]];
     {iri["SequenceAxis"][occ, id,
       <|"Side" -> side, "Minimum" -> min, "Pattern" -> child,
         "TargetHead" -> target|>], st}
@@ -280,13 +284,13 @@ compileRepeated[body_, side_, min_, target_, state_] :=
   ];
 
 compileBindingFacts[inline_List, external_List, state_Association] :=
-  Module[{out = {}, id, source, grouped, values, fact},
+  Catch[Module[{out = {}, id, source, grouped, values, fact},
     Do[
       id = Lookup[state["IRState"]["NameToAxisId"], "axis:" <> fact["Name"],
         Missing["UnknownAxis"]];
       If[MissingQ[id],
-        Return[compilerFailure["UnknownInlineBindingAxis", "Normalize",
-          <|"Name" -> fact["Name"]|>]]];
+        Throw[compilerFailure["UnknownInlineBindingAxis", "Normalize",
+          <|"Name" -> fact["Name"]|>], compilerTag]];
       source = <|"Kind" -> fact["Source"], "Name" -> fact["Name"],
         "SurfaceKind" -> fact["Kind"], "Binder" -> fact["Binder"],
         "TargetHead" -> fact["TargetHead"]|>;
@@ -303,14 +307,14 @@ compileBindingFacts[inline_List, external_List, state_Association] :=
     Do[
       values = DeleteDuplicates[bindingFactSize /@ group, SameQ];
       If[Length[values] > 1,
-        Return[compilerFailure["ConflictingBindingFacts", "Normalize",
+        Throw[compilerFailure["ConflictingBindingFacts", "Normalize",
           <|"Axis" -> bindingFactAxisId[First[group]],
-            "Values" -> values|>]]];
+            "Values" -> values|>], compilerTag]];
       fact = First[group];
       AppendTo[out, fact],
       {group, grouped}];
     out
-  ];
+  ], compilerTag];
 
 compilerBindingAxisId[key_Symbol, state_Association] :=
   Module[{name, internalKey},
