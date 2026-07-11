@@ -2,10 +2,13 @@
 
 Replicating einsum / einops / einx for Wolfram Language, using native pattern
 objects (`Pattern`, `Blank`, `CirclePlus`, `CircleTimes`, `Repeated`, `Slot`)
-as the AST itself, rather than an opaque string grammar.
+as an embedded surface notation rather than an opaque string grammar. The held
+surface expression is compiled into a private, inert, staged IR; native pattern
+objects are not the semantic AST after capture.
 
-Status: design draft. Section 7 (Open Issues) is unresolved and should be
-read as part of the spec, not an appendix.
+Status: normative language specification with an incremental staged-compiler
+migration. Section 7 records remaining language/lowering limits and must be read
+as part of the spec, not as an appendix.
 
 ---
 
@@ -17,26 +20,30 @@ sub-tensor signatures, ellipses, and direct-sum (concatenation) axes.
 
 Both represent everything as a single opaque string that gets parsed
 internally. Wolfram Language already ships a pattern-matching vocabulary
-that maps almost one-to-one onto the *concepts* einx needs (named binding,
-anonymous wildcard, repetition, sequence). Einstoff's premise: use that
-vocabulary directly as the surface syntax, and let `MatchQ`/`Cases`-style
-matching do double duty as both parser and shape matcher.
+that maps closely onto the *concepts* einx needs (named binding, anonymous
+wildcard, repetition, sequence). Einstoff uses that vocabulary as its surface
+syntax and preserves a simple conceptual mapping back to WL patterns. Capture
+then translates it to logical axis identities and explicit constraints. No
+post-capture stage delegates language semantics to `MatchQ`, native pattern
+variable binding, or rule evaluation.
 
 ## 2. Design principles
 
 - The top level is a standard `List`, not a string.
-- An operation with input shape(s) and output shape(s) is a `RuleDelayed`:
-  `lhs :> rhs` — **not** `Rule`. `Rule`'s RHS is evaluated immediately at
-  construction time, before any match against real data has happened, using
-  whatever (unbound) values the pattern-variable symbols currently carry.
-  `RuleDelayed` has `HoldRest`: the RHS stays unevaluated until a match
-  succeeds and bindings are substituted in. Since LHS is built entirely out
-  of patterns whose RHS routinely needs to *use* those bindings (see §4.2,
-  §7.1), `:>` is the only idiomatic choice — this is the same reason
-  `Cases[list, pat :> body]` and `f[x_] := body` are written the way they
-  are, not a new mechanism invented for Einstoff.
-- Internal parsing is still allowed/expected; what changes is the *surface*
-  representation people write and that the engine pattern-matches against.
+- An operation canonically uses `RuleDelayed`: `lhs :> rhs`. Its WL role is to
+  protect the RHS while the descriptor expression is constructed and to model
+  resolution after the complete LHS scope is known. Einstoff does **not** release
+  the rule to obtain substitutions or derive output shapes.
+- `Rule` is warned, best-effort compatibility input. It may have evaluated away
+  information before Einstoff receives it, so it is not equivalent to
+  `RuleDelayed` even though both valid captured forms compile to the same IR.
+- The complete LHS is one binder scope, but bare LHS expressions never become
+  localized references. The precise, load-bearing rule is in §5.1.
+- Native pattern concepts remain the user mental model. The kernel pattern
+  matcher is not operationally authoritative after controlled capture.
+- Compilation is staged and immutable:
+  `SurfaceDesc` → `CapturedDesc` → `NormalizedDesc` → `ConstraintDesc` →
+  `SolvedDesc` → `OperationAnalysis` → `ExecutionPlan`.
 
 ## 3. Symbol glossary
 
@@ -75,6 +82,8 @@ A *shape* is a `List` of dimension terms. A dimension term is one of:
   `term...` (anonymous structural sequence)
 - `CircleTimes[term, term, ...]` (product)
 - `CirclePlus[term, term, ...]` (direct sum)
+- `Annotation[axis, positiveInteger]` or
+  `Labeled[positiveInteger, axis]` (inline named-axis size; §5.4)
 - `Slot[term, ...]`, `Highlighted[term, ...]`, or `Framed[term, ...]` wrapping any
   of the above (targeted; einx spells this with brackets), nestable at any depth inside `CircleTimes`/
   `CirclePlus`/`Repeated`. Targetedness is orthogonal to the spelling inside the
@@ -88,19 +97,21 @@ A *shape* is a `List` of dimension terms. A dimension term is one of:
 ### 4.2 Operation
 
 **An operation is always `{shape, shape, ...} :> {shape, shape, ...}`** —
-list-of-shapes on both sides, unconditionally, connected with `RuleDelayed`.
+list-of-shapes on both sides, unconditionally, canonically connected with
+`RuleDelayed`.
 There is no grammar-level single-tensor or no-output special case. See §7.1
 for why list-of-shapes is load-bearing, and §2 for why `:>` (not `->`) is
 load-bearing.
 
-For the common case — pure permute/split/merge, no derived axes — the RHS
-is *still* written under `:>`, and evaluates the same way `->` would: after
-the LHS matches and binds e.g. `a=4, b=8, c=2`, evaluating a trivial RHS
-like `{c, a, b}` is just substitution, nothing computational happens. The
-distinction only bites once an operation's RHS needs to *do* something with
-the bindings beyond rearrange them (§7.1) — but since that need is common
-enough across the grammar (any named axis-sequence combination), `:>` is used
-uniformly rather than switched per-operation.
+The RHS is declarative. It normalizes to the shape grammar plus a finite
+sequence-derivation vocabulary: sequence reference, projection, zip,
+repetition, and composition. Postfix projections such as `a..` compile into
+that vocabulary. Arbitrary `Map`, `MapThread`, callbacks, or other WL code are
+not executed to derive output shapes. A recognized legacy sequence spelling may
+be captured and compiled into a declarative node during migration; it never
+becomes authority to run arbitrary RHS code. Ordinary user functions remain
+allowed only in operator parameters that explicitly accept them (reducer, map
+function, and `Inner` combiners).
 
 Two sugars are allowed at the *call-site* (front-end), not in the core
 grammar:
@@ -114,20 +125,46 @@ grammar:
 
 ### 5.1 Blank vs. Reference
 
-`a_` is a blank and infers a size; a bare `a` later in the *same* match (e.g. the
-second operand's shape, or the RHS) is a reference and must match that inferred
-size. This is not bespoke Einstoff logic — it is
-exactly how repeated pattern variables already behave in `MatchQ`/`Cases`
-(`MatchQ[{3, 3}, {x_, x}]` only succeeds because both `3`s agree). It is what
-makes shared/contracted axes across tensors (§6.10) fall out for free.
+This rule is deliberately repeated here because implementations and prior agent
+sessions have repeatedly inferred the wrong “first declaration, later bare LHS
+reference” model.
 
-New axes that appear only on the RHS (repeat-style) are *not* covered by
-this mechanism, since there is nothing on the LHS to bind them to — those
-are resolved from an out-of-band `sizeRules`-style argument instead.
+**The complete LHS is one pattern scope. Localization is side-sensitive:**
+
+- Every LHS `a_` binds or infer-checks the same logical axis `a`.
+- Repeated LHS occurrences `a_` must therefore unify to one size.
+- A bare `a` on the LHS is always an ambient expression/capture. It is never
+  localized merely because some other LHS occurrence is spelled `a_`.
+- A bare `a` on the RHS references the completed whole-LHS binding when at least
+  one LHS binder `a_` exists.
+- Without an applicable LHS binder or explicit sized declaration, bare RHS `a`
+  follows the ambient-capture hygiene rules in §5.6.
+- An inline-sized bare/string axis on the LHS is an explicit declaration and is
+  available to RHS references (§5.4).
+
+Canonical regression examples:
+
+```wl
+{{a_, a_}} :> {{a}}  (* two binders, one logical axis *)
+{{a, a}}   :> {{a}}  (* no binder; all bare occurrences are ambient *)
+{{a_, a}}  :> {{a}}  (* binder plus unrelated ambient LHS expression *)
+```
+
+This remains WL-intuitive at the conceptual level: `Pattern`, `Blank`, products,
+sums, and repetitions describe structural constraints. Internally the constraints
+apply to logical axis identities and tensor dimensions, not by matching a numeric
+shape list with the kernel pattern matcher. Native `Repeated` is the documented
+divergence: Einstoff lifts inner binders pointwise across repetitions. Thus
+`(2 ⊗ a_)..` requires every captured member to have the same even structure,
+while the per-member `a` sizes may differ.
+
+New axes that appear only on the RHS (repeat-style) are not inferred from an
+input dimension. They need an inline or out-of-band positive size and are then
+materialized by broadcasting (§5.5).
 
 A named axis has two orthogonal coordinates: spelling kind (`b_` blank,
 bare `b`, or string `"b"`) and targetedness (plain or targeted). The targeted
-string spelling is `#name` (= `Slot["name"]`) and binds by *unification* on its
+string spelling is `#name` (= `Slot["name"]`) and binds by unification on its
 string name: repeated occurrences are symmetric and must agree (first sets the
 size, the rest must match). Because this spelling is string-kind and targeted, a
 kept targeted string axis must stay targeted on the RHS (`{{a_, #b}} :> {{a, #b}}`);
@@ -138,6 +175,9 @@ axis. `Highlighted["b"]` and `Framed["b"]` are also targeted string axes, with a
 different visual target head. `Slot` is reserved for string-kind targeting; use
 `Highlighted`/`Framed` for targeted blank or bare symbol axes. `#name` sidesteps the
 `Slot[2]`/`#2` integer-slot hazard (§7.2): named axes never use an integer `Slot`.
+
+Neither native pattern-variable bindings nor evaluation of a `RuleDelayed` are
+used to implement these substitutions after capture.
 
 ### 5.2 Reduce vs. elementary-op: targetedness disambiguates
 
@@ -170,22 +210,53 @@ Two roles a name can play inside an ellipsis:
   resolver re-walks `{grp}` element-by-element applying the inner pattern, producing a
   per-repetition binding list `{a} = {a<sub>1</sub>, a<sub>2</sub>, ...}`.
 
-Cross-group consistency (e.g. `Length[{a}] == Length[{b}]` before a
-`MapThread`) should be enforced by the engine during the manual binding phase, not
-pushed into individual `RuleDelayed` RHS bodies.
+Cross-group consistency is an explicit sequence-length constraint. It is enforced
+by the solver before a declarative zip node is planned, not pushed into a
+`RuleDelayed` RHS body.
 
-**Provisional:** WL's stock implementation of repeated patterns enforces that all
-repetitions unify to the same value. The resolver ignores that constraint and
-re-drives matching manually. Safe while no compilation target delegates axis-sequence
-matching back to native WL pattern matching; revisit if one does.
+WL's stock implementation of repeated patterns enforces one identical native
+binding across repetitions. Einstoff intentionally diverges: it applies the same
+structural schema to each member while lifting inner binders pointwise. No
+compilation target may delegate this matching back to the native matcher.
 
 ### 5.4 Size resolution
 
 For named ellipses, scalar axis bindings remain ordinary positive integers in the
-public `Bindings` association. Outer and inner ellipsis captures are private resolver
-state used to evaluate the `RuleDelayed` RHS: outer mvars listify the captured
-structural terms, and inner mvars listify the per-repetition sizes. The public
-shape API does not expose those list-valued captures as stable bindings.
+public `Bindings` association. Outer and inner sequence captures are first-class
+private solution data used by declarative RHS projection. The public shape API does
+not expose those list-valued captures as stable bindings.
+
+Sizes may be supplied out of band in the binding-list argument or inline with
+exactly these two-argument forms, on either side of the descriptor:
+
+```wl
+Annotation[axisSpec, positiveInteger]
+Labeled[positiveInteger, axisSpec]
+```
+
+They normalize to an unwrapped axis occurrence plus a source-provenanced size
+fact. A bare/string axis sized on the LHS is an explicit declaration, not an
+ambient capture, and establishes an identity available on the RHS. A sized blank
+such as `Annotation[a_, 3]` still infers `a` from the tensor and adds the check
+`Size[a] == 3`; it does not make ordinary `a_ -> 3` binding keys legal.
+
+The accepted `axisSpec` is a bare symbol, hygienic string, or blank binder,
+optionally under a valid `Slot`, `Highlighted`, or `Framed` target wrapper.
+Anonymous axes/sequences, integers as binding keys, products, direct sums, and
+repeated groups are not accepted binding keys.
+
+Sizing and targeting are orthogonal and commute syntactically:
+
+```wl
+Annotation[Framed[a], 3]   Framed[Annotation[a, 3]]
+Labeled[3, Highlighted[a]] Highlighted[Labeled[3, a]]
+```
+
+Only the two-argument forms are borrowed; Einstoff does not inherit the complete
+graphics-wrapper protocols of `Annotation` or `Labeled`. Equal inline and
+out-of-band facts coalesce. Conflicting facts fail. The solver receives only a
+recognized, fully valid merged binding table; evaluated/unrecognized candidates
+may warn and are excluded before normalization.
 
 ### 5.5 Repetition as uniform vectorization
 
@@ -225,30 +296,23 @@ once and obtained uniformly.
 
 ### 5.6 Evaluation hygiene and the axis-name spelling matrix
 
-A desc is an *ordinary WL expression*, so a global binding of an axis symbol
-(`Block[{c = 3}, …]`) would leak its value into the axis identity — turning axis
-`c` into the literal `3`, corrupting shapes and (as an `Association` key) the size
-environment. Einstoff removes this hazard by **canonicalizing every axis identity at
-the desc boundary** to a fresh, value-less `Temporary` symbol *before* any downstream
-code inspects it. A *named* axis has a spelling kind (blank, bare, string) and an
-orthogonal targeted bit:
+A desc is an embedded WL expression, so controlled ambient capture is a supported
+surface feature. Capture classifies each occurrence before normalization. Semantic
+axis identity is then an operation-local `AxisId[positiveInteger]`, never a user
+symbol or a fresh global symbol. A named axis has a spelling kind (blank, bare,
+string) and an orthogonal targeted bit:
 
 | Kind | Plain WL | Targeted WL | Role | Hygiene |
 |---|---|---|---|---|
-| blank | `a_` | `Highlighted[a_]` / `Framed[a_]` | infer-only | safe (canonicalized) |
-| bare | `a` | `Highlighted[a]` / `Framed[a]` | reference to an *established* axis, else env-capture; bindable when explicit size is needed | opt-in: a bound `a` reads as its literal size |
+| blank | `a_` | `Highlighted[a_]` / `Framed[a_]` | LHS binder/infer-check | captured under hold, normalized to an axis ID |
+| bare | `a` | `Highlighted[a]` / `Framed[a]` | LHS ambient expression; RHS reference only when resolved from the completed LHS scope or explicit declaration, otherwise ambient | opt-in capture: a bound `a` may read as its literal value |
 | string | `"a"` | `#a` = `Slot["a"]`, `Highlighted["a"]`, `Framed["a"]` | fully-hygienic named axis; targeted form marks the elementary-op axis (§5.2) | immune to any `Block` |
 
-**Established vs. captured.** A bare symbol is an axis *reference* only if its name is
-**established** — spelled somewhere in the desc as blank `a_`, targeted blank
-`Highlighted[a_]`/`Framed[a_]`, targeted/bare `a`, targeted string `#a`, or string
-`"a"`. An *unestablished* bare symbol env-captures: it evaluates, so a globally
-bound `k` reads as its literal dimension (`{{a_, k}} :> {{a}}` with `k = 4` reduces a
-size-4 axis) and an unbound one is an ordinary (unsafe) axis. This holds symmetrically
-on LHS and RHS — a bare RHS name is **not** automatically hygienic just because `:>`
-holds it; it is a reference iff established, else a captured value. (The desc's own
-`a_` on the LHS ↔ bare `a` on the RHS is WL's native `x_ :> f[x]` idiom: declare as a
-blank, use as bare.)
+**Resolved vs. captured.** Resolution is not symmetric across the rule. All bare
+LHS occurrences are ambient, including a bare `a` beside `a_`. After the entire LHS
+has been captured, a bare RHS `a` resolves to the LHS binder `a_` or an explicit
+sized declaration. Otherwise it remains an ambient capture. `RuleDelayed` holding
+the RHS is useful surface staging, but native rule substitution is not involved.
 
 > **Note — env-capture of a string value.** Since a `String` is now a legal axis
 > spelling, an unestablished bare symbol that env-captures to a *string* becomes that
@@ -275,26 +339,20 @@ entities. If a desc needs so many axis names that contexts look necessary to avo
 collisions, the desc should be refactored or use clearer local names instead of
 expecting contexts to carry semantic identity.
 
-**Canonicalization.** Each established name is rewritten to one fresh
-`Unique[name <> "$", {Temporary}]` symbol shared across all its occurrences (blank,
-bare reference, targeted form, binding key); the symbols are per-parse hermetic and GC'd when the
-parse scope closes. Names *inside a targeted composite* (`Highlighted[(c d)]` =
-`Highlighted[CircleTimes[c_, d_]]`) are grammar positions and are canonicalized too. A string
-name must be a valid identifier (a locally-rolled `validAxisNameQ` — not the cloud
-`ResourceFunction["ValidSymbolIdentifierQ"]`, which is unavailable/slow in some
-kernels). Public output (`EinstoffParse`; `EinstoffShapes`' `Bindings`/`Targeted`) is
-mapped back to the user's names for display; a *shadowed* name maps to a value-less
-`Einstoff`Axis`nm` (still `SymbolName`-recoverable) rather than leaking its value.
-
-Implementation: `canonHeld` / `collectEstablished` / `canonBindingList` / `deCanon` in
-Lowering.wl, opened per operator by `withAxisScope`; the functional/backtracking
-matcher is untouched (it simply sees fresh symbols). Tests: `tests/Hygiene.wlt`.
+**Normalization.** Each recognized logical name is interned into an integer-backed
+operation-local identity such as ``Einstoff`Internal`IR`AxisId[1]``. The axis table
+stores display name, spelling kind, and provenance; targeting stays per occurrence.
+No `Unique`, symbol value, downvalue, clearing, or temporary-symbol lifecycle is part
+of semantic identity. The compatibility parser may still use temporary symbols while
+legacy paths are being retired, but they may not escape `CapturedDesc` or shape any
+normalized/later-stage invariant. A string name must be a valid identifier. Public
+results recover display names from the axis metadata/source map.
 
 ### 5.7 Binding-key grammar
 
 `bindings` supplies sizes for axes not inferable from the tensors (repetition §5.5,
 composite split-factors). A key names an axis; accepted spellings mirror the desc
-spelling kind and are canonicalized to the axis's fresh identity:
+spelling kind and normalize to its operation-local axis identity:
 
 - **Target-head keys** (`#a -> n`, `Highlighted["a"] -> n`, `Framed["a"] -> n`,
   `Highlighted[a] -> n`, `Framed[a] -> n`) — accepted only when the desc used the same
@@ -321,6 +379,8 @@ Rejections and tolerances:
   `c = 3`) **warns and is dropped**, and resolution continues — failing only if the
   shapes are then unsatisfiable. The warning is targeted when the key equals the
   current value of a desc axis.
+- Duplicate equal facts coalesce, including inline/out-of-band duplicates.
+  Conflicting sizes for one logical axis are rejected independent of ordering.
 
 Tests: `hyg-*` (`tests/Hygiene.wlt`); `bindings-*` (`tests/Parsing.wlt`).
 
@@ -368,17 +428,14 @@ after that for brevity.
    ```
    {{a__}, {b__}} :> {MapThread[CircleTimes, {{a}, {b}}]}
    ```
-   Resolved by `RuleDelayed` (§7.1): `{a}`/`{b}` listify the captured
-   `Sequence`s, `MapThread` zips them. Cross-group length consistency
-   (`Length[{a}] == Length[{b}]`) is enforced by the engine's manual
-   binding phase (§5.3). Lowering for this product-style case is implemented
-   in `Einstoff[Dot]`: with no contracted axes, the Dot/Inner path is the
-   cross-tensor structural product path.
+   This legacy surface spelling is recognized narrowly and compiles to a
+   declarative sequence-zip node (§7.1); `MapThread` is not executed as
+   arbitrary RHS code. Cross-group length consistency is a solver constraint.
 
 8. **Named ellipsis with internal structure (pooling)** —
    `einx.sum("b (s [ds])... c", x, ds=(2, 2))`
    ```
-   {{b_, grp : (CircleTimes[s_, Slot[ds_]]).., c_}} :> {Join[{b}, Map[First, {grp}], {c}]}
+   {{b_, grp : (CircleTimes[s_, Slot[ds_]]).., c_}} :> {{b, s.., c}}
    ```
    `First` on each captured `CircleTimes[s_i, Slot[ds_i]]` reads off `s_i`
    positionally — plain `First`, no replacement rule needed, since
@@ -395,8 +452,8 @@ after that for brevity.
     ```
     {{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}
     ```
-    `b_` binds in the first operand, bare `b` references it in the second
-    — ordinary WL repeated-variable matching, no custom rule needed.
+    Both targeted string occurrences normalize to one logical axis identity;
+    the constraint solver enforces equal sizes across operands.
 
 11. **Indexing-style gather with targeted literal** —
     `einx.get_at("b [h w] c, b i [2] -> b i c", x, y)`
@@ -416,31 +473,25 @@ after that for brevity.
 
 ## 7. Open issues
 
-### 7.1 Output-side derivation for combined/projected named ellipses — RESOLVED at the spec level; lowering remains open
+### 7.1 Declarative output derivation for named ellipses
 
 Examples 7 and 8 originally had no literal-pattern RHS: `(a b)...` means
 "zip the two captured `Sequence`s pointwise," and projecting `ds` out of
 each repetition of `(s [ds])...` is a per-operation computation — neither
 is a shape *descriptor*.
 
-**Resolution:** the assumption that the RHS must be a structural shape
-pattern was the actual problem, not the grammar. Under `RuleDelayed` (§2),
-the RHS is ordinary WL code evaluated after the LHS binds — it can be
-`MapThread`, `Join`, `Map[First, ...]`, anything — as long as it evaluates
-to a `List` of dimension terms. Examples 7 and 8 above now have real,
-evaluable RHS bodies. No bespoke "output-derivation procedure interface"
-needs to be designed; `RuleDelayed`'s existing held-then-substituted
-semantics already is that interface.
+**Resolution:** the RHS is structural shape syntax plus a finite declarative
+sequence language. Its internal nodes are sequence reference, projection, zip,
+repetition, and composition. Postfix forms such as `s..` are surface projections.
+The compiler may recognize narrowly specified legacy spellings such as example 7
+and translate them to those nodes, but it must reject an arbitrary held
+`MapThread`, `Map`, callback, or other WL computation with a structured error that
+identifies the offending fragment.
 
-**What's still open**, narrower than before:
-- Once such an RHS evaluates to a concrete (possibly irregular) shape,
-  *lowering* it to actual `Transpose`/`ArrayReshape`/`ArrayReduce`/`Join`
-  calls that produce real array data is operation-specific engineering,
-  not a generic compile step. The product-style cross-tensor zip in example 7
-  is implemented in `Einstoff[Dot]`; structured projection cases such as
-  example 8 remain operation-specific lowering work. `RuleDelayed` solves
-  expressibility of the spec, not automatic compilation to every native
-  primitive.
+The solver owns sequence lengths and pointwise member captures. The planner sees
+only solved sequence data and explicit derivation nodes. `RuleDelayed` protects the
+surface expression during construction; it is not an output-derivation procedure
+interface and is never released to execute user code.
 
 ### 7.2 `Slot` aliasing `Function` slots — largely resolved (named axes are string-keyed)
 
@@ -516,14 +567,10 @@ invariants / maintainability smells. Retained here as a record of the hardening:
   `$Context` no longer broke bracket matching. Demonstrated by
   `bracket-context-robust`. env stays symbol-keyed, so the CAS/`Solve` layer is
   untouched.
-  **Superseded (2026-07, desc-hygiene branch, §5.6):** `resolveSlotStrings` was replaced
-  by `canonHeld`, which canonicalizes *every* axis identity — blank, targeted, string —
-  to a fresh `Temporary` symbol, so the `Block[{c=3},…]` value-leak (not just the
-  `$Context` variant) is closed, and a string axis tier `"a"` is added. `#a` now belongs
-  to that string kind, while targeted blank/bare symbol axes use `Highlighted[...]` or
-  `Framed[...]`.
-  The new canonicalizer intentionally keys identities by `SymbolName`, not full symbol
-  context: contexts are not part of axis identity in this eDSL.
+  **Superseded again by the staged IR (§5.6):** `canonHeld` remains a compatibility
+  capture aid for legacy lowering, but normalized semantic identity is an operation-local
+  integer-backed `AxisId`. Temporary symbols cannot escape capture or shape later-stage
+  invariants. Contexts intentionally do not contribute to logical axis identity.
 - ✅ **Duplicated desc normalization** across `descParts` (Lowering.wl) and `parseDesc`
   (Parsing.wl) — *fixed.* The `{} -> 1` unit policy and the CirclePlus-flatten rule (which
   were written out three times: `flattenDirectSum`, `normHeldRhs`, and inline in
@@ -544,12 +591,9 @@ invariants / maintainability smells. Retained here as a record of the hardening:
   now validates `bindings` at the entrance: it must be a list of axis-name -> size rules
   (a bare `Symbol` key, a positive-integer size; `Rule` or `RuleDelayed`; the default `{}`
   is vacuously valid). A malformed spec (a non-rule entry, a non-symbol key, or a
-  non-positive/non-integer size) now returns a local `ok -> False` reason here rather than
-  degrading into a deeper unsat message or leaking an unevaluated `Association[...]`
-  through `matchTerms`. A **duplicate key** is also rejected outright (a follow-up review
-  edge: `Association` would silently keep the last value, so `{c -> 2, c -> 99}` and
-  `{c -> 99, c -> 2}` would differ order-dependently with no diagnostic). Nine regression
-  tests (`bindings-reject-*`, `bindings-ruledelayed-ok`).
+  non-positive/non-integer size) now returns a structured capture/constraint failure
+  rather than degrading into a deeper unsat message. Duplicate equal facts coalesce;
+  conflicting duplicates reject without order dependence.
 - ✅ **Dead `Module` locals** `sizes/ends/starts` in `directSumSplit` — *removed* (the live
   ones, `sz/en/st`, live in the inner block `Module`).
 
@@ -561,25 +605,26 @@ the tagged-throw isolation, and the dead `directSumSplit` locals.
 
 - `CirclePlus`/`CircleTimes` have no built-in evaluation rules for symbolic
   or numeric arguments — safe to use as inert semantic tags.
-- Bare-vs-`_` for binding/reference is stock WL pattern behavior, not
-  bespoke logic (§5.1).
+- Blank binding and RHS reference preserve the stock WL mental model, with the
+  explicit whole-LHS and bare-LHS rules in §5.1 and pointwise repetition divergence.
 - Top-level grammar is unconditionally list-of-shapes both sides, connected
   by `RuleDelayed` (§4.2); single-tensor and one-sided forms are front-end
   sugar only.
 - `Slot[...]` nests without issue inside `CircleTimes` and `CirclePlus`.
-- The named axis-sequence design does not need a separate output-derivation interface:
-  the shape resolver evaluates `RuleDelayed` RHS code after substituting captured
-  sequences, so ordinary WL helpers can project them.
+- Named axis-sequence output derivation uses the restricted declarative vocabulary in
+  §7.1; ordinary RHS WL code is not an execution interface.
 
 ## 9. Status & next steps
 
-Implemented and cross-validated against einx/einops: the matcher / shape resolver
-(`EinstoffShapes`), and the lowering paths `Einstoff["Massage"]` (the permissive
+Implemented and cross-validated against einx/einops: staged capture, normalized IR,
+restricted shape constraints, operation analysis, and backend-neutral execution
+plans for the non-sequence operator subset. Immediate execution and `TraceAction`
+render from the same plan. Public paths include `Einstoff["Massage"]` (the permissive
 univalent engine) with its intent guards `Einstoff[ArrayReshape]` (bijective
 rearrange/reshape) and `Einstoff["ArrayContract"]` (within-tensor contraction, no
 repetition), `Einstoff[ArrayReduce][reducer]` (reduce, reducer curried),
-`Einstoff[Dot]` (einsum contraction over **N ≥ 2 operands** via a pairwise left
-fold — `contractPair` keeps the global output axes plus anything a later operand
+`Einstoff[Dot]` (einsum contraction over **N ≥ 2 operands** via an `InnerStep`
+pairwise left fold — the plan keeps the global output axes plus anything a later operand
 still needs, so an axis is summed only once nothing downstream uses it), and
 uniform repetition (§5.5).
 

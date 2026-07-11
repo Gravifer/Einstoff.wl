@@ -21,7 +21,9 @@ someAPI[desc, tensors, bindings, options]
 
 where
 
-- `desc` is a `Rule` (something like `{...} -> {...}` or using `:>` in place of `->`), describing the transformation of the axes.
+- `desc` canonically uses `RuleDelayed` (`{...} :> {...}`). `Rule` is warned,
+  best-effort compatibility input because it may evaluate away information before
+  Einstoff captures it.
 - `tensors` is a `List` of tensors to be transformed.
 - `bindings` is a `List` of `Rule`(or `RuleDelayed`)s, describing the axes of the tensors. Requiring it to be a `List` makes it easier to distinguish from `options`.
 - `options` is the standard `OptionsPattern[]` for the function; may not be existent.
@@ -42,19 +44,38 @@ For more details on the design, see `.agents/SPEC.md`
 
 - **Axis-name hygiene matrix** (SPEC §5.6–5.7, `feat/desc-hygiene`). A named axis has
   a spelling kind and an orthogonal targeted bit: `a_` (blank — infer-only, "solve
-  for this"), bare `a` (reference to an *established* axis, else env-capture — a bound
-  `a` reads as its literal size), and `"a"` (a `String` — the fully-hygienic kind,
+  for this"), bare `a` (LHS ambient expression; RHS reference only after whole-LHS
+  binder resolution or explicit declaration, otherwise env-capture), and `"a"`
+  (a `String` — the fully-hygienic kind,
   immune to any ``Block``). Targeted string axes may be written `#a` = ``Slot["a"]``,
   ``Highlighted["a"]``, or ``Framed["a"]``; targeted blank/bare symbol axes use
-  ``Highlighted[a_]``/``Framed[a_]`` or ``Highlighted[a]``/``Framed[a]``. At the desc
-  boundary every *established* name (blank / targeted / string) is canonicalized to a fresh
-  ``Unique[…,{Temporary}]`` symbol (``canonHeld`` in Lowering.wl), so ``Block[{c=3},…]``
-  cannot leak `3` into axis `c`. A name may not mix symbol spelling with string spelling
+  ``Highlighted[a_]``/``Framed[a_]`` or ``Highlighted[a]``/``Framed[a]``. Normalized
+  semantic identity is an operation-local integer-backed ``AxisId``; no user or fresh
+  global symbol is the IR identity. A name may not mix symbol spelling with string spelling
   (mishmash → reject). Binding keys mirror the spelling kind: string axes accept
   `"a" -> n` and, when targeted, the same target head used in the desc; bare axes accept
   `a -> n`; blanks are inference-only. A different target head in bindings than
   in the desc is rejected, and ``Slot`` must not target non-string axes. ``Squiggled`` is
   intentionally unused because it is visually confusing.
+
+- **Whole-LHS binder rule — do not reinterpret this.** The complete LHS is one binder
+  scope. Every `a_` occurrence denotes the same logical axis and must unify. Every bare
+  `a` on the LHS remains an unrelated ambient expression even if another LHS occurrence
+  is `a_`. Bare `a` is localized only on the RHS, from the completed binder environment
+  or an explicit sized declaration. Therefore `{{a_, a_}} :> {{a}}` has a repeated
+  logical axis, `{{a, a}} :> {{a}}` has no binder, and `{{a_, a}} :> {{a}}` has one
+  binder plus one ambient LHS expression. Never document or implement “first declaration,
+  later bare LHS reference.”
+
+- **Surface syntax is not the semantic AST.** Capture may inspect native WL pattern and
+  wrapper heads. `NormalizedDesc` and later stages contain only inert private IR nodes,
+  local IDs, constraints, analyses, and plans. No post-capture stage may use `MatchQ`,
+  native pattern-variable bindings, or rule evaluation as language semantics.
+
+- Inline sizes use exactly `Annotation[axis, positiveInteger]` and
+  `Labeled[positiveInteger, axis]` on either side. They compose in both nesting orders
+  with valid `Slot`/`Highlighted`/`Framed` targeting. A sized blank is inference plus an
+  equality check; ordinary out-of-band `a_ -> n` remains illegal.
 
 - We will *NOT* implement the sugar layer of the syntax in the forseeable future.
 
