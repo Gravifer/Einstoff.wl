@@ -626,47 +626,107 @@ evalOutShape[h_Hold, env_, seq_ : <||>] :=
 
 SetAttributes[EinstoffShapes, HoldFirst];
 EinstoffShapes[desc_, inputShapes_, bindings_ : {}] := withAxisScopeDeCanon @
-  Module[{p, lhs, heldRhs, targeted, relRhs, dup, m, env, out},
-    p = parseDesc[Hold[desc]];
-    If[p["LHS"] === $Failed,
-      (* descFailReason surfaces the accurate canonHeld reject reason (invalid axis name /
-         tier mishmash) when there is one, else the generic desc-shape reason. *)
-      Return[<|"Satisfiable" -> False,
-        "Reason" -> descFailReason[],
-        "OutputShapes" -> Missing[], "Bindings" -> <||>, "Targeted" -> {}|>]];
-    lhs = p["LHS"]; heldRhs = p["RHS"];
-    targeted = targetedNames[lhs];
-    (* Universal shape invariant: an axis name must be distinct within the OUTPUT shape
-       (einx: "the output expression must not contain multiple vectorized axes with the
-       same name") — a duplicate output axis has no well-defined layout.  Only the RHS is
-       checked: a name repeated within an INPUT shape is within-tensor contraction, which
-       the resolver handles by unification (bind once, enforce equality) and is a valid,
-       supported case for Massage/Contract/einsum.  Admissibility of a repeated INPUT axis
-       is therefore operator policy, enforced by each operator (the non-contracting
-       reduce/map/dot/direct-sum paths reject it via distinctAxesQ), not here.  A globally
-       bound RHS symbol releases to its literal (excluded from names), matching the
-       desc-not-held convention. *)
-    relRhs = Quiet @ Check[ReleaseHold[heldRhs], $Failed];
-    dup = firstDuplicateAxis[If[MatchQ[relRhs, {___List}], relRhs, {}]];
-    If[! MissingQ[dup],
-      Return[<|"Satisfiable" -> False,
-        "Reason" -> "axis " <> axisDisplayName[dup] <> " appears more than once within \
-the output shape; output axis names must be distinct (einx forbids multiple vectorized \
-axes with the same name)",
-        "OutputShapes" -> Missing[], "Bindings" -> <||>, "Targeted" -> targeted|>]];
-    m = EinstoffMatch[lhs, inputShapes, bindings];
-    If[! TrueQ[m["ok"]],
-      Return[<|"Satisfiable" -> False, "Reason" -> m["reason"],
+  Catch[Module[{compiled, normalized, normalizedAssoc, axes, targetedIds,
+          targeted, duplicate, solvedBundle, solved, solvedAssoc, bindingsOut},
+    compiled = compileHeldDescIR[Hold[desc], HoldComplete[bindings], "Shapes", <||>];
+    normalized = Lookup[compiled, "Normalized", Missing["Normalized"]];
+    If[Head[normalized] =!= Einstoff`Internal`IR`NormalizedDesc,
+      Throw[publicShapesFailure[normalized, None, {}], publicShapesTag]];
+    normalizedAssoc = Replace[normalized,
+      Einstoff`Internal`IR`NormalizedDesc[a_Association] :> a];
+    axes = Replace[normalizedAssoc["Axes"],
+      Einstoff`Internal`IR`AxisTable[a_Association] :> a];
+    targetedIds = DeleteDuplicates @ Cases[normalizedAssoc["Inputs"],
+      Einstoff`Internal`IR`AxisOccurrence[_, id_, meta_Association] /;
+          Lookup[meta, "TargetHead", None] =!= None :> id, Infinity];
+    targeted = publicAxisKey[#, axes] & /@ targetedIds;
+    duplicate = publicDuplicateOutputAxis[normalizedAssoc["Outputs"]];
+    If[! MissingQ[duplicate],
+      Throw[<|"Satisfiable" -> False,
+        "Reason" -> "axis " <> publicAxisName[duplicate, axes] <>
+          " appears more than once within the output shape; output axis names must be " <>
+          "distinct (einx forbids multiple vectorized axes with the same name)",
         "OutputShapes" -> Missing[], "Bindings" -> <||>,
-        "Targeted" -> targeted|>]];
-    env = m["env"];
-    out = evalOutShape[heldRhs, env, Lookup[m, "seq", <||>]];
-    If[! MatchQ[out, {___List}] ||
-       ! AllTrue[Flatten[out], IntegerQ[#] && # >= 1 &],
-      Return[<|"Satisfiable" -> False,
-        "Reason" -> "output shape did not resolve to positive integers \
-(unbound RHS symbol or non-integer dim): " <> ToString[out],
-        "OutputShapes" -> Missing[], "Bindings" -> env,
-        "Targeted" -> targeted|>]];
-    <|"Satisfiable" -> True, "OutputShapes" -> out, "Bindings" -> env,
-      "Targeted" -> targeted, "Reason" -> ""|>];
+        "Targeted" -> targeted|>, publicShapesTag]];
+    solvedBundle = solveDescIR[compiled, inputShapes];
+    solved = Lookup[solvedBundle, "Solved", Missing["Solved"]];
+    If[Head[solved] =!= Einstoff`Internal`IR`SolvedDesc,
+      Throw[publicShapesFailure[solved, normalized, targeted], publicShapesTag]];
+    solvedAssoc = Replace[solved,
+      Einstoff`Internal`IR`SolvedDesc[a_Association] :> a];
+    bindingsOut = Association @ KeyValueMap[
+      Function[{id, size}, publicAxisKey[id, axes] -> size],
+      KeySelect[solvedAssoc["AxisSizes"],
+        MatchQ[#, Einstoff`Internal`IR`AxisId[_Integer]] &]];
+    <|"Satisfiable" -> True, "OutputShapes" -> solvedAssoc["OutputShapes"],
+      "Bindings" -> bindingsOut, "Targeted" -> targeted, "Reason" -> ""|>
+  ], publicShapesTag];
+
+publicDuplicateOutputAxis[Einstoff`Internal`IR`Outputs[shapes_List]] :=
+  SelectFirst[shapes,
+    Function[shape, With[{ids = Cases[shape,
+        Einstoff`Internal`IR`AxisOccurrence[_, id_, _] :> id, Infinity]},
+      ! DuplicateFreeQ[ids]]], Missing["NoDuplicate"]] /.
+    Einstoff`Internal`IR`Shape[terms_List] :>
+      First @ Select[Cases[terms,
+        Einstoff`Internal`IR`AxisOccurrence[_, id_, _] :> id, Infinity],
+        Count[Cases[terms,
+          Einstoff`Internal`IR`AxisOccurrence[_, other_, _] :> other, Infinity], #] > 1 &];
+publicDuplicateOutputAxis[_] := Missing["NoDuplicate"];
+
+publicAxisName[id_, axes_Association] := Replace[Lookup[axes, id, Missing[]],
+  Einstoff`Internal`IR`AxisInfo[name_String, _Association] :> name];
+publicAxisKey[id_, axes_Association] :=
+  With[{name = publicAxisName[id, axes]},
+    If[AssociationQ[$axisFresh] && KeyExistsQ[$axisFresh, name],
+      $axisFresh[name], axisSymbol[name]]];
+
+publicShapesFailure[failure_, normalized_, targeted_List] :=
+  <|"Satisfiable" -> False,
+    "Reason" -> publicFailureReason[failure, normalized],
+    "OutputShapes" -> Missing[], "Bindings" -> <||>,
+    "Targeted" -> targeted|>;
+
+publicFailureReason[
+    Einstoff`Internal`IR`FailureRecord[_, _, details_Association], _] /;
+      StringQ[Lookup[details, "Reason", None]] := details["Reason"];
+publicFailureReason[
+    Einstoff`Internal`IR`FailureRecord["MalformedDescription", _, _], _] :=
+  "description must be of the form lhs :> rhs (or lhs -> rhs), with each side a list of shapes";
+publicFailureReason[
+    Einstoff`Internal`IR`FailureRecord["OperandCountMismatch", _, d_Association], _] :=
+  "operand count: desc has " <> ToString[d["Expected"]] <> " shape(s) but " <>
+    ToString[d["Actual"]] <> " tensor shape(s) given";
+publicFailureReason[
+    Einstoff`Internal`IR`FailureRecord["ConflictingAxisSizes", _, d_Association],
+    normalized_] :=
+  With[{axes = publicNormalizedAxes[normalized]},
+    "axis " <> publicAxisName[d["Axis"], axes] <> ": expected " <>
+      ToString[d["Expected"]] <> " but tensor dimension is " <>
+      ToString[d["Actual"]]];
+publicFailureReason[
+    Einstoff`Internal`IR`FailureRecord["ConflictingBindingFacts", _, d_Association],
+    normalized_] :=
+  With[{name = Lookup[d, "Name",
+      publicAxisName[Lookup[d, "Axis", Missing[]], publicNormalizedAxes[normalized]]]},
+    "conflicting sizes for axis " <> name <> ": " <>
+      StringRiffle[ToString[#, InputForm] & /@ d["Values"], " versus "]];
+publicFailureReason[
+    Einstoff`Internal`IR`FailureRecord["RankMismatch", _, _], _] :=
+  "no consistent axis binding (shape/rank mismatch)";
+publicFailureReason[
+    Einstoff`Internal`IR`FailureRecord["InvalidInputShapes", _, _], _] :=
+  "input shapes must be a list of dimension lists";
+publicFailureReason[
+    Einstoff`Internal`IR`FailureRecord["InvalidKnownSize", _, _], _] :=
+  "each binding must give a positive-integer axis size";
+publicFailureReason[
+    Einstoff`Internal`IR`FailureRecord["SequenceZipLengthMismatch", _, _], _] :=
+  "captured axis sequences have different lengths";
+publicFailureReason[Einstoff`Internal`IR`FailureRecord[tag_, _, _], _] :=
+  "shape constraints are not satisfiable (" <> tag <> ")";
+publicFailureReason[_, _] := "shape constraints are not satisfiable";
+
+publicNormalizedAxes[Einstoff`Internal`IR`NormalizedDesc[a_Association]] :=
+  Replace[a["Axes"], Einstoff`Internal`IR`AxisTable[x_Association] :> x];
+publicNormalizedAxes[_] := <||>;

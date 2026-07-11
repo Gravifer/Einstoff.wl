@@ -41,7 +41,8 @@ buildConstraintDesc[normalized : irs["NormalizedDesc"][a_Association],
         Replace[fact, irs["BindingFact"][id_, size_, source_] :>
           irs["KnownSize"][id, size, source]]],
       {fact, bindings}];
-    captureState = <|"Lengths" -> <||>, "Members" -> <||>|>;
+    captureState = <|"Lengths" -> <||>, "Members" -> <||>,
+      "PointwiseAxes" -> {}|>;
     Do[
       terms = Replace[shapes[[i]], irs["Shape"][t_List] :> t];
       r = expandInputTerms[terms, inputShapes[[i]], i, captureState];
@@ -50,6 +51,12 @@ buildConstraintDesc[normalized : irs["NormalizedDesc"][a_Association],
       constraints = Join[constraints, r["Constraints"]];
       captureState = r["State"],
       {i, Length[shapes]}];
+    With[{scalarIds = DeleteDuplicates @ Cases[constraints,
+        irs["EqualSize"][irs["SizeAxis"][id_], _, _] :> id, Infinity],
+        pointwiseIds = Lookup[captureState, "PointwiseAxes", {}]},
+      If[Intersection[scalarIds, pointwiseIds] =!= {},
+        Throw[solverFailure["SequenceScalarCollision", "Constraints", <|
+          "Axes" -> Intersection[scalarIds, pointwiseIds]|>], solverTag]]];
     solvedOutputs = expandOutputShapes[a["Outputs"], captureState];
     If[solverFailureQ[solvedOutputs], Throw[solvedOutputs, solverTag]];
     irs["ConstraintDesc"][<|
@@ -123,11 +130,15 @@ expandInputTerms[terms_List, dims_List, inputIndex_Integer, state_Association] :
             expanded["Terms"]]];
         st = expanded["State"];
         cursor += len,
-        expanded = sizeExpression[terms[[j]]];
-        If[solverFailureQ[expanded], Throw[expanded, solverTag]];
-        AppendTo[out, terms[[j]]];
-        AppendTo[constraints, irs["EqualSize"][expanded, dims[[cursor]],
-          <|"Input" -> inputIndex, "Dimension" -> cursor|>]];
+        If[MatchQ[terms[[j]], irs["AnonymousAxis"][_, _, _Association]],
+          AppendTo[out, Replace[terms[[j]],
+            irs["AnonymousAxis"][occ_, _, meta_Association] :>
+              irs["LiteralAxis"][occ, dims[[cursor]], meta]]],
+          expanded = sizeExpression[terms[[j]]];
+          If[solverFailureQ[expanded], Throw[expanded, solverTag]];
+          AppendTo[out, terms[[j]]];
+          AppendTo[constraints, irs["EqualSize"][expanded, dims[[cursor]],
+            <|"Input" -> inputIndex, "Dimension" -> cursor|>]]];
         cursor++],
       {j, Length[terms]}];
     <|"Terms" -> out, "Constraints" -> constraints, "State" -> st|>
@@ -162,6 +173,8 @@ expandCapturedSequence[irs["SequenceAxis"][occ_, id_, meta_Association],
           node, Infinity]},
       If[members =!= {}, st = Join[st, <|"Members" ->
         Append[st["Members"], inner -> members]|>]]], {inner, ids}];
+    st = Append[st, "PointwiseAxes" ->
+      DeleteDuplicates @ Join[Lookup[st, "PointwiseAxes", {}], ids]];
     <|"Terms" -> terms, "Constraints" -> equalities, "State" -> st|>
   ], solverTag];
 expandCapturedSequence[irs["RepeatedGroup"][occ_, pattern_, meta_Association],
@@ -209,7 +222,7 @@ expandOutputTerm[irs["RepeatedGroup"][occ_, child_, meta_Association],
       irs["AxisOccurrence"][_, id_, _] :> id, {0, Infinity}];
     allMemberLists = Lookup[state["Members"], ids, Missing["UnknownProjection"]];
     pairs = Select[Transpose[{ids, allMemberLists}],
-      Function[pair, ListQ[pair[[2]]] && pair[[2]] =!= {}]];
+      Function[pair, ListQ[pair[[2]]]]];
     ids = If[pairs === {}, {}, pairs[[All, 1]]];
     memberLists = If[pairs === {}, {}, pairs[[All, 2]]];
     If[ids === {} || AnyTrue[memberLists, MissingQ],
@@ -275,12 +288,24 @@ sizeComposite[head_String, children_List] :=
 
 solveConstraintDesc[constraint : irs["ConstraintDesc"][a_Association]] :=
   Catch[Module[{normalized, constraints, axisIds, variables, idToVariable, equations,
-          result, concrete, rules, axisSizes, outputs, outShapes},
+          directSizes, conflict, result, concrete, rules, axisSizes, outputs,
+          outShapes},
     normalized = a["Normalized"];
     constraints = Replace[a["Constraints"], irs["Constraints"][c_List] :> c];
     axisIds = DeleteDuplicates @ Join[
       Cases[constraints, irs["SizeAxis"][id_] :> id, Infinity],
       Cases[constraints, irs["KnownSize"][id_, _, _] :> id, Infinity]];
+    directSizes = GroupBy[
+      Cases[constraints,
+        irs["EqualSize"][irs["SizeAxis"][id_], n_Integer, _] :> id -> n],
+      First -> Last];
+    conflict = SelectFirst[Normal[directSizes],
+      Length[DeleteDuplicates[Last[#]]] > 1 &, Missing["NoConflict"]];
+    If[! MissingQ[conflict],
+      Throw[solverFailure["ConflictingAxisSizes", "Solve", <|
+        "Axis" -> First[conflict],
+        "Expected" -> First[Last[conflict]],
+        "Actual" -> Last[Last[conflict]]|>], solverTag]];
     variables = solverVariable /@ axisIds;
     idToVariable = AssociationThread[axisIds, variables];
     equations = constraintEquation[#, idToVariable] & /@ constraints;

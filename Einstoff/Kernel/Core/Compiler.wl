@@ -65,6 +65,11 @@ captureDescIR[h_Hold, hb_HoldComplete, surface_] :=
     If[rawBindings === $Failed,
       Throw[compilerFailure["InvalidBindings", "Capture",
         <|"Source" -> surface|>], compilerTag]];
+    If[! MatchQ[rawBindings, {(_Rule | _RuleDelayed) ...}],
+      Throw[compilerFailure["InvalidBindings", "Capture", <|
+        "Reason" -> "bindings must be a list of axis-name -> size rules " <>
+          "(e.g. {n -> 8}); got " <> ToString[rawBindings, InputForm],
+        "Source" -> surface|>], compilerTag]];
     externalBindings = canonBindingList[rawBindings, "Scoped"];
     If[StringQ[externalBindings],
       Throw[compilerFailure["InvalidBindings", "Capture",
@@ -145,6 +150,7 @@ compilerState[captured_Association] := <|
   "FreshToName" -> Association @ KeyValueMap[(#2 -> #1) &,
     captured["AxisNames"]],
   "AxisKinds" -> captured["AxisKinds"],
+  "SequenceAxes" -> <||>,
   "SourceMap" -> <||>
 |>;
 
@@ -253,14 +259,20 @@ compileNamedOccurrence[s_Symbol, side_, role_, target_, state_] :=
   Module[{id, occ, st},
     {id, st} = compilerAxisForSymbol[Unevaluated[s], side, state];
     {occ, st} = compilerOccurrence[st];
-    {iri["AxisOccurrence"][occ, id,
-      <|"Side" -> side, "SyntaxRole" -> role,
-        "TargetHead" -> target|>], st}
+    If[side === "RHS" && KeyExistsQ[st["SequenceAxes"], id],
+      {iri["SequenceAxis"][occ, id,
+        <|"Side" -> side, "Minimum" -> 0, "Pattern" -> None,
+          "SyntaxRole" -> "SequenceReference", "TargetHead" -> target|>], st},
+      {iri["AxisOccurrence"][occ, id,
+        <|"Side" -> side, "SyntaxRole" -> role,
+          "TargetHead" -> target|>], st}]
   ];
 
 compileNamedSequence[s_Symbol, side_, min_, body_, target_, state_] :=
   Module[{id, occ, st, child, r},
     {id, st} = compilerAxisForSymbol[Unevaluated[s], side, state];
+    If[side === "LHS",
+      st = Append[st, "SequenceAxes" -> Append[st["SequenceAxes"], id -> True]]];
     {occ, st} = compilerOccurrence[st];
     If[MatchQ[Unevaluated[body], Verbatim[Blank[]]],
       child = None,
@@ -292,9 +304,14 @@ compileRepeated[body_, side_, min_, target_, state_] :=
   Module[{r, occ, st},
     r = compileTerm[body, side, None, state];
     If[compilerResultFailureQ[r], Throw[r, compilerTag]];
-    st = Last[r]; {occ, st} = compilerOccurrence[st];
-    {iri["RepeatedGroup"][occ, First[r],
-      <|"Side" -> side, "Minimum" -> min, "TargetHead" -> target|>], st}
+    st = Last[r];
+    If[side === "RHS" && Head[First[r]] === iri["SequenceAxis"],
+      {Replace[First[r], iri["SequenceAxis"][o_, id_, meta_Association] :>
+        iri["SequenceAxis"][o, id,
+          Join[meta, <|"TargetHead" -> target|>]]], st},
+      {occ, st} = compilerOccurrence[st];
+      {iri["RepeatedGroup"][occ, First[r],
+        <|"Side" -> side, "Minimum" -> min, "TargetHead" -> target|>], st}]
   ];
 
 compileSequenceZip[symbols_List, side_, target_, state_Association] :=
@@ -337,6 +354,7 @@ compileBindingFacts[inline_List, external_List, state_Association] :=
       If[Length[values] > 1,
         Throw[compilerFailure["ConflictingBindingFacts", "Normalize",
           <|"Axis" -> bindingFactAxisId[First[group]],
+            "Name" -> compilerAxisName[bindingFactAxisId[First[group]], state],
             "Values" -> values|>], compilerTag]];
       fact = First[group];
       AppendTo[out, fact],
@@ -356,6 +374,10 @@ compilerBindingAxisId[_, _] := Missing["UnknownAxis"];
 
 bindingFactAxisId[iri["BindingFact"][id_, _, _]] := id;
 bindingFactSize[iri["BindingFact"][_, size_, _]] := size;
+
+compilerAxisName[id_, state_Association] :=
+  Replace[Lookup[state["IRState"]["AxisMetadata"], id, Missing[]],
+    iri["AxisInfo"][name_String, _Association] :> name];
 
 normalizedIRValidQ[iri["NormalizedDesc"][a_Association]] :=
   And[
