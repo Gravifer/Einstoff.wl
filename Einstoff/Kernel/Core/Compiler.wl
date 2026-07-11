@@ -43,9 +43,13 @@ compileHeldDescIR[h_Hold, hb_HoldComplete, operator_, options_] :=
     surface = iri["SurfaceDesc"][sourceDesc, hb, operator,
       If[AssociationQ[options], options, <||>]];
     captured = captureDescIR[h, hb, surface];
-    If[compilerFailureQ[captured], Throw[<|"Surface" -> surface,
+    If[compilerFailureQ[captured],
+      captured = compilerEnrichFailure[captured, surface];
+      Throw[<|"Surface" -> surface,
       "Captured" -> captured, "Normalized" -> captured|>, compilerTag]];
     normalized = normalizeCapturedDesc[captured];
+    If[compilerFailureQ[normalized],
+      normalized = compilerEnrichFailure[normalized, surface]];
     <|"Surface" -> surface, "Captured" -> captured,
       "Normalized" -> normalized|>
   ], compilerTag];
@@ -103,9 +107,17 @@ captureDescIR[h_Hold, hb_HoldComplete, surface_] :=
       "InlineBindingFacts" -> inlineFacts,
       "ExternalBindings" -> externalBindings,
       "CaptureDiagnostics" -> bindingCapture["Diagnostics"],
+      "SourceMap" -> captureRootSourceMap[surface],
       "Bindings" -> hb
     |>]
   ], compilerTag];
+
+captureRootSourceMap[
+    iri["SurfaceDesc"][source_HoldComplete, ___]] :=
+  iri["SourceMap"][<|
+    "LHS" -> iri["SourceRef"][{1}, Extract[source, {1, 1}, HoldComplete]],
+    "RHS" -> iri["SourceRef"][{2}, Extract[source, {1, 2}, HoldComplete]]
+  |>];
 
 captureInlineFacts[specs_List] :=
   Catch[Map[Function[spec,
@@ -310,10 +322,10 @@ normalizeCapturedDesc[iri["CapturedDesc"][captured_Association]] :=
       Throw[compilerFailure["InvalidOutputShapes", "Normalize",
         <|"Source" -> captured["Surface"]|>], compilerTag]];
     state = compilerState[captured];
-    r = compileShapeList[lhs, "LHS", state];
+    r = compileShapeList[lhs, "LHS", 1, state];
     If[compilerResultFailureQ[r], Throw[First[r], compilerTag]];
     {in, state} = r;
-    r = compileShapeList[rhs, "RHS", state];
+    r = compileShapeList[rhs, "RHS", 2, state];
     If[compilerResultFailureQ[r], Throw[First[r], compilerTag]];
     {out, state} = r;
     facts = compileBindingFacts[captured["InlineBindingFacts"],
@@ -344,6 +356,10 @@ compilerState[captured_Association] := <|
   "AxisKinds" -> captured["AxisKinds"],
   "SequenceAxes" -> <||>,
   "AnonymousSequences" -> <|"LHS" -> {}, "RHSUsed" -> {}|>,
+  "SourceDescription" -> captured["Surface"],
+  "SourceBasePath" -> {},
+  "CurrentSourcePath" -> {},
+  "CurrentSourceExpression" -> HoldComplete[None],
   "SourceMap" -> <||>
 |>;
 
@@ -356,10 +372,30 @@ compilerIntern[key_String, display_String, metadata_Association,
   ];
 
 compilerOccurrence[state_Association] :=
-  Module[{id, irs},
+  Module[{id, irs, source, sources},
     {id, irs} = irNewOccurrence[state["IRState"]];
-    {id, Append[state, "IRState" -> irs]}
+    source = compilerCurrentSourceRef[state];
+    sources = Append[state["SourceMap"], id -> source];
+    {id, Join[state, <|"IRState" -> irs, "SourceMap" -> sources|>]}
   ];
+
+compilerCurrentSourceRef[state_Association] :=
+  Module[{path = state["CurrentSourcePath"], held, structuralPath},
+    structuralPath = If[Length[path] >= 1,
+      Join[{1, First[path]}, Rest[path]], {}];
+    held = Quiet @ Check[
+      Replace[state["SourceDescription"],
+        iri["SurfaceDesc"][source_HoldComplete, ___] :>
+          Extract[source, structuralPath, HoldComplete]],
+      state["CurrentSourceExpression"]];
+    If[Head[held] =!= HoldComplete,
+      held = state["CurrentSourceExpression"]];
+    iri["SourceRef"][path, held]
+  ];
+
+compilerAtSource[state_Association, path_List, held_HoldComplete] :=
+  Join[state, <|"CurrentSourcePath" -> path,
+    "CurrentSourceExpression" -> held|>];
 
 compilerAxisForSymbol[s_Symbol, side_String, state_Association] :=
   Module[{name = SymbolName[Unevaluated[s]]},
@@ -375,23 +411,26 @@ compilerAmbientAxis[context_String, name_String, state_Association] :=
   compilerIntern["ambient:" <> context <> name, name,
     <|"Origin" -> "Ambient", "Context" -> context|>, state];
 
-compileShapeList[shapes_List, side_String, state_Association] :=
-  Catch[Module[{out = {}, st = state, r},
+compileShapeList[shapes_List, side_String, sideIndex_Integer, state_Association] :=
+  Catch[Module[{out = {}, st = state, r, shape},
     Do[
+      shape = shapes[[i]];
       If[! ListQ[shape],
         Throw[{compilerFailure["ExpectedShape", "Normalize",
           <|"Side" -> side, "Expression" -> HoldComplete[shape]|>], st},
           compilerTag]];
+      st = Append[st, "SourceBasePath" -> {sideIndex, i}];
       r = compileTerms[shape, side, st];
       If[compilerResultFailureQ[r], Throw[r, compilerTag]];
       AppendTo[out, iri["Shape"][First[r]]]; st = Last[r],
-      {shape, shapes}];
+      {i, Length[shapes]}];
     {out, st}
   ], compilerTag];
 
 compileTerms[terms_List, side_String, state_Association] :=
-  Catch[Module[{out = {}, st = state, r},
+  Catch[Module[{out = {}, st = state, r, base = state["SourceBasePath"]},
     Do[
+      st = compilerAtSource[st, Append[base, i], HoldComplete[terms[[i]]]];
       r = compileTerm[terms[[i]], side, None, st];
       If[compilerResultFailureQ[r], Throw[r, compilerTag]];
       AppendTo[out, First[r]]; st = Last[r],
@@ -435,10 +474,15 @@ compileTerm[Verbatim[BlankNullSequence[]], side_, target_, state_] :=
 compileTerm[SlotSequence[1], side_, _, state_] :=
   compileAnonymousSequence[side, 0, SlotSequence, state];
 
-compileTerm[Slot[x_], side_, _, state_] := compileTerm[x, side, Slot, state];
+compileTerm[Slot[x_], side_, _, state_] :=
+  compileTerm[x, side, Slot,
+    compilerAtSource[state, Append[state["CurrentSourcePath"], 1], HoldComplete[x]]];
 compileTerm[Highlighted[x_], side_, _, state_] :=
-  compileTerm[x, side, Highlighted, state];
-compileTerm[Framed[x_], side_, _, state_] := compileTerm[x, side, Framed, state];
+  compileTerm[x, side, Highlighted,
+    compilerAtSource[state, Append[state["CurrentSourcePath"], 1], HoldComplete[x]]];
+compileTerm[Framed[x_], side_, _, state_] :=
+  compileTerm[x, side, Framed,
+    compilerAtSource[state, Append[state["CurrentSourcePath"], 1], HoldComplete[x]]];
 
 compileTerm[CircleTimes[xs__], side_, target_, state_] :=
   compileComposite["ProductAxis", {xs}, side, target, state];
@@ -498,7 +542,8 @@ compileNamedSequence[s_Symbol, side_, min_, body_, target_, state_] :=
     {occ, st} = compilerOccurrence[st];
     If[MatchQ[Unevaluated[body], Verbatim[Blank[]]],
       child = None,
-      r = compileTerm[body, side, None, st];
+      r = compileTerm[body, side, None,
+        compilerAtSource[st, Append[st["CurrentSourcePath"], 1], HoldComplete[body]]];
       If[compilerResultFailureQ[r], Throw[r, compilerTag]];
       child = First[r]; st = Last[r]];
     {iri["SequenceAxis"][occ, id,
@@ -513,7 +558,8 @@ compileNamedSequenceByName[name_String, side_, min_, body_, target_, state_] :=
       st = Append[st, "SequenceAxes" -> Append[st["SequenceAxes"], id -> True]]];
     {occ, st} = compilerOccurrence[st];
     If[MatchQ[Unevaluated[body], Verbatim[Blank[]]], child = None,
-      r = compileTerm[body, side, None, st];
+      r = compileTerm[body, side, None,
+        compilerAtSource[st, Append[st["CurrentSourcePath"], 1], HoldComplete[body]]];
       If[compilerResultFailureQ[r], Throw[r, compilerTag]];
       child = First[r]; st = Last[r]];
     {iri["SequenceAxis"][occ, id,
@@ -555,19 +601,25 @@ compileLeaf[head_, payload_, side_, target_, state_] :=
   ];
 
 compileComposite[head_, children_List, side_, target_, state_] :=
-  Module[{r, occ, st},
-    r = compileTerms[children, side, state];
+  Module[{r, occ, st, path = state["CurrentSourcePath"],
+      held = state["CurrentSourceExpression"]},
+    r = compileTerms[children, side,
+      Append[state, "SourceBasePath" -> state["CurrentSourcePath"]]];
     If[compilerResultFailureQ[r], Throw[r, compilerTag]];
-    st = Last[r]; {occ, st} = compilerOccurrence[st];
+    st = compilerAtSource[Last[r], path, held];
+    {occ, st} = compilerOccurrence[st];
     {iri[head][occ, First[r],
       <|"Side" -> side, "TargetHead" -> target|>], st}
   ];
 
 compileRepeated[body_, side_, min_, target_, state_] :=
-  Module[{r, occ, st},
-    r = compileTerm[body, side, None, state];
+  Module[{r, occ, st, path = state["CurrentSourcePath"],
+      held = state["CurrentSourceExpression"]},
+    r = compileTerm[body, side, None,
+      compilerAtSource[state, Append[state["CurrentSourcePath"], 1],
+        HoldComplete[body]]];
     If[compilerResultFailureQ[r], Throw[r, compilerTag]];
-    st = Last[r];
+    st = compilerAtSource[Last[r], path, held];
     If[side === "RHS" && Head[First[r]] === iri["SequenceAxis"],
       {Replace[First[r], iri["SequenceAxis"][o_, id_, meta_Association] :>
         iri["SequenceAxis"][o, id,
@@ -603,14 +655,19 @@ compileBindingFacts[inline_List, external_List, state_Association] :=
           <|"Name" -> fact["Name"]|>], compilerTag]];
       source = <|"Kind" -> fact["Source"], "Name" -> fact["Name"],
         "SurfaceKind" -> fact["Kind"], "Binder" -> fact["Binder"],
-        "TargetHead" -> fact["TargetHead"]|>;
+        "TargetHead" -> fact["TargetHead"],
+        "SourceReference" -> iri["SourceRef"][{},
+          With[{sourceExpression = fact["SourceExpression"]},
+            HoldComplete[sourceExpression]]]|>;
       AppendTo[out, iri["BindingFact"][id, fact["Size"], source]],
       {fact, inline}];
     Do[
       id = compilerBindingAxisId[First[bd], state];
       If[! MissingQ[id],
         AppendTo[out, iri["BindingFact"][id, Last[bd],
-          <|"Kind" -> "Argument", "Key" -> bindingKeyDisplayName[First[bd]]|>]]],
+          <|"Kind" -> "Argument", "Key" -> bindingKeyDisplayName[First[bd]],
+            "SourceReference" -> iri["SourceRef"][{},
+              With[{binding = bd}, HoldComplete[binding]]]|>]]],
       {bd, external}];
     grouped = GatherBy[out, bindingFactAxisId];
     out = {};
@@ -650,9 +707,7 @@ normalizedIRValidQ[iri["NormalizedDesc"][a_Association]] :=
   And[
     KeyExistsQ[a, "Inputs"], KeyExistsQ[a, "Outputs"],
     KeyExistsQ[a, "Axes"], KeyExistsQ[a, "Bindings"],
-    FreeQ[a, _Pattern | _Blank | _BlankSequence | _BlankNullSequence |
-      _Rule | _RuleDelayed | _Slot | _SlotSequence | _Highlighted | _Framed |
-      _Annotation | _Labeled, {0, Infinity}, Heads -> True]
+    irFreeOfSurfaceSyntaxQ[iri["NormalizedDesc"][a]]
   ];
 normalizedIRValidQ[_] := False;
 
@@ -662,3 +717,11 @@ compilerFailureQ[expr_] := Head[Unevaluated[expr]] === iri["FailureRecord"];
 compilerFailureDetails[iri["FailureRecord"][_, _, details_Association]] := details;
 compilerResultFailureQ[{expr_, _}] := compilerFailureQ[expr];
 compilerResultFailureQ[_] := True;
+
+compilerEnrichFailure[failure_,
+    iri["SurfaceDesc"][source_HoldComplete, _, operator_, _]] :=
+  irEnrichFailure[failure, <|
+    "Operator" -> operator,
+    "SourceReference" -> iri["SourceRef"][{}, source],
+    "MessageParameters" -> {}
+  |>];

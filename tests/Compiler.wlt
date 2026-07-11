@@ -109,6 +109,58 @@ VerificationTest[
 ];
 
 VerificationTest[
+  Module[{captured, sources},
+    captured = compile[{{a_}} :> {{a, Annotation[c, 3]}}]["Captured"];
+    sources = Cases[captured, ir["SourceRef"][path_, held_] :> {path, held},
+      Infinity];
+    sources],
+  {{{1}, HoldComplete[{{a_}}]},
+   {{2}, HoldComplete[{{a, Annotation[c, 3]}}]}},
+  TestID -> "compiler-captured-source-roots"
+];
+
+VerificationTest[
+  Module[{normalized, occurrences, sourceMap, refs},
+    normalized = compile[
+      {{a_, Highlighted[b_]}} :> {{b, a}}]["Normalized"];
+    occurrences = DeleteDuplicates @ Cases[normalized,
+      ir["AxisOccurrence"][occ_, _, _] :> occ, Infinity];
+    sourceMap = First @ Cases[normalized,
+      ir["SourceMap"][m_Association] :> m, Infinity];
+    refs = Lookup[sourceMap, occurrences];
+    {Keys[sourceMap] === occurrences,
+      MatchQ[refs, {ir["SourceRef"][{1, 1, 1}, HoldComplete[a_]],
+        ir["SourceRef"][{1, 1, 2, 1}, HoldComplete[b_]],
+        ir["SourceRef"][{2, 1, 1}, HoldComplete[b]],
+        ir["SourceRef"][{2, 1, 2}, HoldComplete[a]]}]}],
+  {True, True},
+  TestID -> "compiler-occurrence-source-map"
+];
+
+VerificationTest[
+  Module[{normalized, stripped},
+    normalized = compile[{{a_}} :> {{a, Annotation[c, 3]}}]["Normalized"];
+    stripped = normalized /. ir["SourceMap"][_Association] :> Null;
+    FreeQ[stripped,
+      _Pattern | _Blank | _Rule | _RuleDelayed | _Annotation | _Labeled,
+      Infinity, Heads -> True]],
+  True,
+  TestID -> "compiler-surface-syntax-confined-to-source-map"
+];
+
+VerificationTest[
+  MatchQ[
+    compile[{{a_}} :> {{Map[a]}}]["Normalized"],
+    ir["FailureRecord"][_, "Capture",
+      KeyValuePattern[{
+        "Operator" -> None,
+        "SourceReference" -> ir["SourceRef"][{}, _HoldComplete],
+        "MessageParameters" -> _List}]]],
+  True,
+  TestID -> "compiler-failure-has-structured-context"
+];
+
+VerificationTest[
   MatchQ[
     compile[{{Framed[Annotation["a", 3]]}} :> {{Framed["a"]}}]["Normalized"],
     _?(Head[#] === ir["NormalizedDesc"] &)],

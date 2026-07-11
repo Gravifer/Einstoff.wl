@@ -105,4 +105,45 @@ VerificationTest[
   TestID -> "solver-sequence-member-identities-are-local-and-indexed"
 ];
 
+VerificationTest[
+  Module[{bundle, constraints, sources},
+    bundle = solve[compile[{{a_, b_}} :> {{b, a}}], {{2, 3}}];
+    constraints = bundle["Constraints"];
+    sources = Cases[constraints,
+      ir["EqualSize"][_, _, source_Association] :> source["Source"], Infinity];
+    MatchQ[sources,
+      {ir["SourceRef"][{1, 1, 1}, HoldComplete[a_]],
+       ir["SourceRef"][{1, 1, 2}, HoldComplete[b_]]}]],
+  True,
+  TestID -> "solver-constraints-carry-occurrence-sources"
+];
+
+VerificationTest[
+  Module[{failure = solved[{{a_, a_}} :> {{a}}, {{3, 4}}]},
+    MatchQ[failure,
+      ir["FailureRecord"]["ConflictingAxisSizes", "Solve",
+        KeyValuePattern["Sources" -> {__Association}]]]],
+  True,
+  TestID -> "solver-conflict-carries-source-provenance"
+];
+
+VerificationTest[
+  ! FreeQ[solved[{{a_, b_}} :> {{b, a}}, {{2, 3}}],
+    ir["SourceMap"][_Association], Infinity],
+  True,
+  TestID -> "solver-preserves-source-map"
+];
+
+VerificationTest[
+  Module[{failure = solved[{{a_, a_}} :> {{a}}, {{3, 4}}]},
+    MatchQ[failure,
+      ir["FailureRecord"]["ConflictingAxisSizes", "Solve",
+        KeyValuePattern[{
+          "Operator" -> None,
+          "SourceReference" -> ir["SourceRef"][{}, _HoldComplete],
+          "MessageParameters" -> _List}]]]],
+  True,
+  TestID -> "solver-failure-has-structured-context"
+];
+
 EndTestSection[];

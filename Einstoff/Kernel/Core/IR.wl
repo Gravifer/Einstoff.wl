@@ -14,7 +14,7 @@
 PackageScoped[{
   irConstructors, irStageHeads, irStructuralHeads, irPlanStepHeads,
   irNewState, irInternAxis, irNewOccurrence, irAxisMetadata,
-  irSurfaceDesc, irSourceRef, irFailure,
+  irSurfaceDesc, irSourceRef, irFailure, irEnrichFailure,
   irStageQ, irValidQ, irValidate, irNodes, irFreeOfSurfaceSyntaxQ
 }]
 
@@ -261,16 +261,25 @@ irSourceRef[path_List, held_HoldComplete] :=
 irFailure[tag_String, stage_, details_Association : <||>] :=
   Einstoff`Internal`IR`FailureRecord[tag, stage, details];
 
+irEnrichFailure[
+    Einstoff`Internal`IR`FailureRecord[tag_, stage_, details_Association],
+    additions_Association] :=
+  Einstoff`Internal`IR`FailureRecord[tag, stage, Join[additions, details]];
+irEnrichFailure[other_, _Association] := other;
+
 irStageQ[expr_] := MemberQ[irStageHeads, Head[Unevaluated[expr]]];
 
 irNodes[expr_] := Cases[Unevaluated[expr],
   n_ /; MemberQ[irConstructors, Head[Unevaluated[n]]], {0, Infinity}];
 
-irFreeOfSurfaceSyntaxQ[expr_] := FreeQ[Unevaluated[expr],
-  _Pattern | _Blank | _BlankSequence | _BlankNullSequence |
-    _Rule | _RuleDelayed | _Slot | _SlotSequence |
-    _Highlighted | _Framed | _Annotation | _Labeled,
-  {0, Infinity}, Heads -> True];
+irFreeOfSurfaceSyntaxQ[expr_] :=
+  FreeQ[
+    Unevaluated[expr] /.
+      Einstoff`Internal`IR`SourceRef[_List, _HoldComplete] :> Null,
+    _Pattern | _Blank | _BlankSequence | _BlankNullSequence |
+      _Rule | _RuleDelayed | _Slot | _SlotSequence |
+      _Highlighted | _Framed | _Annotation | _Labeled,
+    {0, Infinity}, Heads -> True];
 
 irValidIdQ[Einstoff`Internal`IR`AxisId[n_Integer?Positive]] := True;
 irValidIdQ[Einstoff`Internal`IR`OccurrenceId[n_Integer?Positive]] := True;

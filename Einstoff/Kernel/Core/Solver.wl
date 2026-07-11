@@ -16,9 +16,11 @@ solveDescIR[compiled_Association, inputShapes_] :=
         solverTag]];
     constraints = buildConstraintDesc[normalized, inputShapes];
     If[solverFailureQ[constraints],
+      constraints = solverEnrichFailure[constraints, compiled];
       Throw[Join[compiled, <|"Constraints" -> constraints, "Solved" -> constraints|>],
         solverTag]];
     solved = solveConstraintDesc[constraints];
+    If[solverFailureQ[solved], solved = solverEnrichFailure[solved, compiled]];
     Join[compiled, <|"Constraints" -> constraints, "Solved" -> solved|>]
   ], solverTag];
 
@@ -37,7 +39,9 @@ buildConstraintDesc[normalized : irs["NormalizedDesc"][a_Association],
           "Actual" -> Length[inputShapes]|>], solverTag]];
     bindings = Replace[a["Bindings"], irs["BindingFacts"][f_List] :> f];
     captureState = <|"Lengths" -> <||>, "Members" -> <||>,
-      "PointwiseAxes" -> {}|>;
+      "PointwiseAxes" -> {},
+      "SourceMap" -> Replace[a["SourceMap"],
+        irs["SourceMap"][m_Association] :> m]|>;
     Do[
       With[{id = bindingFactId[fact], size = bindingFactValue[fact],
           source = bindingFactSource[fact]},
@@ -70,6 +74,7 @@ buildConstraintDesc[normalized : irs["NormalizedDesc"][a_Association],
       "SolvedInputs" -> irs["Inputs"][solvedInputs],
       "SolvedOutputs" -> solvedOutputs,
       "SequenceCaptures" -> captureState,
+      "SourceMap" -> a["SourceMap"],
       "Constraints" -> irs["Constraints"][constraints]
     |>]
   ], solverTag];
@@ -155,7 +160,8 @@ expandInputTerms[terms_List, dims_List, inputIndex_Integer, state_Association] :
         constraints = Join[constraints,
           Lookup[expanded, "Constraints", {}],
           MapIndexed[irs["EqualSize"][sizeExpression[#1],
-              slice[[First[#2]]], <|"Input" -> inputIndex,
+              slice[[First[#2]]], <|"Source" -> solverTermSource[terms[[j]], st],
+                "Input" -> inputIndex,
                 "Dimension" -> cursor + First[#2] - 1|>] &,
             expanded["Terms"]]];
         st = expanded["State"];
@@ -169,11 +175,22 @@ expandInputTerms[terms_List, dims_List, inputIndex_Integer, state_Association] :
           expanded = sizeExpression[expanded];
           If[solverFailureQ[expanded], Throw[expanded, solverTag]];
           AppendTo[constraints, irs["EqualSize"][expanded, dims[[cursor]],
-            <|"Input" -> inputIndex, "Dimension" -> cursor|>]]];
+            <|"Source" -> solverTermSource[terms[[j]], st],
+              "Input" -> inputIndex, "Dimension" -> cursor|>]]];
         cursor++],
       {j, Length[terms]}];
     <|"Terms" -> out, "Constraints" -> constraints, "State" -> st|>
   ], solverTag];
+
+solverTermOccurrence[head_[occ_, ___]] /;
+    MemberQ[{irs["AxisOccurrence"], irs["LiteralAxis"], irs["ProductAxis"],
+      irs["DirectSumAxis"], irs["AnonymousAxis"], irs["SequenceAxis"],
+      irs["RepeatedGroup"], irs["SequenceZip"]}, head] := occ;
+solverTermOccurrence[_] := Missing["NoOccurrence"];
+
+solverTermSource[term_, state_Association] :=
+  Lookup[Lookup[state, "SourceMap", <||>], solverTermOccurrence[term],
+    irs["SourceRef"][{}, HoldComplete[term]]];
 
 expandBoundSequencesInTerm[
     irs["SequenceAxis"][_, id_, meta_Association], state_Association] :=
@@ -357,10 +374,15 @@ solveConstraintDesc[constraint : irs["ConstraintDesc"][a_Association]] :=
     conflict = SelectFirst[Normal[directSizes],
       Length[DeleteDuplicates[Last[#]]] > 1 &, Missing["NoConflict"]];
     If[! MissingQ[conflict],
-      Throw[solverFailure["ConflictingAxisSizes", "Solve", <|
-        "Axis" -> First[conflict],
-        "Expected" -> First[Last[conflict]],
-        "Actual" -> Last[Last[conflict]]|>], solverTag]];
+      With[{conflictId = First[conflict]},
+        Throw[solverFailure["ConflictingAxisSizes", "Solve", <|
+          "Axis" -> conflictId,
+          "Expected" -> First[Last[conflict]],
+          "Actual" -> Last[Last[conflict]],
+          "Sources" -> Cases[constraints,
+            irs["EqualSize"][irs["SizeAxis"][id_], _, source_] /;
+                id === conflictId :> source]
+        |>], solverTag]]];
     variables = solverVariable /@ axisIds;
     idToVariable = AssociationThread[axisIds, variables];
     equations = constraintEquation[#, idToVariable] & /@ constraints;
@@ -389,6 +411,7 @@ solveConstraintDesc[constraint : irs["ConstraintDesc"][a_Association]] :=
       "Inputs" -> a["SolvedInputs"],
       "Outputs" -> a["SolvedOutputs"],
       "SequenceCaptures" -> a["SequenceCaptures"],
+      "SourceMap" -> a["SourceMap"],
       "OutputShapes" -> outShapes,
       "AxisSizes" -> axisSizes
     |>]
@@ -402,10 +425,10 @@ solverVariable[irs["SequenceMemberId"][irs["AxisId"][n_Integer], k_Integer]] :=
 solverVariable[irs["SequenceMemberId"][irs["OccurrenceId"][n_Integer], k_Integer]] :=
   Indexed[solverAnonymousSequence, {n, k}];
 
-constraintEquation[irs["KnownSize"][id_, n_, _], vars_Association] :=
+constraintEquation[irs["KnownSize"][id_, n_, source_], vars_Association] :=
   If[IntegerQ[n] && n > 0, vars[id] == n,
     solverFailure["InvalidKnownSize", "Constraints",
-      <|"Axis" -> id, "Value" -> HoldComplete[n]|>]];
+      <|"Axis" -> id, "Value" -> HoldComplete[n], "Source" -> source|>]];
 constraintEquation[irs["EqualSize"][expr_, n_Integer, _], vars_Association] :=
   algebraicSize[expr, vars] == n;
 constraintEquation[irs["EqualSizeExpr"][left_, right_, _], vars_Association] :=
@@ -450,3 +473,13 @@ concreteTermSize[term_, sizes_Association] :=
 solverFailure[tag_, stage_, details_Association] :=
   irs["FailureRecord"][tag, stage, details];
 solverFailureQ[expr_] := Head[Unevaluated[expr]] === irs["FailureRecord"];
+
+solverEnrichFailure[failure_, compiled_Association] :=
+  Module[{surface = Lookup[compiled, "Surface", None], operator = None,
+      source = irs["SourceRef"][{}, HoldComplete[None]]},
+    Replace[surface,
+      irs["SurfaceDesc"][held_HoldComplete, _, op_, _] :>
+        (operator = op; source = irs["SourceRef"][{}, held])];
+    irEnrichFailure[failure, <|"Operator" -> operator,
+      "SourceReference" -> source, "MessageParameters" -> {}|>]
+  ];
