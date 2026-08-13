@@ -30,7 +30,7 @@ usageCell[expr_, description_String] :=
   cell[
     TextData[{
       Cell[BoxData[heldBoxes[expr]], "InlineFormula"],
-      " \[LineSeparator]" <> description
+      " " <> description
     }],
     "Usage"
   ];
@@ -301,7 +301,21 @@ generatedFiles = {
   FileNameJoin[{guideDir, "Einstoff.nb"}]
 };
 
-MapThread[Put, {{functionNotebook, guideNotebook}, generatedFiles}];
+writeNotebook[nb_Notebook, file_String] := Module[{stream},
+  stream = OpenWrite[file, PageWidth -> 100, CharacterEncoding -> "ASCII"];
+  WriteString[stream,
+    "(* Content-type: application/vnd.wolfram.mathematica *)\n\n",
+    "(*** Wolfram Notebook File ***)\n",
+    "(* http://www.wolfram.com/nb *)\n\n",
+    "(* CreatedBy='Wolfram 15.0' *)\n\n",
+    "(* Beginning of Notebook Content *)\n"
+  ];
+  Write[stream, nb];
+  WriteString[stream, "\n(* End of Notebook Content *)\n"];
+  Close[stream];
+];
+
+MapThread[writeNotebook, {{functionNotebook, guideNotebook}, generatedFiles}];
 
 validNotebookQ[file_String] := Module[{nb, ids},
   nb = Quiet @ Check[Get[file], $Failed];
