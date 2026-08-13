@@ -1,0 +1,3 @@
+# Resource definition notebooks store required submission metadata in notebook
+# options, so they must not pass through the user's output-stripping notebook filter.
+Gravifer__Einstoff/ResourceDefinition.nb -filter
