@@ -73,6 +73,17 @@ check[
   <|"UsageCells" -> Length[usageCells], "UsageForms" -> Length[usageForms]|>
 ];
 
+symbolSelfLinks = Cases[
+  symbolDoc,
+  ButtonBox[_, ___, ButtonData -> "paclet:Gravifer/Einstoff/ref/Einstoff", ___],
+  Infinity
+];
+check[
+  "symbol documentation has no self-links",
+  symbolSelfLinks === {},
+  symbolSelfLinks
+];
+
 optionTables = Cases[
   symbolDoc,
   Cell[BoxData[GridBox[rows_List]], "3ColumnTableMod", ___] :> rows,
@@ -85,6 +96,16 @@ check[
 ];
 
 guideDoc = Quiet @ Check[Get[Last[docs]], $Failed];
+guideSymbolLinks = Cases[
+  guideDoc,
+  ButtonBox["Einstoff", ___, ButtonData -> "paclet:Gravifer/Einstoff/ref/Einstoff", ___],
+  Infinity
+];
+check[
+  "guide links to the Einstoff symbol page",
+  Length[guideSymbolLinks] === 11,
+  Length[guideSymbolLinks]
+];
 guideForms = Cases[
   guideDoc,
   Cell[BoxData[boxes_], "InlineGuideFunction", ___] :>
