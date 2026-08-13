@@ -1,0 +1,52 @@
+name: Paclet CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  WOLFRAMSCRIPT_ENTITLEMENTID: ${{ secrets.WOLFRAMSCRIPT_ENTITLEMENTID }}
+  WLPR_PACLET_SITE: https://resources.wolframcloud.com/PacletRepository/pacletsite
+
+jobs:
+  check:
+    name: Check paclet
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check definition notebook
+        uses: WolframResearch/check-paclet@v1.11.0
+        with:
+          target: Build
+          paclet_cicd_version: 0.36.2
+          definition_notebook: ./Gravifer__Einstoff/ResourceDefinition.nb
+
+  build:
+    name: Build paclet
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build archive
+        uses: WolframResearch/build-paclet@v1.11.0
+        with:
+          target: Build
+          check: false
+          paclet_cicd_version: 0.36.2
+          definition_notebook: ./Gravifer__Einstoff/ResourceDefinition.nb
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: Einstoff-${{ github.sha }}
+          path: ${{ env.PACLET_BUILD_DIR }}
+          if-no-files-found: error
