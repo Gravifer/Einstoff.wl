@@ -54,6 +54,37 @@ Scan[
   docs
 ];
 
+symbolDoc = Quiet @ Check[Get[First[docs]], $Failed];
+optionTables = Cases[
+  symbolDoc,
+  Cell[BoxData[GridBox[rows_List]], "3ColumnTableMod", ___] :> rows,
+  Infinity
+];
+check[
+  "documentation option-table columns",
+  optionTables =!= {} && AllTrue[Flatten[optionTables, 1], Length[#] === 4 &],
+  Length /@ Flatten[optionTables, 1]
+];
+
+guideDoc = Quiet @ Check[Get[Last[docs]], $Failed];
+guideLabels = Cases[
+  guideDoc,
+  ButtonBox[label_String, ___, ButtonData -> "paclet:Gravifer/Einstoff/ref/Einstoff", ___] :> label,
+  Infinity
+];
+expectedGuideLabels = {
+  "Einstoff[ArrayReshape]",
+  "Einstoff[\"Massage\"]",
+  "Einstoff[ArrayReduce][f]",
+  "Einstoff[Dot]",
+  "Einstoff[Inner][mul, add]"
+};
+check[
+  "guide distinguishes operator forms",
+  ContainsAll[guideLabels, expectedGuideLabels] && DuplicateFreeQ[guideLabels],
+  guideLabels
+];
+
 If[failures === {},
   Print["All source paclet checks passed."];
   Exit[0],

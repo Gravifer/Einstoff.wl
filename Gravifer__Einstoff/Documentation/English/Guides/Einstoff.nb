@@ -2,8 +2,8 @@
 
 (* Beginning of Notebook Content *)
 Notebook[{CellGroupData[{Cell["Einstoff", "GuideTitle", CellID -> 300001],
-    Cell["Einstoff provides a Wolfram-native, declarative notation for rearranging, reducing, \
-mapping, contracting, broadcasting, joining, and splitting tensor axes. Shape descriptions use \
-familiar pattern forms at the surface and compile to a private staged representation before \
-execution.", "GuideAbstract", CellID -> 300002]}]
+    Cell["Einstoff is one public symbol with several operator forms. Choose an operator below, then \
+describe input and output axes using Wolfram-native pattern and wrapper syntax. The description is \
+compiled to a private staged representation before tensor execution.", "GuideAbstract",
+     CellID -> 300002]}]
 (* End of Notebook Content *)

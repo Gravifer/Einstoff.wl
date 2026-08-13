@@ -56,8 +56,11 @@ axis] add an inline positive-integer size. They compose in either nesting order 
 Highlighted, and Framed targeting wrappers.", "Notes", CellID -> 200017],
     Cell["Targeted string axes use Slot[\"name\"], Highlighted[\"name\"], or Framed[\"name\"]. \
 Targeted symbol axes use Highlighted or Framed.", "Notes", CellID -> 200018],
-    Cell[BoxData[GridBox[{{"TraceAction", "None",
-         "Use Hold or Defer to inspect the lowered Wolfram expression."},
-        {"\"Targeting\"", "Automatic", "Use False, Automatic, or True to control inference and \
-validation of explicitly targeted axes."}}]], "3ColumnTableMod", CellID -> 200019]}]
+    Cell[BoxData[GridBox[{{Cell["      ", "TableRowIcon"], "TraceAction", "None",
+         Cell["Use Hold or Defer to inspect the lowered Wolfram expression.", "TableText"]},
+        {Cell["      ", "TableRowIcon"], "\"Targeting\"", "Automatic", Cell["Use False, Automatic, \
+or True to control inference and validation of explicitly targeted axes.", "TableText"]}}]],
+     "3ColumnTableMod", GridBoxOptions -> {GridBoxBackground -> {"Columns" -> {{None}},
+         "Rows" -> {None, {None}}}, GridBoxDividers -> {"Rows" -> {{True, True, True}}}},
+     CellID -> 200019]}]
 (* End of Notebook Content *)

@@ -47,13 +47,22 @@ docButton[label_String, uri_String] :=
 linkedCell[label_String, uri_String, style_String] :=
   cell[TextData[{Cell[BoxData[docButton[label, uri]], "InlineFormula"]}], style];
 
-guideListing[description_String] :=
+guideListing[form_String, description_String] :=
   cell[
     TextData[{
       Cell[
-        BoxData[docButton["Einstoff", "Gravifer/Einstoff/ref/Einstoff"]],
+        BoxData[docButton[form, "Gravifer/Einstoff/ref/Einstoff"]],
         "InlineGuideFunction"
       ],
+      " \[LongDash] " <> description
+    }],
+    "GuideText"
+  ];
+
+guideConcept[form_String, description_String] :=
+  cell[
+    TextData[{
+      Cell[BoxData[form], "InlineFormula"],
       " \[LongDash] " <> description
     }],
     "GuideText"
@@ -159,10 +168,24 @@ functionNotebook = Notebook[
         ],
         cell[
           BoxData @ GridBox[{
-            {"TraceAction", "None", "Use Hold or Defer to inspect the lowered Wolfram expression."},
-            {"\"Targeting\"", "Automatic", "Use False, Automatic, or True to control inference and validation of explicitly targeted axes."}
+            {
+              Cell["      ", "TableRowIcon"],
+              "TraceAction",
+              "None",
+              Cell["Use Hold or Defer to inspect the lowered Wolfram expression.", "TableText"]
+            },
+            {
+              Cell["      ", "TableRowIcon"],
+              "\"Targeting\"",
+              "Automatic",
+              Cell["Use False, Automatic, or True to control inference and validation of explicitly targeted axes.", "TableText"]
+            }
           }],
-          "3ColumnTableMod"
+          "3ColumnTableMod",
+          GridBoxOptions -> {
+            GridBoxBackground -> {"Columns" -> {{None}}, "Rows" -> {None, {None}}},
+            GridBoxDividers -> {"Rows" -> {{True, True, True}}}
+          }
         ]
       }, Open],
 
@@ -251,30 +274,41 @@ guideNotebook = Notebook[
       group[{
         cell["Einstoff", "GuideTitle"],
         cell[
-          "Einstoff provides a Wolfram-native, declarative notation for rearranging, reducing, mapping, contracting, broadcasting, joining, and splitting tensor axes. Shape descriptions use familiar pattern forms at the surface and compile to a private staged representation before execution.",
+          "Einstoff is one public symbol with several operator forms. Choose an operator below, then describe input and output axes using Wolfram-native pattern and wrapper syntax. The description is compiled to a private staged representation before tensor execution.",
           "GuideAbstract"
         ]
       }, Open],
 
       group[{
         cell["Structural transformations", "GuideFunctionsSection"],
-        guideListing["rearrange and reshape with ArrayReshape"],
-        guideListing["use the permissive Massage engine or its ArrayContract guard"],
-        guideListing["join and split structural direct sums"]
+        guideListing["Einstoff[ArrayReshape]", "perform element-count-preserving rearrangement and reshape"],
+        guideListing["Einstoff[\"Massage\"]", "use the permissive single-tensor structural engine"],
+        guideListing["Einstoff[\"ArrayContract\"]", "reshape and perform within-tensor pairwise contraction without repetition"],
+        guideListing["Einstoff[Join]", "concatenate structural direct sums"],
+        guideListing["Einstoff[Split]", "split structural direct sums"]
       }, Open],
 
       group[{
         cell["Reduction and mapped operations", "GuideFunctionsSection"],
-        guideListing["reduce selected axes with ArrayReduce"],
-        guideListing["apply shape-preserving targeted operations with Operate"],
-        guideListing["map general functions over targeted blocks with Map"]
+        guideListing["Einstoff[ArrayReduce][f]", "reduce selected axes using f"],
+        guideListing["Einstoff[Operate][f]", "apply a shape-preserving operation to targeted blocks"],
+        guideListing["Einstoff[Map][f]", "map a possibly shape-changing function over targeted blocks"]
       }, Open],
 
       group[{
         cell["Contractions", "GuideFunctionsSection"],
-        guideListing["perform sum-of-products contractions with Dot"],
-        guideListing["use custom multiplication and addition with Inner"],
-        guideListing["dispatch the implemented einsum-style subset"]
+        guideListing["Einstoff[Dot]", "perform sum-of-products contraction over two or more tensors"],
+        guideListing["Einstoff[Inner][mul, add]", "contract using custom multiplication and addition"],
+        guideListing["Einstoff[\"einsum\"]", "dispatch the implemented einsum-style contraction subset"]
+      }, Open],
+
+      group[{
+        cell["Shape descriptions", "GuideFunctionsSection"],
+        guideConcept["a_   a   \"a\"", "infer a named axis, refer to an established symbol axis, or use a hygienic string axis"],
+        guideConcept["__   ___", "infer one-or-more or zero-or-more anonymous axes"],
+        guideConcept["a \[CircleTimes] b   a \[CirclePlus] b", "compose a product axis or structural direct sum"],
+        guideConcept["Slot[\"a\"]   Highlighted[a]   Framed[a]", "mark an occurrence as targeted"],
+        guideConcept["Annotation[a, n]   Labeled[n, a]", "declare an inline positive-integer axis size"]
       }, Open],
 
       group[{
