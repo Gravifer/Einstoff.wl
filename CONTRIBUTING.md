@@ -60,6 +60,21 @@ when the Wolfram-only suite passes.
 Additional tests are appreciated when they clarify behavior, cover a regression, or
 pin down a design boundary.
 
+## Paclet Repository Checks
+
+The committed `Gravifer__Einstoff/ResourceDefinition.nb` is the source definition
+notebook for Paclet Repository checks. With `Wolfram/PacletCICD` installed, run:
+
+```powershell
+wolframscript -script scripts/paclet-cicd.wls check
+```
+
+After a successful check, use the `build` argument to produce the PacletCICD archive
+under the ignored `build/` directory. The build command does not repeat the check.
+These commands target `"Build"`; they do not submit anything.
+The GitHub workflow likewise performs only check and build jobs. It requires the
+`WOLFRAMSCRIPT_ENTITLEMENTID` Actions secret, but not a publisher token.
+
 ## Generated and Local Files
 
 Keep local scratch work out of commits unless it is part of the requested change. In
