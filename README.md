@@ -69,8 +69,8 @@ Einstoff[ArrayReduce][Total][
 
 ## Getting Started
 
-Have your own Wolfram Language system ready. The `0.2.0` release targets Wolfram
-Language 15.0 or newer, and the test suite runs through `wolframscript`.
+Have your own Wolfram Language system ready. The `0.2.0-alpha.1` prerelease targets
+Wolfram Language 15.0 or newer, and the test suite runs through `wolframscript`.
 
 Python is used only for the optional cross-validation harness:
 
@@ -109,8 +109,9 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for more details.
 ## Status
 
 Einstoff is preparing its first Paclet Repository submission as
-`Gravifer/Einstoff` version `0.2.0`. The publisher-ID request and repository review are
-external release gates; source preparation remains in progress here.
+`Gravifer/Einstoff`. Version `0.2.0-alpha.1` is a repository-hosted prerelease;
+publisher approval and Paclet Repository review remain external gates for the
+eventual `0.2.0` release.
 
 ## License
 

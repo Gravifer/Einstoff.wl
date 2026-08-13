@@ -27,7 +27,7 @@ check[
 
 If[Length[paclets] == 1,
   paclet = First[paclets];
-  check["version", paclet["Version"] === "0.2.0", paclet["Version"]];
+  check["version", paclet["Version"] === "0.2.0-alpha.1", paclet["Version"]];
   check["minimum Wolfram version", paclet["WolframVersion"] === "15.0+", paclet["WolframVersion"]];
   check["publisher ID", paclet["PublisherID"] === "Gravifer", paclet["PublisherID"]];
   check["primary context", paclet["PrimaryContext"] === "Gravifer`Einstoff`", paclet["PrimaryContext"]];
