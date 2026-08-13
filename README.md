@@ -113,7 +113,7 @@ Run `check` before `build`; the build command does not repeat the relatively cos
 definition-notebook inspection.
 
 The GitHub workflow checks and builds only; it never submits a paclet. Hosted runs
-require a repository Actions secret named `WOLFRAMSCRIPT_ENTITLEMENTID`. Publisher
+require a GitHub Actions secret named `WOLFRAMSCRIPT_ENTITLEMENTID`. Publisher
 approval and a resource publisher token are separate requirements that are needed
 only for a later submission workflow.
 
