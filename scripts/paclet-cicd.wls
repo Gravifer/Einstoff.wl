@@ -14,12 +14,40 @@ definition = FileNameJoin[{
 buildDir = FileNameJoin[{root, "build"}];
 arguments = Rest[$ScriptCommandLine];
 command = ToLowerCase[First[arguments, "check"]];
+config = Get[FileNameJoin[{scriptDir, "paclet-cicd-config.wl"}]];
 
-loadResult = Quiet @ Check[Needs["Wolfram`PacletCICD`"], $Failed];
-If[loadResult === $Failed,
+repositoryDirectory = FileNameJoin[{
+  $UserBaseDirectory,
+  "Paclets",
+  "Repository",
+  StringReplace[config["Name"], "/" -> "__"] <> "-" <> config["Version"]
+}];
+If[DirectoryQ[repositoryDirectory], PacletDirectoryLoad[repositoryDirectory]];
+pacletCICD = SelectFirst[
+  PacletFind[config["Name"]],
+  Quiet @ Check[#["Version"] === config["Version"], False] &,
+  Missing["NotInstalled"]
+];
+If[MissingQ[pacletCICD],
   Print[
-    "Wolfram/PacletCICD is not installed. Install it with ",
-    "PacletInstall[\"Wolfram/PacletCICD\"]."
+    config["Name"], " ", config["Version"],
+    " is required. Run scripts/install-paclet-cicd.wls first."
+  ];
+  Exit[1]
+];
+PacletDirectoryLoad[pacletCICD["Location"]];
+loadResult = Quiet @ Check[Needs["Wolfram`PacletCICD`"], $Failed];
+loadedFile = Quiet @ Check[FindFile["Wolfram`PacletCICD`"], $Failed];
+If[
+  loadResult === $Failed ||
+    ! StringQ[loadedFile] ||
+    ! StringStartsQ[
+      ExpandFileName[loadedFile],
+      ExpandFileName[pacletCICD["Location"]]
+    ],
+  Print[
+    "Could not load the pinned ", config["Name"], " ", config["Version"],
+    " installation."
   ];
   Exit[1]
 ];
@@ -29,28 +57,44 @@ If[! FileExistsQ[definition],
   Exit[1]
 ];
 
-result = Switch[
-  command,
-  "check",
-    Wolfram`PacletCICD`CheckPaclet[
-      File[definition],
-      None,
-      "Target" -> "Build",
-      "FailureCondition" -> "Error",
-      "SetWorkflowValue" -> False
-    ],
-  "build",
-    Wolfram`PacletCICD`BuildPaclet[
-      File[definition],
-      "Check" -> False,
-      "Target" -> "Build",
-      "FailureCondition" -> "Error",
-      "ExitOnFail" -> False,
-      "SetWorkflowValue" -> False
-    ],
-  _,
-    Print["Usage: wolframscript -script scripts/paclet-cicd.wls [check|build]"];
-    Exit[2]
+(* PacletCICD 0.36.2 drops CheckPaclet's SetWorkflowValue option before its
+   internal call. A workflow scope of None keeps that bug from writing to the
+   user's ApplicationData directory, including in read-only containers. *)
+result = Block[{Wolfram`PacletCICD`$WorkflowValueScope = None},
+  Switch[
+    command,
+    "check",
+      Wolfram`PacletCICD`CheckPaclet[
+        File[definition],
+        None,
+        "Target" -> "Build",
+        "FailureCondition" -> "Error"
+      ],
+    "build",
+      Wolfram`PacletCICD`BuildPaclet[
+        File[definition],
+        "Check" -> False,
+        "Target" -> "Build",
+        "FailureCondition" -> "Error",
+        "ExitOnFail" -> False,
+        "SetWorkflowValue" -> False
+      ],
+    "ci",
+      Wolfram`PacletCICD`BuildPaclet[
+        File[definition],
+        "Check" -> True,
+        "Target" -> "Build",
+        "FailureCondition" -> "Error",
+        "ExitOnFail" -> False,
+        "SetWorkflowValue" -> False
+      ],
+    _,
+      Print[
+        "Usage: wolframscript -script scripts/paclet-cicd.wls ",
+        "[check|build|ci]"
+      ];
+      Exit[2]
+  ]
 ];
 
 If[result === $Failed || FailureQ[result],
@@ -58,7 +102,7 @@ If[result === $Failed || FailureQ[result],
   Exit[1]
 ];
 
-If[command === "build",
+If[MemberQ[{"build", "ci"}, command],
   archive = Replace[
     result,
     Success[_, data_Association] :> Lookup[data, "PacletArchive", Missing["NotAvailable"]]

@@ -10,13 +10,17 @@ on:
 permissions:
   contents: read
 
-env:
-  WOLFRAMSCRIPT_ENTITLEMENTID: ${{ secrets.WOLFRAMSCRIPT_ENTITLEMENTID }}
-  WLPR_PACLET_SITE: https://resources.wolframcloud.com/PacletRepository/pacletsite
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     name: Check and build paclet
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -24,16 +28,14 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Build archive
-        uses: WolframResearch/build-paclet@4d9b2c95ed6f6a86cee9abb5f95154c7b36a76a7 # v1.11.0
-        with:
-          target: Build
-          check: true
-          paclet_cicd_version: 0.36.2
-          definition_notebook: ./Gravifer__Einstoff/ResourceDefinition.nb
+        uses: ./.github/actions/paclet-ci
+        env:
+          WOLFRAMSCRIPT_ENTITLEMENTID: ${{ secrets.WOLFRAMSCRIPT_ENTITLEMENTID }}
+          WLPR_PACLET_SITE: https://resources.wolframcloud.com/PacletRepository/pacletsite
 
       - name: Upload archive
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Einstoff-${{ github.sha }}
-          path: ${{ env.PACLET_BUILD_DIR }}
+          path: ./build/*.paclet
           if-no-files-found: error

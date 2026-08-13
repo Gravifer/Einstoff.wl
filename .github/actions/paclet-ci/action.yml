@@ -1,0 +1,6 @@
+name: Pinned Paclet CI
+description: Check and build Einstoff in an immutable Wolfram Engine image
+
+runs:
+  using: docker
+  image: Dockerfile
