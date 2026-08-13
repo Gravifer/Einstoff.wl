@@ -3,65 +3,123 @@
 (* Beginning of Notebook Content *)
 Notebook[{Cell[CellGroupData[{Cell["Einstoff", "ObjectName", CellID -> 200001],
      Cell[TextData[{Cell["   ", "ModInfo"],
-        Cell[BoxData[RowBox[{RowBox[{"Einstoff", "[", "ArrayReshape", "]"}], "[",
+        Cell[BoxData[RowBox[{RowBox[{ButtonBox["Einstoff", BaseStyle -> "Link", ButtonData ->
+                "paclet:Gravifer/Einstoff/ref/Einstoff"], "[", ButtonBox["ArrayReshape",
+               BaseStyle -> "Link", ButtonData -> "paclet:ref/ArrayReshape"], "]"}], "[",
             RowBox[{"desc", ",", "tensors"}], "]"}]], "InlineFormula"], " \[LineSeparator]performs \
 an element-count-preserving rearrangement of tensors according to desc.", "\n",
-        Cell["   ", "ModInfo"], Cell[BoxData[RowBox[{RowBox[{"Einstoff", "[", "\"Massage\"", "]"}],
-            "[", RowBox[{"desc", ",", "tensors"}], "]"}]], "InlineFormula"],
-        " \[LineSeparator]uses the permissive single-tensor structural engine.", "\n",
-        Cell["   ", "ModInfo"], Cell[BoxData[RowBox[{RowBox[{"Einstoff", "[", "\"ArrayContract\"",
-              "]"}], "[", RowBox[{"desc", ",", "tensors"}], "]"}]], "InlineFormula"], " \
-\[LineSeparator]performs within-tensor pairwise contraction together with reshaping.", "\n",
-        Cell["   ", "ModInfo"],
-        Cell[BoxData[RowBox[{RowBox[{RowBox[{"Einstoff", "[", "ArrayReduce", "]"}], "[", "f",
+        Cell["   ", "ModInfo"], Cell[BoxData[RowBox[{RowBox[{ButtonBox["Einstoff", BaseStyle ->
+                "Link", ButtonData -> "paclet:Gravifer/Einstoff/ref/Einstoff"], "[", "\"Massage\"",
               "]"}], "[", RowBox[{"desc", ",", "tensors"}], "]"}]], "InlineFormula"],
-        " \[LineSeparator]reduces selected axes of one tensor using f.", "\n",
-        Cell["   ", "ModInfo"], Cell[BoxData[RowBox[{RowBox[{RowBox[{"Einstoff", "[", "Operate",
-                "]"}], "[", "f", "]"}], "[", RowBox[{"desc", ",", "tensors"}], "]"}]],
+        " \[LineSeparator]uses the permissive single-tensor structural engine.", "\n",
+        Cell["   ", "ModInfo"], Cell[BoxData[RowBox[{RowBox[{ButtonBox["Einstoff", BaseStyle ->
+                "Link", ButtonData -> "paclet:Gravifer/Einstoff/ref/Einstoff"], "[",
+              "\"ArrayContract\"", "]"}], "[", RowBox[{"desc", ",", "tensors"}], "]"}]],
          "InlineFormula"],
+        " \[LineSeparator]performs within-tensor pairwise contraction together with reshaping.",
+        "\n", Cell["   ", "ModInfo"],
+        Cell[BoxData[RowBox[{RowBox[{RowBox[{ButtonBox["Einstoff", BaseStyle -> "Link",
+                 ButtonData -> "paclet:Gravifer/Einstoff/ref/Einstoff"], "[", ButtonBox[
+                 "ArrayReduce", BaseStyle -> "Link", ButtonData -> "paclet:ref/ArrayReduce"],
+                "]"}], "[", "f", "]"}], "[", RowBox[{"desc", ",", "tensors"}], "]"}]],
+         "InlineFormula"], " \[LineSeparator]reduces selected axes of one tensor using f.", "\n",
+        Cell["   ", "ModInfo"],
+        Cell[BoxData[RowBox[{RowBox[{RowBox[{ButtonBox["Einstoff", BaseStyle -> "Link",
+                 ButtonData -> "paclet:Gravifer/Einstoff/ref/Einstoff"], "[", ButtonBox["Operate",
+                 BaseStyle -> "Link", ButtonData -> "paclet:ref/Operate"], "]"}], "[", "f", "]"}],
+            "[", RowBox[{"desc", ",", "tensors"}], "]"}]], "InlineFormula"],
         " \[LineSeparator]applies a shape-preserving operation f to targeted blocks.", "\n",
-        Cell["   ", "ModInfo"], Cell[BoxData[RowBox[{RowBox[{RowBox[{"Einstoff", "[", "Map", "]"}],
-              "[", "f", "]"}], "[", RowBox[{"desc", ",", "tensors"}], "]"}]], "InlineFormula"],
+        Cell["   ", "ModInfo"],
+        Cell[BoxData[RowBox[{RowBox[{RowBox[{ButtonBox["Einstoff", BaseStyle -> "Link",
+                 ButtonData -> "paclet:Gravifer/Einstoff/ref/Einstoff"], "[", ButtonBox["Map",
+                 BaseStyle -> "Link", ButtonData -> "paclet:ref/Map"], "]"}], "[", "f", "]"}], "[",
+            RowBox[{"desc", ",", "tensors"}], "]"}]], "InlineFormula"],
         " \[LineSeparator]maps a possibly shape-changing operation f over targeted blocks.", "\n",
-        Cell["   ", "ModInfo"], Cell[BoxData[RowBox[{RowBox[{"Einstoff", "[", "Dot", "]"}], "[",
+        Cell["   ", "ModInfo"], Cell[BoxData[RowBox[{RowBox[{ButtonBox["Einstoff", BaseStyle ->
+                "Link", ButtonData -> "paclet:Gravifer/Einstoff/ref/Einstoff"], "[",
+              ButtonBox["Dot", BaseStyle -> "Link", ButtonData -> "paclet:ref/Dot"], "]"}], "[",
             RowBox[{"desc", ",", "tensors"}], "]"}]], "InlineFormula"],
         " \[LineSeparator]performs sum-of-products contraction over two or more tensors.", "\n",
-        Cell["   ", "ModInfo"], Cell[BoxData[RowBox[{RowBox[{RowBox[{"Einstoff", "[", "Inner",
-                "]"}], "[", RowBox[{"mul", ",", "add"}], "]"}], "[",
-            RowBox[{"desc", ",", "tensors"}], "]"}]], "InlineFormula"],
-        " \[LineSeparator]performs generalized contraction using mul and add.", "\n",
-        Cell["   ", "ModInfo"], Cell[BoxData[RowBox[{RowBox[{"Einstoff", "[", "Join", "]"}], "[",
+        Cell["   ", "ModInfo"],
+        Cell[BoxData[RowBox[{RowBox[{RowBox[{ButtonBox["Einstoff", BaseStyle -> "Link",
+                 ButtonData -> "paclet:Gravifer/Einstoff/ref/Einstoff"], "[", ButtonBox["Inner",
+                 BaseStyle -> "Link", ButtonData -> "paclet:ref/Inner"], "]"}], "[",
+              RowBox[{"mul", ",", "add"}], "]"}], "[", RowBox[{"desc", ",", "tensors"}], "]"}]],
+         "InlineFormula"], " \[LineSeparator]performs generalized contraction using mul and add.",
+        "\n", Cell["   ", "ModInfo"],
+        Cell[BoxData[RowBox[{RowBox[{ButtonBox["Einstoff", BaseStyle -> "Link", ButtonData ->
+                "paclet:Gravifer/Einstoff/ref/Einstoff"], "[", ButtonBox["Join", BaseStyle ->
+                "Link", ButtonData -> "paclet:ref/Join"], "]"}], "[",
             RowBox[{"desc", ",", "tensors"}], "]"}]], "InlineFormula"],
         " \[LineSeparator]concatenates structural direct sums.", "\n", Cell["   ", "ModInfo"],
-        Cell[BoxData[RowBox[{RowBox[{"Einstoff", "[", "Split", "]"}], "[",
+        Cell[BoxData[RowBox[{RowBox[{ButtonBox["Einstoff", BaseStyle -> "Link", ButtonData ->
+                "paclet:Gravifer/Einstoff/ref/Einstoff"], "[", ButtonBox["Split", BaseStyle ->
+                "Link", ButtonData -> "paclet:ref/Split"], "]"}], "[",
             RowBox[{"desc", ",", "tensors"}], "]"}]], "InlineFormula"],
         " \[LineSeparator]splits structural direct sums.", "\n", Cell["   ", "ModInfo"],
-        Cell[BoxData[RowBox[{RowBox[{"Einstoff", "[", "\"einsum\"", "]"}], "[",
+        Cell[BoxData[RowBox[{RowBox[{ButtonBox["Einstoff", BaseStyle -> "Link", ButtonData ->
+                "paclet:Gravifer/Einstoff/ref/Einstoff"], "[", "\"einsum\"", "]"}], "[",
             RowBox[{"desc", ",", "tensors"}], "]"}]], "InlineFormula"],
         " \[LineSeparator]dispatches the implemented einsum-style contraction subset.", "\n",
-        Cell["   ", "ModInfo"], Cell[BoxData[RowBox[{RowBox[{"Einstoff", "[", "op", "]"}], "[",
-            RowBox[{"desc", ",", "tensors", ",", "bindings"}], "]"}]], "InlineFormula"], " \
+        Cell["   ", "ModInfo"], Cell[BoxData[RowBox[{RowBox[{ButtonBox["Einstoff", BaseStyle ->
+                "Link", ButtonData -> "paclet:Gravifer/Einstoff/ref/Einstoff"], "[", "op", "]"}],
+            "[", RowBox[{"desc", ",", "tensors", ",", "bindings"}], "]"}]], "InlineFormula"], " \
 \[LineSeparator]uses explicit axis-size bindings in addition to sizes inferred from desc."}],
-      "Usage", CellID -> 200002], Cell["The canonical description is a RuleDelayed of the form \
-{in1, in2, ...} :> {out1, out2, ...}. Rule is warned best-effort compatibility because its \
-right-hand side may evaluate before capture.", "Notes", CellID -> 200003],
-     Cell["Axis terms include named blanks, bare or string names, literal and unit axes, products, \
-direct sums, named or anonymous sequences, and repeated groups.", "Notes", CellID -> 200004],
-     Cell["The whole left-hand side is one binder scope: repeated a_ occurrences denote the same \
-logical axis, while a bare a on the left remains an ambient expression. A bare a is localized only \
-on the right from the completed binder environment or an explicit sized declaration.", "Notes",
-      CellID -> 200005], Cell["Annotation[axis, n] and Labeled[n, axis] add an inline \
-positive-integer size. They compose in either nesting order with valid Slot, Highlighted, and \
-Framed targeting wrappers.", "Notes", CellID -> 200006], Cell["Targeted string axes use \
-Slot[\"name\"], Highlighted[\"name\"], or Framed[\"name\"]. Targeted symbol axes use Highlighted or \
-Framed.", "Notes", CellID -> 200007],
-     Cell[BoxData[GridBox[{{Cell["      ", "TableRowIcon"], "TraceAction", "None",
-          Cell["Use Hold or Defer to inspect the lowered Wolfram expression.", "TableText"]},
-         {Cell["      ", "TableRowIcon"], "\"Targeting\"", "Automatic", Cell["Use False, Automatic, \
-or True to control inference and validation of explicitly targeted axes.", "TableText"]}}]],
-      "3ColumnTableMod", GridBoxOptions -> {GridBoxBackground -> {"Columns" -> {{None}},
-          "Rows" -> {None, {None}}}, GridBoxDividers -> {"Rows" -> {{True, True, True}}}},
-      CellID -> 200008]}]],
+      "Usage", CellID -> 200002], Cell[TextData[{"The canonical description is a ",
+        Cell[BoxData[ButtonBox["RuleDelayed", BaseStyle -> "Link", ButtonData ->
+            "paclet:ref/RuleDelayed"]], "InlineFormula"],
+        " of the form {in1, in2, ...} :> {out1, out2, ...}. ",
+        Cell[BoxData[ButtonBox["Rule", BaseStyle -> "Link", ButtonData -> "paclet:ref/Rule"]],
+         "InlineFormula"], " is warned best-effort compatibility because its right-hand side may \
+evaluate before capture."}], "Notes", CellID -> 200003], Cell["Axis terms include named blanks, \
+bare or string names, literal and unit axes, products, direct sums, named or anonymous sequences, \
+and repeated groups.", "Notes", CellID -> 200004], Cell["The whole left-hand side is one binder \
+scope: repeated a_ occurrences denote the same logical axis, while a bare a on the left remains an \
+ambient expression. A bare a is localized only on the right from the completed binder environment \
+or an explicit sized declaration.", "Notes", CellID -> 200005],
+     Cell[TextData[{Cell[BoxData[ButtonBox["Annotation", BaseStyle -> "Link",
+           ButtonData -> "paclet:ref/Annotation"]], "InlineFormula"], "[axis, n] and ",
+        Cell[BoxData[ButtonBox["Labeled", BaseStyle -> "Link", ButtonData ->
+            "paclet:ref/Labeled"]], "InlineFormula"],
+        "[n, axis] add an inline positive-integer size. ",
+        "They compose in either nesting order with valid ",
+        Cell[BoxData[ButtonBox["Slot", BaseStyle -> "Link", ButtonData -> "paclet:ref/Slot"]],
+         "InlineFormula"], ", ", Cell[BoxData[ButtonBox["Highlighted", BaseStyle -> "Link",
+           ButtonData -> "paclet:ref/Highlighted"]], "InlineFormula"], ", and ",
+        Cell[BoxData[ButtonBox["Framed", BaseStyle -> "Link", ButtonData -> "paclet:ref/Framed"]],
+         "InlineFormula"], " targeting wrappers."}], "Notes", CellID -> 200006],
+     Cell[TextData[{"Targeted string axes use ",
+        Cell[BoxData[ButtonBox["Slot", BaseStyle -> "Link", ButtonData -> "paclet:ref/Slot"]],
+         "InlineFormula"], "[\"name\"], ", Cell[BoxData[ButtonBox["Highlighted",
+           BaseStyle -> "Link", ButtonData -> "paclet:ref/Highlighted"]], "InlineFormula"],
+        "[\"name\"], or ", Cell[BoxData[ButtonBox["Framed", BaseStyle -> "Link",
+           ButtonData -> "paclet:ref/Framed"]], "InlineFormula"],
+        "[\"name\"]. Targeted symbol axes use ", Cell[BoxData[ButtonBox["Highlighted",
+           BaseStyle -> "Link", ButtonData -> "paclet:ref/Highlighted"]], "InlineFormula"], " or ",
+        Cell[BoxData[ButtonBox["Framed", BaseStyle -> "Link", ButtonData -> "paclet:ref/Framed"]],
+         "InlineFormula"], "."}], "Notes", CellID -> 200007],
+     Cell[BoxData[GridBox[{{Cell["      ", "TableRowIcon"],
+          Cell[BoxData[ButtonBox["TraceAction", BaseStyle -> "Link", ButtonData ->
+              "paclet:ref/TraceAction"]], "TableText"],
+          Cell[BoxData[ButtonBox["None", BaseStyle -> "Link", ButtonData -> "paclet:ref/None"]],
+           "TableText"], Cell[TextData[{"Use ", Cell[BoxData[ButtonBox["Hold", BaseStyle -> "Link",
+                ButtonData -> "paclet:ref/Hold"]], "InlineFormula"], " or ",
+             Cell[BoxData[ButtonBox["Defer", BaseStyle -> "Link", ButtonData ->
+                 "paclet:ref/Defer"]], "InlineFormula"],
+             " to inspect the lowered Wolfram expression."}], "TableText"]},
+         {Cell["      ", "TableRowIcon"], "\"Targeting\"",
+          Cell[BoxData[ButtonBox["Automatic", BaseStyle -> "Link", ButtonData ->
+              "paclet:ref/Automatic"]], "TableText"],
+          Cell[TextData[{"Use ", Cell[BoxData[ButtonBox["False", BaseStyle -> "Link",
+                ButtonData -> "paclet:ref/False"]], "InlineFormula"], ", ",
+             Cell[BoxData[ButtonBox["Automatic", BaseStyle -> "Link", ButtonData ->
+                 "paclet:ref/Automatic"]], "InlineFormula"], ", or ",
+             Cell[BoxData[ButtonBox["True", BaseStyle -> "Link", ButtonData -> "paclet:ref/True"]],
+              "InlineFormula"],
+             " to control inference and validation of explicitly targeted axes."}],
+           "TableText"]}}]], "3ColumnTableMod", GridBoxOptions ->
+       {GridBoxBackground -> {"Columns" -> {{None}}, "Rows" -> {None, {None}}},
+        GridBoxDividers -> {"Rows" -> {{True, True, True}}}}, CellID -> 200008]}]],
   Cell[CellGroupData[{Cell["See Also", "SeeAlsoSection", CellID -> 200009],
      Cell[TextData[{Cell[BoxData[ButtonBox["ArrayReshape", BaseStyle -> "Link",
            ButtonData -> "paclet:ref/ArrayReshape"]], "InlineFormula"],

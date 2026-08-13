@@ -44,14 +44,37 @@ outputCell[expr_] := cell[BoxData[heldBoxes[expr]], "Output"];
 docButton[label_String, uri_String] :=
   ButtonBox[label, BaseStyle -> "Link", ButtonData -> "paclet:" <> uri];
 
+$systemLinkNames = {
+  "Annotation", "ArrayReduce", "ArrayReshape", "Automatic", "Defer", "Dot",
+  "False", "Framed", "Highlighted", "Hold", "Inner", "Join", "Labeled", "Map",
+  "None", "Operate", "Rule", "RuleDelayed", "Slot", "Split", "TraceAction", "True"
+};
+$docSymbolLinks = Join[
+  <|"Einstoff" -> "Gravifer/Einstoff/ref/Einstoff"|>,
+  AssociationThread[$systemLinkNames, "ref/" <> # & /@ $systemLinkNames]
+];
+
+linkSymbolBoxes[boxes_] :=
+  boxes /. name_String /; KeyExistsQ[$docSymbolLinks, name] :>
+    docButton[name, $docSymbolLinks[name]];
+
+SetAttributes[linkedHeldBoxes, HoldAllComplete];
+linkedHeldBoxes[expr_] := linkSymbolBoxes[heldBoxes[expr]];
+
+systemInlineRef[name_String] :=
+  Cell[BoxData[docButton[name, "ref/" <> name]], "InlineFormula"];
+
+systemTableRef[name_String] :=
+  Cell[BoxData[docButton[name, "ref/" <> name]], "TableText"];
+
 linkedCell[label_String, uri_String, style_String] :=
   cell[TextData[{Cell[BoxData[docButton[label, uri]], "InlineFormula"]}], style];
 
-guideListing[form_String, description_String] :=
+guideListing[boxes_, description_String] :=
   cell[
     TextData[{
       Cell[
-        BoxData[docButton[form, "Gravifer/Einstoff/ref/Einstoff"]],
+        BoxData[boxes],
         "InlineGuideFunction"
       ],
       " \[LongDash] " <> description
@@ -59,10 +82,10 @@ guideListing[form_String, description_String] :=
     "GuideText"
   ];
 
-guideConcept[form_String, description_String] :=
+guideConcept[boxes_, description_String] :=
   cell[
     TextData[{
-      Cell[BoxData[form], "InlineFormula"],
+      Cell[BoxData[boxes], "InlineFormula"],
       " \[LongDash] " <> description
     }],
     "GuideText"
@@ -100,56 +123,61 @@ functionNotebook = Notebook[
         cell["Einstoff", "ObjectName"],
         usageCell[{
           usageLine[
-            heldBoxes[Einstoff[ArrayReshape][desc, tensors]],
+            linkedHeldBoxes[Einstoff[ArrayReshape][desc, tensors]],
             "performs an element-count-preserving rearrangement of tensors according to desc."
           ],
           usageLine[
-            heldBoxes[Einstoff["Massage"][desc, tensors]],
+            linkedHeldBoxes[Einstoff["Massage"][desc, tensors]],
             "uses the permissive single-tensor structural engine."
           ],
           usageLine[
-            heldBoxes[Einstoff["ArrayContract"][desc, tensors]],
+            linkedHeldBoxes[Einstoff["ArrayContract"][desc, tensors]],
             "performs within-tensor pairwise contraction together with reshaping."
           ],
           usageLine[
-            heldBoxes[Einstoff[ArrayReduce][f][desc, tensors]],
+            linkedHeldBoxes[Einstoff[ArrayReduce][f][desc, tensors]],
             "reduces selected axes of one tensor using f."
           ],
           usageLine[
-            heldBoxes[Einstoff[Operate][f][desc, tensors]],
+            linkedHeldBoxes[Einstoff[Operate][f][desc, tensors]],
             "applies a shape-preserving operation f to targeted blocks."
           ],
           usageLine[
-            heldBoxes[Einstoff[Map][f][desc, tensors]],
+            linkedHeldBoxes[Einstoff[Map][f][desc, tensors]],
             "maps a possibly shape-changing operation f over targeted blocks."
           ],
           usageLine[
-            heldBoxes[Einstoff[Dot][desc, tensors]],
+            linkedHeldBoxes[Einstoff[Dot][desc, tensors]],
             "performs sum-of-products contraction over two or more tensors."
           ],
           usageLine[
-            heldBoxes[Einstoff[Inner][mul, add][desc, tensors]],
+            linkedHeldBoxes[Einstoff[Inner][mul, add][desc, tensors]],
             "performs generalized contraction using mul and add."
           ],
           usageLine[
-            heldBoxes[Einstoff[Join][desc, tensors]],
+            linkedHeldBoxes[Einstoff[Join][desc, tensors]],
             "concatenates structural direct sums."
           ],
           usageLine[
-            heldBoxes[Einstoff[Split][desc, tensors]],
+            linkedHeldBoxes[Einstoff[Split][desc, tensors]],
             "splits structural direct sums."
           ],
           usageLine[
-            heldBoxes[Einstoff["einsum"][desc, tensors]],
+            linkedHeldBoxes[Einstoff["einsum"][desc, tensors]],
             "dispatches the implemented einsum-style contraction subset."
           ],
           usageLine[
-            heldBoxes[Einstoff[op][desc, tensors, bindings]],
+            linkedHeldBoxes[Einstoff[op][desc, tensors, bindings]],
             "uses explicit axis-size bindings in addition to sizes inferred from desc."
           ]
         }],
         cell[
-          "The canonical description is a RuleDelayed of the form {in1, in2, ...} :> {out1, out2, ...}. Rule is warned best-effort compatibility because its right-hand side may evaluate before capture.",
+          TextData[{
+            "The canonical description is a ", systemInlineRef["RuleDelayed"],
+            " of the form {in1, in2, ...} :> {out1, out2, ...}. ",
+            systemInlineRef["Rule"],
+            " is warned best-effort compatibility because its right-hand side may evaluate before capture."
+          }],
           "Notes"
         ],
         cell[
@@ -161,26 +189,44 @@ functionNotebook = Notebook[
           "Notes"
         ],
         cell[
-          "Annotation[axis, n] and Labeled[n, axis] add an inline positive-integer size. They compose in either nesting order with valid Slot, Highlighted, and Framed targeting wrappers.",
+          TextData[{
+            systemInlineRef["Annotation"], "[axis, n] and ",
+            systemInlineRef["Labeled"], "[n, axis] add an inline positive-integer size. ",
+            "They compose in either nesting order with valid ", systemInlineRef["Slot"], ", ",
+            systemInlineRef["Highlighted"], ", and ", systemInlineRef["Framed"],
+            " targeting wrappers."
+          }],
           "Notes"
         ],
         cell[
-          "Targeted string axes use Slot[\"name\"], Highlighted[\"name\"], or Framed[\"name\"]. Targeted symbol axes use Highlighted or Framed.",
+          TextData[{
+            "Targeted string axes use ", systemInlineRef["Slot"], "[\"name\"], ",
+            systemInlineRef["Highlighted"], "[\"name\"], or ", systemInlineRef["Framed"],
+            "[\"name\"]. Targeted symbol axes use ", systemInlineRef["Highlighted"],
+            " or ", systemInlineRef["Framed"], "."
+          }],
           "Notes"
         ],
         cell[
           BoxData @ GridBox[{
             {
               Cell["      ", "TableRowIcon"],
-              "TraceAction",
-              "None",
-              Cell["Use Hold or Defer to inspect the lowered Wolfram expression.", "TableText"]
+              systemTableRef["TraceAction"],
+              systemTableRef["None"],
+              Cell[TextData[{
+                "Use ", systemInlineRef["Hold"], " or ", systemInlineRef["Defer"],
+                " to inspect the lowered Wolfram expression."
+              }], "TableText"]
             },
             {
               Cell["      ", "TableRowIcon"],
               "\"Targeting\"",
-              "Automatic",
-              Cell["Use False, Automatic, or True to control inference and validation of explicitly targeted axes.", "TableText"]
+              systemTableRef["Automatic"],
+              Cell[TextData[{
+                "Use ", systemInlineRef["False"], ", ", systemInlineRef["Automatic"],
+                ", or ", systemInlineRef["True"],
+                " to control inference and validation of explicitly targeted axes."
+              }], "TableText"]
             }
           }],
           "3ColumnTableMod",
@@ -283,25 +329,25 @@ guideNotebook = Notebook[
 
       group[{
         cell["Structural transformations", "GuideFunctionsSection"],
-        guideListing["Einstoff[ArrayReshape]", "perform element-count-preserving rearrangement and reshape"],
-        guideListing["Einstoff[\"Massage\"]", "use the permissive single-tensor structural engine"],
-        guideListing["Einstoff[\"ArrayContract\"]", "reshape and perform within-tensor pairwise contraction without repetition"],
-        guideListing["Einstoff[Join]", "concatenate structural direct sums"],
-        guideListing["Einstoff[Split]", "split structural direct sums"]
+        guideListing[linkedHeldBoxes[Einstoff[ArrayReshape]], "perform element-count-preserving rearrangement and reshape"],
+        guideListing[linkedHeldBoxes[Einstoff["Massage"]], "use the permissive single-tensor structural engine"],
+        guideListing[linkedHeldBoxes[Einstoff["ArrayContract"]], "reshape and perform within-tensor pairwise contraction without repetition"],
+        guideListing[linkedHeldBoxes[Einstoff[Join]], "concatenate structural direct sums"],
+        guideListing[linkedHeldBoxes[Einstoff[Split]], "split structural direct sums"]
       }, Open],
 
       group[{
         cell["Reduction and mapped operations", "GuideFunctionsSection"],
-        guideListing["Einstoff[ArrayReduce][f]", "reduce selected axes using f"],
-        guideListing["Einstoff[Operate][f]", "apply a shape-preserving operation to targeted blocks"],
-        guideListing["Einstoff[Map][f]", "map a possibly shape-changing function over targeted blocks"]
+        guideListing[linkedHeldBoxes[Einstoff[ArrayReduce][f]], "reduce selected axes using f"],
+        guideListing[linkedHeldBoxes[Einstoff[Operate][f]], "apply a shape-preserving operation to targeted blocks"],
+        guideListing[linkedHeldBoxes[Einstoff[Map][f]], "map a possibly shape-changing function over targeted blocks"]
       }, Open],
 
       group[{
         cell["Contractions", "GuideFunctionsSection"],
-        guideListing["Einstoff[Dot]", "perform sum-of-products contraction over two or more tensors"],
-        guideListing["Einstoff[Inner][mul, add]", "contract using custom multiplication and addition"],
-        guideListing["Einstoff[\"einsum\"]", "dispatch the implemented einsum-style contraction subset"]
+        guideListing[linkedHeldBoxes[Einstoff[Dot]], "perform sum-of-products contraction over two or more tensors"],
+        guideListing[linkedHeldBoxes[Einstoff[Inner][mul, add]], "contract using custom multiplication and addition"],
+        guideListing[linkedHeldBoxes[Einstoff["einsum"]], "dispatch the implemented einsum-style contraction subset"]
       }, Open],
 
       group[{
@@ -309,8 +355,22 @@ guideNotebook = Notebook[
         guideConcept["a_   a   \"a\"", "infer a named axis, refer to an established symbol axis, or use a hygienic string axis"],
         guideConcept["__   ___", "infer one-or-more or zero-or-more anonymous axes"],
         guideConcept["a \[CircleTimes] b   a \[CirclePlus] b", "compose a product axis or structural direct sum"],
-        guideConcept["Slot[\"a\"]   Highlighted[a]   Framed[a]", "mark an occurrence as targeted"],
-        guideConcept["Annotation[a, n]   Labeled[n, a]", "declare an inline positive-integer axis size"]
+        guideConcept[
+          RowBox[{
+            docButton["Slot", "ref/Slot"], "[", "\"a\"", "]", "\[ThickSpace]",
+            docButton["Highlighted", "ref/Highlighted"], "[", "a", "]", "\[ThickSpace]",
+            docButton["Framed", "ref/Framed"], "[", "a", "]"
+          }],
+          "mark an occurrence as targeted"
+        ],
+        guideConcept[
+          RowBox[{
+            docButton["Annotation", "ref/Annotation"], "[", RowBox[{"a", ",", "n"}], "]",
+            "\[ThickSpace]", docButton["Labeled", "ref/Labeled"], "[",
+            RowBox[{"n", ",", "a"}], "]"
+          }],
+          "declare an inline positive-integer axis size"
+        ]
       }, Open],
 
       group[{

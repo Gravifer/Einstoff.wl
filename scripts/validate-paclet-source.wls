@@ -85,22 +85,76 @@ check[
 ];
 
 guideDoc = Quiet @ Check[Get[Last[docs]], $Failed];
-guideLabels = Cases[
+guideForms = Cases[
   guideDoc,
-  ButtonBox[label_String, ___, ButtonData -> "paclet:Gravifer/Einstoff/ref/Einstoff", ___] :> label,
+  Cell[BoxData[boxes_], "InlineGuideFunction", ___] :>
+    Quiet @ Check[
+      ToExpression[
+        boxes /. ButtonBox[label_, ___] :> label,
+        StandardForm,
+        HoldComplete
+      ],
+      $Failed
+    ],
   Infinity
 ];
-expectedGuideLabels = {
-  "Einstoff[ArrayReshape]",
-  "Einstoff[\"Massage\"]",
-  "Einstoff[ArrayReduce][f]",
-  "Einstoff[Dot]",
-  "Einstoff[Inner][mul, add]"
+expectedGuideForms = {
+  HoldComplete[Einstoff[ArrayReshape]],
+  HoldComplete[Einstoff["Massage"]],
+  HoldComplete[Einstoff[ArrayReduce][f]],
+  HoldComplete[Einstoff[Dot]],
+  HoldComplete[Einstoff[Inner][mul, add]]
 };
 check[
   "guide distinguishes operator forms",
-  ContainsAll[guideLabels, expectedGuideLabels] && DuplicateFreeQ[guideLabels],
-  guideLabels
+  ContainsAll[guideForms, expectedGuideForms] && DuplicateFreeQ[guideForms],
+  guideForms
+];
+
+systemLinks[nb_] := Cases[
+  nb,
+  ButtonBox[label_String, ___, ButtonData -> uri_String, ___] /;
+      StringStartsQ[uri, "paclet:ref/"] :>
+    {label, StringDelete[uri, "paclet:ref/"]},
+  Infinity
+];
+
+expectedSymbolLinks = {
+  "Annotation", "ArrayReduce", "ArrayReshape", "Automatic", "Defer", "Dot",
+  "False", "Framed", "Highlighted", "Hold", "Inner", "Join", "Labeled", "Map",
+  "None", "Operate", "Rule", "RuleDelayed", "Slot", "Split", "TraceAction", "True"
+};
+expectedGuideLinks = {
+  "Annotation", "ArrayReduce", "ArrayReshape", "Dot", "Framed", "Highlighted",
+  "Inner", "Join", "Labeled", "Map", "Operate", "Slot", "Split"
+};
+forbiddenLinkedSyntax = {":>", "->", "\[CircleTimes]", "\[CirclePlus]", "_", "__", "___", "#"};
+
+Scan[
+  Function[{entry},
+    pageName = First[entry];
+    pageLinks = systemLinks[entry[[2]]];
+    expectedLinks = entry[[3]];
+    check[
+      pageName <> " system-link targets",
+      AllTrue[pageLinks, #[[1]] === #[[2]] &],
+      Select[pageLinks, #[[1]] =!= #[[2]] &]
+    ];
+    check[
+      pageName <> " system-link coverage",
+      ContainsAll[DeleteDuplicates[pageLinks[[All, 1]]], expectedLinks],
+      Complement[expectedLinks, DeleteDuplicates[pageLinks[[All, 1]]]]
+    ];
+    check[
+      pageName <> " syntax glyphs remain unlinked",
+      Intersection[pageLinks[[All, 1]], forbiddenLinkedSyntax] === {},
+      Intersection[pageLinks[[All, 1]], forbiddenLinkedSyntax]
+    ]
+  ],
+  {
+    {"symbol documentation", symbolDoc, expectedSymbolLinks},
+    {"guide documentation", guideDoc, expectedGuideLinks}
+  }
 ];
 
 If[failures === {},
