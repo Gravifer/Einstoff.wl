@@ -106,9 +106,13 @@ If[! MemberQ[$CommandLine, "-script"],
 
 testsDir = FileNameJoin[{root, "tests"}];
 testFiles = Sort @ FileNames["*.wlt", testsDir];
+pythonTestsDir = FileNameJoin[{testsDir, "python"}];
+pythonTestFiles = Sort @ FileNames["*.wlt", pythonTestsDir];
+expectedPythonTests = Total[
+  StringCount[Import[#, "Text"], "VerificationTest["] & /@ pythonTestFiles
+];
 If[wantPython,
-  testFiles = Join[testFiles,
-    Sort @ FileNames["*.wlt", FileNameJoin[{testsDir, "python"}]]]];
+  testFiles = Join[testFiles, pythonTestFiles]];
 
 If[testFiles === {},
   Print["no tests/*.wlt files found under ", testsDir];
@@ -140,7 +144,7 @@ If[wantPython,
 
 (* ---- run --------------------------------------------------------------- *)
 
-totalPass = 0; totalFail = 0;
+totalPass = 0; totalFail = 0; executedPythonTests = 0;
 
 Scan[
   Function[file,
@@ -152,6 +156,7 @@ Scan[
       npass = report["TestsSucceededCount"];
       nfail = report["TestsFailedCount"];
       totalPass += npass; totalFail += nfail;
+      If[MemberQ[pythonTestFiles, file], executedPythonTests += npass + nfail];
 
       If[verbosity === 0,
         Print[fileLabel[file], ": ", npass, " passed, ", nfail, " failed"],
@@ -193,4 +198,15 @@ Print[""];
 Print["==== ", totalPass, " passed, ", totalFail, " failed (",
       totalPass + totalFail, " total) ===="];
 
-Exit[If[totalFail === 0, 0, 1]];
+If[wantPython,
+  Print[
+    "Python cross-validation: ", executedPythonTests, " of ",
+    expectedPythonTests, " tests executed"
+  ]
+];
+
+Exit[If[
+  totalFail === 0 && (! wantPython || executedPythonTests === expectedPythonTests),
+  0,
+  1
+]];
