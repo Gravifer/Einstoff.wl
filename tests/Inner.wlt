@@ -6,7 +6,7 @@
    Run via: wolframscript -script scripts/run-tests.wls
    BeginTestSection/EndTestSection are MUnit markers; the runner loads MUnit`. *)
 
-BeginTestSection["Einstoff`Lowering`Inner"];
+BeginTestSection["Gravifer`Einstoff`Lowering`Inner"];
 
 ClearAll[a, b, c, d, m, n];
 

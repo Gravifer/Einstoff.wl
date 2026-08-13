@@ -6,7 +6,7 @@
    einops.einsum / np.einsum cross-validation lives in tests/python/Einsum.wlt.
    Run via: wolframscript -script scripts/run-tests.wls *)
 
-BeginTestSection["Einstoff`Lowering`Einsum"];
+BeginTestSection["Gravifer`Einstoff`Lowering`Einsum"];
 
 ClearAll[a, b, c, d];
 

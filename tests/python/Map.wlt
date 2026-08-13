@@ -12,16 +12,16 @@
 ClearAll[a, b];
 
 pyRoot =
-  If[ValueQ[Einstoff`Tests`$Root], Einstoff`Tests`$Root,
-    ParentDirectory[PacletObject["Einstoff"]["Location"]]];
+  If[ValueQ[Gravifer`Einstoff`Tests`$Root], Gravifer`Einstoff`Tests`$Root,
+    ParentDirectory[PacletObject["Gravifer/Einstoff"]["Location"]]];
 pyExe = FileNameJoin[{pyRoot, ".venv", "Scripts", "python.exe"}];
 
-pyOwned = Head[Einstoff`Tests`$PySession] =!= ExternalSessionObject;
+pyOwned = Head[Gravifer`Einstoff`Tests`$PySession] =!= ExternalSessionObject;
 pySession = If[pyOwned,
   Quiet @ Check[
     If[FileExistsQ[pyExe],
       StartExternalSession[<|"System" -> "Python", "Executable" -> pyExe|>], $Failed], $Failed],
-  Einstoff`Tests`$PySession];
+  Gravifer`Einstoff`Tests`$PySession];
 pythonReady = TrueQ @ Quiet @ Check[
   Head[pySession] === ExternalSessionObject &&
   ExternalEvaluate[pySession, "import numpy, einx; True"] === True,
@@ -36,7 +36,7 @@ pyMap[call_String, pyInput_String] :=
 approxEqual[u_, v_] := Max @ Abs @ Flatten[N[u] - v] < 1.*^-9;
 
 (* ======================================================================== *)
-BeginTestSection["Einstoff`CrossValidation`Operate", pythonReady];
+BeginTestSection["Gravifer`Einstoff`CrossValidation`Operate", pythonReady];
 
 (* flip (einx.flip) — reverse along the bracket; integer, exact. *)
 VerificationTest[

@@ -7,7 +7,7 @@
    BeginTestSection/EndTestSection are MUnit markers; the runner loads MUnit`
    so they carry section semantics. The .wlt itself does not import MUnit`. *)
 
-BeginTestSection["Einstoff`Lowering`Reduce"];
+BeginTestSection["Gravifer`Einstoff`Lowering`Reduce"];
 
 ClearAll[a, b, c, d];
 
@@ -462,7 +462,7 @@ VerificationTest[
     With[{g = Einstoff[ArrayReduce][Total][{{a_, Highlighted[b_]}} :> {{a}}, {x}, {},
         TraceAction -> Hold]},
       {MatchQ[g, Hold[_ArrayReshape]], ! FreeQ[g, _ArrayReduce],
-       FreeQ[g, _Einstoff`PackageScope`materializeOutput]}]],
+       FreeQ[g, _Gravifer`Einstoff`PackageScope`materializeOutput]}]],
   {True, True, True},
   TestID -> "reduce-traceaction-holds-public-lowering"
 ];

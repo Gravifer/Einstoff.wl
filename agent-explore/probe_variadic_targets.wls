@@ -1,5 +1,5 @@
 PacletDirectoryLoad[Directory[]];
-Needs["Einstoff`"];
+Needs["Gravifer`Einstoff`"];
 
 Print["shapes reduce-like"];
 Print[InputForm[EinstoffShapes[{{a_, Highlighted[___], c_}} :> {{a, c}}, {{2, 3, 4, 5}}]]];

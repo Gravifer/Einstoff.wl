@@ -30,7 +30,7 @@
    Surface capture, analysis, and execution are delegated to the staged compiler and
    direct-sum planner. *)
 
-PackageExported[{EinstoffJoin, EinstoffSplit}]
+PackageScoped[{EinstoffJoin, EinstoffSplit}]
 
 EinstoffJoin::usage =
   "EinstoffJoin[desc, tensors, bindings] concatenates tensors along a direct-sum \
@@ -81,7 +81,7 @@ directSumPublic[h_Hold, tensors_List, bindings_List, direction_String, traceActi
       True,
         compiled = compileHeldDescIR[h, HoldComplete[bindings], direction, <||>];
         If[Head[Lookup[compiled, "Normalized", None]] ===
-            Einstoff`Internal`IR`NormalizedDesc &&
+            Gravifer`Einstoff`Internal`IR`NormalizedDesc &&
             ! TrueQ[sides[If[direction === "Join", "RHS", "LHS"]]],
           Message[Einstoff::unsupp,
             "the direct-sum operator requires a CirclePlus axis"];

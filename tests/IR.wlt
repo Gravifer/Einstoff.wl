@@ -2,7 +2,25 @@
 
 (* Invariants for the private staged IR. *)
 
-BeginTestSection["Einstoff`Internal`IR"];
+BeginTestSection["Gravifer`Einstoff`Internal`IR"];
+
+VerificationTest[
+  Context[Einstoff],
+  "Gravifer`Einstoff`",
+  TestID -> "paclet-public-symbol-context"
+];
+
+VerificationTest[
+  Names["Gravifer`Einstoff`*"] === {"Einstoff"},
+  True,
+  TestID -> "paclet-only-einstoff-is-public"
+];
+
+VerificationTest[
+  Names["Einstoff`*"],
+  {},
+  TestID -> "paclet-does-not-create-legacy-context"
+];
 
 constructors = {
   "AxisId", "OccurrenceId", "SequenceMemberId", "SequenceOccurrence",
@@ -11,16 +29,16 @@ constructors = {
   "OperationAnalysis", "ExecutionPlan"
 };
 
-irSymbol[name_] := Symbol["Einstoff`Internal`IR`" <> name];
-irValid = Symbol["Einstoff`PackageScope`irValidQ"];
-compile = Symbol["Einstoff`PackageScope`compileDescIR"];
-solve = Symbol["Einstoff`PackageScope`solveDescIR"];
-analyze = Symbol["Einstoff`PackageScope`analyzeSolvedDesc"];
-plan = Symbol["Einstoff`PackageScope`planStructuralIR"];
+irSymbol[name_] := Symbol["Gravifer`Einstoff`Internal`IR`" <> name];
+irValid = Symbol["Gravifer`Einstoff`PackageScope`irValidQ"];
+compile = Symbol["Gravifer`Einstoff`PackageScope`compileDescIR"];
+solve = Symbol["Gravifer`Einstoff`PackageScope`solveDescIR"];
+analyze = Symbol["Gravifer`Einstoff`PackageScope`analyzeSolvedDesc"];
+plan = Symbol["Gravifer`Einstoff`PackageScope`planStructuralIR"];
 
 VerificationTest[
   Context /@ (irSymbol /@ constructors),
-  ConstantArray["Einstoff`Internal`IR`", Length[constructors]],
+  ConstantArray["Gravifer`Einstoff`Internal`IR`", Length[constructors]],
   TestID -> "ir-constructor-context"
 ];
 
@@ -52,7 +70,7 @@ VerificationTest[
 ];
 
 VerificationTest[
-  MemberQ[$ContextPath, "Einstoff`Internal`IR`"],
+  MemberQ[$ContextPath, "Gravifer`Einstoff`Internal`IR`"],
   False,
   TestID -> "ir-context-not-public"
 ];
@@ -60,19 +78,19 @@ VerificationTest[
 VerificationTest[
   FreeQ[
     DownValues /@ {
-      Einstoff`Private`irInternAxis,
-      Einstoff`Private`compileHeldDescIR,
-      Einstoff`Private`solveDescIR,
-      Einstoff`Private`analyzeSolvedDesc,
-      Einstoff`Private`planStructuralIR,
-      Einstoff`Private`planSelfContractIR,
-      Einstoff`Private`planReduceIR,
-      Einstoff`Private`planMapIR,
-      Einstoff`Private`tryMapIRPlan,
-      Einstoff`Private`planInnerIR,
-      Einstoff`Private`tryInnerIRPlan,
-      Einstoff`Private`planDirectSumIR,
-      Einstoff`Private`tryDirectSumIRPlan
+      Gravifer`Einstoff`Private`irInternAxis,
+      Gravifer`Einstoff`Private`compileHeldDescIR,
+      Gravifer`Einstoff`Private`solveDescIR,
+      Gravifer`Einstoff`Private`analyzeSolvedDesc,
+      Gravifer`Einstoff`Private`planStructuralIR,
+      Gravifer`Einstoff`Private`planSelfContractIR,
+      Gravifer`Einstoff`Private`planReduceIR,
+      Gravifer`Einstoff`Private`planMapIR,
+      Gravifer`Einstoff`Private`tryMapIRPlan,
+      Gravifer`Einstoff`Private`planInnerIR,
+      Gravifer`Einstoff`Private`tryInnerIRPlan,
+      Gravifer`Einstoff`Private`planDirectSumIR,
+      Gravifer`Einstoff`Private`tryDirectSumIRPlan
     },
     _Return,
     Infinity,

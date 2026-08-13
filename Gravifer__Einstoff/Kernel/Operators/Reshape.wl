@@ -21,7 +21,7 @@
    Operation policy, rather than a separate matcher/lowerer, decides which structural
    effects are admitted. *)
 
-PackageExported[{EinstoffMassage, EinstoffReshape, EinstoffContract}]
+PackageScoped[{EinstoffMassage, EinstoffReshape, EinstoffContract}]
 
 EinstoffMassage::usage =
   "EinstoffMassage[desc, tensors, bindings] is the permissive single-tensor \
@@ -90,7 +90,7 @@ massageCore[desc_, tensors_, bindings_List, policy_, traceAction_, targeting_] :
         <|"Targeting" -> targetingMode|>];
       Which[
         TrueQ[sumSides["LHS"]] && TrueQ[sumSides["RHS"]],
-          reportPlannerFailure @ Einstoff`Internal`IR`FailureRecord[
+          reportPlannerFailure @ Gravifer`Einstoff`Internal`IR`FailureRecord[
             "DirectSumBothSides", "Analysis", <|
               "Operator" -> planOperator,
               "Reason" -> "a direct sum (CirclePlus) may appear on only one side; " <>
@@ -98,7 +98,7 @@ massageCore[desc_, tensors_, bindings_List, policy_, traceAction_, targeting_] :
               "MessageParameters" -> {}|>],
         TrueQ[sumSides["LHS"]] || TrueQ[sumSides["RHS"]],
         If[policy =!= All,
-          reportPlannerFailure @ Einstoff`Internal`IR`FailureRecord[
+          reportPlannerFailure @ Gravifer`Einstoff`Internal`IR`FailureRecord[
             "DirectSumPolicy", "Analysis", <|
               "Operator" -> planOperator,
               "Reason" -> "a direct sum (CirclePlus) is a structural join/split; " <>

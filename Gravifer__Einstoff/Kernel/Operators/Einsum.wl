@@ -21,7 +21,7 @@
    Surface parsing, shape solving, and tensor execution are delegated to the staged
    compiler and shared execution-plan engine. *)
 
-PackageExported[{EinstoffEinsum}]
+PackageScoped[{EinstoffEinsum}]
 
 EinstoffEinsum::usage =
   "EinstoffEinsum[desc, tensors, bindings] realizes the pairwise-contraction subset \
@@ -43,7 +43,7 @@ EinstoffEinsum[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
     compiled = compileHeldDescIR[Hold[desc], HoldComplete[bindings], "einsum",
       <|"Targeting" -> targeting|>];
     normalized = Lookup[compiled, "Normalized", None];
-    If[Head[normalized] =!= Einstoff`Internal`IR`NormalizedDesc,
+    If[Head[normalized] =!= Gravifer`Einstoff`Internal`IR`NormalizedDesc,
       reportPlannerFailure[normalized],
     summary = einsumSummary[normalized];
     planned = Which[
@@ -69,26 +69,26 @@ EinstoffEinsum[desc_, tensors_, bindings_List : {}, opts : OptionsPattern[]] :=
   ];
 
 einsumPolicyFailure[tag_String, reason_String] :=
-  Einstoff`Internal`IR`FailureRecord["Einsum" <> tag, "Analysis", <|
+  Gravifer`Einstoff`Internal`IR`FailureRecord["Einsum" <> tag, "Analysis", <|
     "Operator" -> "einsum", "Reason" -> reason, "MessageParameters" -> {}|>];
 
-einsumSummary[Einstoff`Internal`IR`NormalizedDesc[a_Association]] :=
+einsumSummary[Gravifer`Einstoff`Internal`IR`NormalizedDesc[a_Association]] :=
   Module[{inputs, outputs, inputShapes, inputIds, outputIds},
     inputs = a["Inputs"]; outputs = a["Outputs"];
-    inputShapes = Replace[inputs, Einstoff`Internal`IR`Inputs[x_List] :> x];
+    inputShapes = Replace[inputs, Gravifer`Einstoff`Internal`IR`Inputs[x_List] :> x];
     inputIds = Cases[inputs,
-      Einstoff`Internal`IR`AxisOccurrence[_, id_, _] :> id, Infinity];
+      Gravifer`Einstoff`Internal`IR`AxisOccurrence[_, id_, _] :> id, Infinity];
     outputIds = Cases[outputs,
-      Einstoff`Internal`IR`AxisOccurrence[_, id_, _] :> id, Infinity];
+      Gravifer`Einstoff`Internal`IR`AxisOccurrence[_, id_, _] :> id, Infinity];
     <|"DirectSum" -> ! FreeQ[{inputs, outputs},
-        Einstoff`Internal`IR`DirectSumAxis, Infinity],
+        Gravifer`Einstoff`Internal`IR`DirectSumAxis, Infinity],
       "OutputOnly" -> Complement[DeleteDuplicates[outputIds],
           DeleteDuplicates[inputIds]] =!= {} ||
-        ! FreeQ[outputs, Einstoff`Internal`IR`LiteralAxis, Infinity],
+        ! FreeQ[outputs, Gravifer`Einstoff`Internal`IR`LiteralAxis, Infinity],
       "SingleDrop" -> AnyTrue[DeleteDuplicates[inputIds],
         ! MemberQ[outputIds, #] && Count[inputIds, #] === 1 &],
       "WithinRepeat" -> AnyTrue[inputShapes,
         Function[shape, With[{ids = Cases[shape,
-            Einstoff`Internal`IR`AxisOccurrence[_, id_, _] :> id, Infinity]},
+            Gravifer`Einstoff`Internal`IR`AxisOccurrence[_, id_, _] :> id, Infinity]},
           ! DuplicateFreeQ[ids]]]]|>
   ];

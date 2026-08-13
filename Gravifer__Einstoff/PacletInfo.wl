@@ -1,11 +1,13 @@
 PacletObject[<|
-  "Name" -> "Einstoff",
+  "Name" -> "Gravifer/Einstoff",
+  "PublisherID" -> "Gravifer",
   "Version" -> "0.2.0",
-  "WolframVersion" -> "14.0+",
+  "WolframVersion" -> "15.0+",
   "Description" -> "einops/einx-style tensor-axis notation for Wolfram Language, \
 using native pattern objects as an embedded surface syntax compiled to a staged IR.",
-  "Creator" -> "einstoff",
+  "Creator" -> "Gravifer",
+  "PrimaryContext" -> "Gravifer`Einstoff`",
   "Extensions" -> {
-    {"Kernel", "Root" -> "Kernel", "Context" -> "Einstoff`"}
+    {"Kernel", "Root" -> "Kernel", "Context" -> "Gravifer`Einstoff`"}
   }
 |>]

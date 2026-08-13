@@ -31,7 +31,7 @@
    CirclePlus or variable-arity bracket ellipsis in a contraction shape is also
    rejected. *)
 
-PackageExported[{EinstoffDot, EinstoffInner}]
+PackageScoped[{EinstoffDot, EinstoffInner}]
 
 EinstoffDot::usage =
   "EinstoffDot[desc, tensors, bindings] realizes an einsum-style contraction \

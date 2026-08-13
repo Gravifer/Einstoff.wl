@@ -33,19 +33,19 @@ ClearAll[a, b, c, d];
 (* Project root: exported by the runner; fall back to the loaded paclet's
    location so the file is also usable via a bare TestReport[...]. *)
 pyRoot =
-  If[ValueQ[Einstoff`Tests`$Root], Einstoff`Tests`$Root,
-    ParentDirectory[PacletObject["Einstoff"]["Location"]]];
+  If[ValueQ[Gravifer`Einstoff`Tests`$Root], Gravifer`Einstoff`Tests`$Root,
+    ParentDirectory[PacletObject["Gravifer/Einstoff"]["Location"]]];
 pyExe = FileNameJoin[{pyRoot, ".venv", "Scripts", "python.exe"}];
 
 (* Reuse the runner's shared session if it spawned one (one ZMQ session per kernel
    is stable, many are not); otherwise spawn our own so the file still runs under a
    bare TestReport, and own only that teardown. *)
-pyOwned = Head[Einstoff`Tests`$PySession] =!= ExternalSessionObject;
+pyOwned = Head[Gravifer`Einstoff`Tests`$PySession] =!= ExternalSessionObject;
 pySession = If[pyOwned,
   Quiet @ Check[
     If[FileExistsQ[pyExe],
       StartExternalSession[<|"System" -> "Python", "Executable" -> pyExe|>], $Failed], $Failed],
-  Einstoff`Tests`$PySession];
+  Gravifer`Einstoff`Tests`$PySession];
 pythonReady = TrueQ @ Quiet @ Check[
   Head[pySession] === ExternalSessionObject &&
   ExternalEvaluate[pySession, "import numpy, einops, einx; True"] === True,
@@ -75,7 +75,7 @@ pyRef[backend_, pattern_, dims_List, kwargs_ : <||>] :=
       "(" <> call <> ").tolist()"]];
 
 (* ======================================================================== *)
-BeginTestSection["Einstoff`CrossValidation`Reshape", pythonReady];
+BeginTestSection["Gravifer`Einstoff`CrossValidation`Reshape", pythonReady];
 
 (* einops 'a b c -> c a b'  <->  {{a_,b_,c_}} :> {{c,a,b}} *)
 VerificationTest[

@@ -13,7 +13,7 @@ PackageScoped[{
   heldDirectSumSides, heldRepeatedInputQ, plannerFailureQ, reportPlannerFailure
 }]
 
-irp[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
+irp[name_String] := Symbol["Gravifer`Einstoff`Internal`IR`" <> name];
 
 planStructuralIR[solved : irp["SolvedDesc"][a_Association], operator_] :=
   Catch[Module[{normalized, na, inputs, outputs, axisSizes, inShapes, outShapes,

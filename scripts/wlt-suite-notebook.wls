@@ -224,14 +224,14 @@ envCells[] := {
   heldInputCell[HoldComplete[
       Needs["MUnit`"];
       PacletDirectoryLoad[root];
-      Needs["Einstoff`"];
-      Einstoff`Tests`$Root = root;
+      Needs["Gravifer`Einstoff`"];
+      Gravifer`Einstoff`Tests`$Root = root;
     ], True],
   heldInputCell[HoldComplete[
-      Einstoff`Tests`$PySession = None;
+      Gravifer`Einstoff`Tests`$PySession = None;
       With[{exe = FileNameJoin[{root, ".venv", "Scripts", "python.exe"}]},
         If[FileExistsQ[exe],
-          Einstoff`Tests`$PySession = Quiet @ Check[
+          Gravifer`Einstoff`Tests`$PySession = Quiet @ Check[
             StartExternalSession[<|"System" -> "Python", "Executable" -> exe|>],
             None
           ]
@@ -274,8 +274,8 @@ bodyCells =
 teardownCells = {
   Cell["Teardown", "Chapter", CellID -> nbCellID[]],
   heldInputCell[HoldComplete[
-      If[Head[Einstoff`Tests`$PySession] === ExternalSessionObject,
-        Quiet @ DeleteObject[Einstoff`Tests`$PySession]
+      If[Head[Gravifer`Einstoff`Tests`$PySession] === ExternalSessionObject,
+        Quiet @ DeleteObject[Gravifer`Einstoff`Tests`$PySession]
       ];
     ], False]
 };

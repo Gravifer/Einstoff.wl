@@ -1,14 +1,14 @@
 (* ::Package:: *)
 
-BeginTestSection["Einstoff`Analysis"];
+BeginTestSection["Gravifer`Einstoff`Analysis"];
 
 ClearAll[a, b, c];
 
-compile = Symbol["Einstoff`PackageScope`compileDescIR"];
-solve = Symbol["Einstoff`PackageScope`solveDescIR"];
-analyze = Symbol["Einstoff`PackageScope`analyzeSolvedDesc"];
-spec = Symbol["Einstoff`PackageScope`operationSpec"];
-ir[name_] := Symbol["Einstoff`Internal`IR`" <> name];
+compile = Symbol["Gravifer`Einstoff`PackageScope`compileDescIR"];
+solve = Symbol["Gravifer`Einstoff`PackageScope`solveDescIR"];
+analyze = Symbol["Gravifer`Einstoff`PackageScope`analyzeSolvedDesc"];
+spec = Symbol["Gravifer`Einstoff`PackageScope`operationSpec"];
+ir[name_] := Symbol["Gravifer`Einstoff`Internal`IR`" <> name];
 
 analysis[desc_, shapes_, bindings_, op_, targeting_ : Automatic] :=
   analyze[solve[compile[desc, bindings], shapes]["Solved"], op, targeting];

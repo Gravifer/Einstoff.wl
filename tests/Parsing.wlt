@@ -1,12 +1,12 @@
 (* ::Package:: *)
 
-(* Test suite for Einstoff`Parsing`. Run via:
+(* Test suite for Gravifer`Einstoff`Parsing`. Run via:
    wolframscript -script scripts/run-tests.wls
    BeginTestSection/EndTestSection are MUnit markers; the runner loads
    MUnit` so they carry section semantics (skip/require). The .wlt itself
    does not import MUnit`, matching public-paclet convention. *)
 
-BeginTestSection["Einstoff`Parsing"];
+BeginTestSection["Gravifer`Einstoff`Parsing"];
 
 ClearAll[a, b, c, q, k, h, w, i, g, n, m];
 
@@ -20,14 +20,14 @@ bindingKeyName[s_Symbol] := SymbolName[Unevaluated[s]];
 
 (* 1. Plain rearrange:  a b c -> c a b *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[{{a_, b_, c_}} :> {{c, a, b}}, {{2, 3, 4}}],
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_, b_, c_}} :> {{c, a, b}}, {{2, 3, 4}}],
   {{4, 2, 3}},
   TestID -> "ex1-rearrange"
 ];
 
 (* 2. Split + permute + merge:  a (b c) -> (b a) c, b=2 *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, CircleTimes["b", c_]}} :> {{CircleTimes["b", a], c}}, {{4, 8}}, {"b" -> 2}],
   {{8, 4}},
   TestID -> "ex2-split-merge"
@@ -35,7 +35,7 @@ VerificationTest[
 
 (* 3. Direct-sum split, multi-output:  b (q + k) -> b q, b k, q=3 *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{b_, CirclePlus["q", k_]}} :> {{b, "q"}, {b, k}}, {{5, 10}}, {"q" -> 3}],
   {{5, 3}, {5, 7}},
   TestID -> "ex3-directsum-split"
@@ -43,7 +43,7 @@ VerificationTest[
 
 (* 4. Scalar operand + direct-sum append:  b c, -> b (c + 1) *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{b_, c_}, {}} :> {{b, CirclePlus[c, 1]}}, {{5, 9}, {}}],
   {{5, 10}},
   TestID -> "ex4-scalar-operand"
@@ -51,14 +51,14 @@ VerificationTest[
 
 (* 5. Bracket reduce:  a [b] *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[{{a_, Slot["b"]}} :> {{a}}, {{5, 9}}],
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_, Slot["b"]}} :> {{a}}, {{5, 9}}],
   {{5}},
   TestID -> "ex5-bracket-reduce"
 ];
 
 (* 6. Anonymous bracket ellipsis:  b [...] c *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{b_, SlotSequence[1], c_}} :> {{b, c}}, {{2, 7, 7, 3}}],
   {{2, 3}},
   TestID -> "ex6-anon-bracket-ellipsis"
@@ -68,7 +68,7 @@ VerificationTest[
    Slot[b_]-binds-vs-Slot[b]-references asymmetry); repeated occurrences across
    operands must agree.  a [b], [b] c with both b = 4 is satisfiable. *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {{2, 4}, {4, 3}}],
   {{2, 3}},
   TestID -> "bracket-unify-ok"
@@ -76,7 +76,7 @@ VerificationTest[
 
 (* 6c. ...and the two occurrences disagreeing (4 vs 5) is unsatisfiable. *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {{2, 4}, {5, 3}}],
   False,
   TestID -> "bracket-unify-mismatch"
@@ -85,7 +85,7 @@ VerificationTest[
 (* 6d. A Slot["b"] bracket is targeted string; referencing bare b is a kind mismatch. *)
 VerificationTest[
   Quiet[
-    sat @ Einstoff`EinstoffShapes[{{a_, Slot["b"]}} :> {{a, b}}, {{2, 4}}],
+    sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_, Slot["b"]}} :> {{a, b}}, {{2, 4}}],
     {Einstoff::unsupp}],
   False,
   TestID -> "bracket-string-rejects-bare-reference"
@@ -93,60 +93,60 @@ VerificationTest[
 
 (* 6d'. A targeted string axis accepts the plain string key or its matching target head. *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[{{a_, Slot["q"]}} :> {{a}}, {{2, 3}}, {"q" -> 3}],
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_, Slot["q"]}} :> {{a}}, {{2, 3}}, {"q" -> 3}],
   True,
   TestID -> "bracket-binding-string-key-ok"
 ];
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[{{a_, Slot["q"]}} :> {{a}}, {{2, 3}}, {Slot["q"] -> 3}],
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_, Slot["q"]}} :> {{a}}, {{2, 3}}, {Slot["q"] -> 3}],
   True,
   TestID -> "bracket-binding-slot-key-ok"
 ];
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[{{a_, Slot["q"]}} :> {{a}}, {{2, 3}}, {Highlighted["q"] -> 3}],
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_, Slot["q"]}} :> {{a}}, {{2, 3}}, {Highlighted["q"] -> 3}],
   False,
   TestID -> "bracket-binding-wrong-target-head-reject"
 ];
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[{{a_, Slot["q"]}} :> {{a}}, {{2, 3}}, {q -> 3}],
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_, Slot["q"]}} :> {{a}}, {{2, 3}}, {q -> 3}],
   False,
   TestID -> "bracket-binding-bare-key-reject"
 ];
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, Highlighted["q"]}} :> {{a}}, {{2, 3}}, {Highlighted["q"] -> 3}],
   True,
   TestID -> "highlighted-string-binding-head-key-ok"
 ];
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, Highlighted["q"]}} :> {{a}}, {{2, 3}}, {"q" -> 3}],
   True,
   TestID -> "highlighted-string-binding-string-key-ok"
 ];
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, Highlighted["q"]}} :> {{a}}, {{2, 3}}, {Framed["q"] -> 3}],
   False,
   TestID -> "highlighted-string-binding-wrong-head-reject"
 ];
 VerificationTest[
   Block[{q},
-    sat @ Einstoff`EinstoffShapes[
+    sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{a_, Highlighted[q]}} :> {{a}}, {{2, 3}}, {Highlighted[q] -> 3}]],
   True,
   TestID -> "highlighted-bare-binding-head-key-ok"
 ];
 VerificationTest[
   Block[{q},
-    sat @ Einstoff`EinstoffShapes[
+    sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{a_, Highlighted[q]}} :> {{a}}, {{2, 3}}, {q -> 3}]],
   True,
   TestID -> "highlighted-bare-binding-bare-key-ok"
 ];
 VerificationTest[
   Block[{q},
-    sat @ Einstoff`EinstoffShapes[
+    sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{a_, Highlighted[q]}} :> {{a}}, {{2, 3}}, {Framed[q] -> 3}]],
   False,
   TestID -> "highlighted-bare-binding-wrong-head-reject"
@@ -156,7 +156,7 @@ VerificationTest[
    multiple vectorized axes with the same name") — a universal invariant (no layout);
    distinct-across-shapes is fine. *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c, c}}, {{3}}, {c -> 2}],
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, c, c}}, {{3}}, {c -> 2}],
   False,
   TestID -> "reject-duplicate-output-axis"
 ];
@@ -168,12 +168,12 @@ VerificationTest[
    (Its admissibility for a *non-contracting* operator is that operator's policy, not the
    resolver's — see the reduce/map/dot/direct-sum reject tests.) *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[{{a_, b_, a_, d_}} :> {{b, d}}, {{2, 3, 2, 5}}],
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_, b_, a_, d_}} :> {{b, d}}, {{2, 3, 2, 5}}],
   True,
   TestID -> "accept-repeated-input-axis"
 ];
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[{{a_, b_, a_, d_}} :> {{b, d}}, {{2, 3, 2, 5}}],
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_, b_, a_, d_}} :> {{b, d}}, {{2, 3, 2, 5}}],
   {{3, 5}},
   TestID -> "accept-repeated-input-axis-shape"
 ];
@@ -181,22 +181,22 @@ VerificationTest[
 (* 6f. Context robustness: a #b bracket is a string-tier axis, so an unusual $Context
    does not break a kept #b on the output. *)
 VerificationTest[
-  Block[{$Context = "Sandbox`", $ContextPath = {"System`", "Einstoff`"}},
-    out @ Einstoff`EinstoffShapes[{{a_, Slot["b"]}} :> {{a, Slot["b"]}}, {{2, 4}}]],
+  Block[{$Context = "Sandbox`", $ContextPath = {"System`", "Gravifer`Einstoff`"}},
+    out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_, Slot["b"]}} :> {{a, Slot["b"]}}, {{2, 4}}]],
   {{2, 4}},
   TestID -> "bracket-context-robust"
 ];
 
 (* 9. Outer / broadcast:  a, b -> a b *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[{{a_}, {b_}} :> {{a, b}}, {{4}, {5}}],
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}, {b_}} :> {{a, b}}, {{4}, {5}}],
   {{4, 5}},
   TestID -> "ex9-broadcast"
 ];
 
 (* 10. Einsum contraction (matmul):  a [b], [b] c -> a c *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {{2, 3}, {3, 4}}],
   {{2, 4}},
   TestID -> "ex10-matmul"
@@ -204,7 +204,7 @@ VerificationTest[
 
 (* 11. Gather with targeted literal:  b [h w] c, b i [2] -> b i c *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{b_, Slot["h"], Slot["w"], c_}, {b_, i_, Slot[2]}} :> {{b, i, c}},
     {{8, 16, 16, 3}, {8, 5, 2}}],
   {{8, 5, 3}},
@@ -213,14 +213,14 @@ VerificationTest[
 
 (* sanity: satisfiable verdict + bindings on a representative case *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, CircleTimes["b", c_]}} :> {{CircleTimes["b", a], c}}, {{4, 8}}, {"b" -> 2}],
   True,
   TestID -> "ex2-satisfiable-true"
 ];
 
 VerificationTest[
-  Einstoff`EinstoffShapes[
+  Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, CircleTimes["b", c_]}} :> {{CircleTimes["b", a], c}}, {{4, 8}}, {"b" -> 2}]["Bindings"],
   <|HoldPattern[b] -> 2, HoldPattern[a] -> 4, HoldPattern[c] -> 4|>,
   SameTest -> (Sort[Normal[#1]] === Sort[Normal[#2]] &),
@@ -228,7 +228,7 @@ VerificationTest[
 ];
 
 VerificationTest[
-  Sort[bindingKeyName /@ Keys @ Einstoff`EinstoffShapes[
+  Sort[bindingKeyName /@ Keys @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, CircleTimes["b", c_]}} :> {{CircleTimes["b", a], c}}, {{4, 8}}, {"b" -> 2}]["Bindings"]],
   {"a", "b", "c"},
   TestID -> "ex2-bindings-held-key-names"
@@ -236,7 +236,7 @@ VerificationTest[
 
 (* targeted-axis reporting *)
 VerificationTest[
-  Einstoff`EinstoffShapes[
+  Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {{2, 3}, {3, 4}}]["Targeted"],
   {b},
   TestID -> "ex10-targeted"
@@ -246,7 +246,7 @@ VerificationTest[
 
 (* shared-axis conflict: matmul inner dims disagree (3 vs 9) *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, Slot["b"]}, {Slot["b"], c_}} :> {{a, c}}, {{2, 3}, {9, 4}}],
   False,
   TestID -> "unsat-shared-axis-conflict"
@@ -254,7 +254,7 @@ VerificationTest[
 
 (* non-divisible product: 8 not divisible by b=3 *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, CircleTimes["b", c_]}} :> {{CircleTimes["b", a], c}}, {{5, 8}}, {"b" -> 3}],
   False,
   TestID -> "unsat-nondivisible-product"
@@ -262,14 +262,14 @@ VerificationTest[
 
 (* rank mismatch: 3 terms vs 2 dims *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[{{a_, b_, c_}} :> {{c, a, b}}, {{2, 3}}],
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_, b_, c_}} :> {{c, a, b}}, {{2, 3}}],
   False,
   TestID -> "unsat-rank-mismatch"
 ];
 
 (* underdetermined product: (b c) with no binding for either *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, CircleTimes[b_, c_]}} :> {{CircleTimes[b, a], c}}, {{4, 8}}],
   False,
   TestID -> "unsat-underdetermined-product"
@@ -277,7 +277,7 @@ VerificationTest[
 
 (* targeted-literal mismatch: [2] but tensor dim is 5 *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{b_, Slot["h"], Slot["w"], c_}, {b_, i_, Slot[2]}} :> {{b, i, c}},
     {{8, 16, 16, 3}, {8, 5, 5}}],
   False,
@@ -286,14 +286,14 @@ VerificationTest[
 
 (* operand count mismatch: two lhs shapes, one tensor *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[{{a_}, {b_}} :> {{a, b}}, {{4}}],
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}, {b_}} :> {{a, b}}, {{4}}],
   False,
   TestID -> "unsat-operand-count"
 ];
 
 (* a reason string is always reported for unsat cases *)
 VerificationTest[
-  StringQ @ Einstoff`EinstoffShapes[
+  StringQ @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, b_, c_}} :> {{c, a, b}}, {{2, 3}}]["Reason"],
   True,
   TestID -> "unsat-reason-present"
@@ -302,12 +302,12 @@ VerificationTest[
 (* An in-shape {} inside an output composite is the unit 1, evaluated before the
    CircleTimes product: (a ()) -> a, and a (c ()) -> a (c) with c bound. *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[{{a_}} :> {{CircleTimes[a, {}]}}, {{3}}],
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{CircleTimes[a, {}]}}, {{3}}],
   {{3}},
   TestID -> "unit-empty-in-output-composite"
 ];
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[{{a_}} :> {{a, CircleTimes[c, {}]}}, {{3}}, {c -> 2}],
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, CircleTimes[c, {}]}}, {{3}}, {c -> 2}],
   {{3, 2}},
   TestID -> "unit-empty-in-output-composite-bound"
 ];
@@ -315,23 +315,23 @@ VerificationTest[
 (* EinstoffParse normalizes {} -> 1 on BOTH sides (incl. inside a composite), while a
    whole-shape {} stays scalar and held symbols are untouched. *)
 VerificationTest[
-  Einstoff`EinstoffParse[{{a_}} :> {{a, {}, CircleTimes[c, {}]}}]["RHS"],
+  Gravifer`Einstoff`PackageScope`EinstoffParse[{{a_}} :> {{a, {}, CircleTimes[c, {}]}}]["RHS"],
   Hold[{{a, 1, CircleTimes[c, 1]}}],
   TestID -> "parse-normalizes-rhs-unit"
 ];
 
 (* EinstoffParse flattens nested RHS CirclePlus symmetrically with the LHS. *)
 VerificationTest[
-  Einstoff`EinstoffParse[{{a_}} :> {{CirclePlus[a, CirclePlus[b, 1]]}}]["RHS"],
+  Gravifer`Einstoff`PackageScope`EinstoffParse[{{a_}} :> {{CirclePlus[a, CirclePlus[b, 1]]}}]["RHS"],
   Hold[{{CirclePlus[a, b, 1]}}],
   TestID -> "parse-flattens-rhs-circleplus"
 ];
 
 VerificationTest[
   {
-    KeyExistsQ[Einstoff`EinstoffParse[{{a_}} -> {{a}}], "Warning"],
-    KeyExistsQ[Einstoff`EinstoffParse[{{a_}} :> {{a}}], "Warning"],
-    sat @ Einstoff`EinstoffShapes[{{a_}} -> {{a}}, {{3}}]
+    KeyExistsQ[Gravifer`Einstoff`PackageScope`EinstoffParse[{{a_}} -> {{a}}], "Warning"],
+    KeyExistsQ[Gravifer`Einstoff`PackageScope`EinstoffParse[{{a_}} :> {{a}}], "Warning"],
+    sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} -> {{a}}, {{3}}]
   },
   {True, False, True},
   TestID -> "parse-rule-is-warned-best-effort-compatibility"
@@ -342,13 +342,13 @@ VerificationTest[
 (* A bindings entry that is not an axis-name -> size rule (a bare symbol/expr) is
    rejected at the entrance with a clear reason, not degraded into a deep unsat. *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c, 2}],
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c, 2}],
   False,
   TestID -> "bindings-reject-non-rule"
 ];
 VerificationTest[
   StringContainsQ[
-    Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c, 2}]["Reason"],
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c, 2}]["Reason"],
     "bindings must be a list of axis-name"],
   True,
   TestID -> "bindings-reject-non-rule-reason"
@@ -360,7 +360,7 @@ VerificationTest[
    binding the desc still resolves. *)
 VerificationTest[
   sat @ Quiet[
-    Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {2 -> 3, c -> 2}],
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {2 -> 3, c -> 2}],
     {Einstoff::evalkey}],
   True,
   TestID -> "bindings-nonsymbol-key-warns-continues"
@@ -368,18 +368,18 @@ VerificationTest[
 
 (* A non-positive or non-integer size is rejected with the size-specific reason. *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> -2}],
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> -2}],
   False,
   TestID -> "bindings-reject-nonpositive-size"
 ];
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2.5}],
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2.5}],
   False,
   TestID -> "bindings-reject-noninteger-size"
 ];
 VerificationTest[
   StringContainsQ[
-    Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 0}]["Reason"],
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 0}]["Reason"],
     "positive-integer axis size"],
   True,
   TestID -> "bindings-reject-size-reason"
@@ -387,7 +387,7 @@ VerificationTest[
 
 (* A valid RuleDelayed binding still works (size read from the built Association). *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c :> 2}],
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c :> 2}],
   {{3, 2}},
   TestID -> "bindings-ruledelayed-ok"
 ];
@@ -395,18 +395,18 @@ VerificationTest[
 (* Equal facts coalesce; conflicting values reject without order-dependent Association
    overwrite semantics. *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2, c -> 2}],
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2, c -> 2}],
   {{3, 2}},
   TestID -> "bindings-coalesce-equal-key"
 ];
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2, c -> 99}],
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2, c -> 99}],
   False,
   TestID -> "bindings-reject-conflicting-key"
 ];
 VerificationTest[
   StringContainsQ[
-    Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2, c -> 99}]["Reason"],
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2, c -> 99}]["Reason"],
     "conflicting sizes for axis c"],
   True,
   TestID -> "bindings-reject-conflicting-key-reason"
@@ -415,58 +415,58 @@ VerificationTest[
 (* ===================== inline axis sizes ================================ *)
 
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[{{Annotation[a, 3]}} :> {{a}}, {{3}}],
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{Annotation[a, 3]}} :> {{a}}, {{3}}],
   {{3}},
   TestID -> "inline-annotation-lhs-sized-axis"
 ];
 
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[{{Labeled[3, a]}} :> {{a}}, {{3}}],
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{Labeled[3, a]}} :> {{a}}, {{3}}],
   {{3}},
   TestID -> "inline-labeled-lhs-sized-axis"
 ];
 
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[{{Annotation[a_, 3]}} :> {{a}}, {{4}}],
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{Annotation[a_, 3]}} :> {{a}}, {{4}}],
   False,
   TestID -> "inline-sized-blank-check-mismatch"
 ];
 
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[{{a_}} :> {{a, Annotation[c, 2]}}, {{3}}],
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, Annotation[c, 2]}}, {{3}}],
   {{3, 2}},
   TestID -> "inline-annotation-rhs-broadcast-shape"
 ];
 
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[{{a_}} :> {{a, Labeled[2, "c"]}}, {{3}}],
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, Labeled[2, "c"]}}, {{3}}],
   {{3, 2}},
   TestID -> "inline-labeled-rhs-string-axis"
 ];
 
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{Annotation[Framed[b_], 3]}} :> {{Framed[b]}}, {{3}}],
   {{3}},
   TestID -> "inline-target-sizing-outside"
 ];
 
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{Framed[Annotation[b_, 3]]}} :> {{Framed[b]}}, {{3}}],
   {{3}},
   TestID -> "inline-target-sizing-inside"
 ];
 
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{Slot[Annotation["b", 3]]}} :> {{Slot["b"]}}, {{3}}],
   {{3}},
   TestID -> "inline-slot-composition"
 ];
 
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_}} :> {{a, Annotation[c, 2]}}, {{3}}, {c -> 2}],
   {{3, 2}},
   TestID -> "inline-external-equal-coalesce"
@@ -474,7 +474,7 @@ VerificationTest[
 
 VerificationTest[
   StringContainsQ[
-    Einstoff`EinstoffShapes[
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{a_}} :> {{a, Annotation[c, 2]}}, {{3}}, {c -> 4}]["Reason"],
     "conflicting sizes for axis c"],
   True,
@@ -483,7 +483,7 @@ VerificationTest[
 
 VerificationTest[
   sat @ Quiet[
-    Einstoff`EinstoffShapes[
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{a_}} :> {{a, Annotation[CircleTimes[c, d], 2]}}, {{3}}],
     {Einstoff::unsupp}],
   False,
@@ -492,7 +492,7 @@ VerificationTest[
 
 VerificationTest[
   sat @ Quiet[
-    Einstoff`EinstoffShapes[
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{a_}} :> {{a, Annotation[c, 2, "key"]}}, {{3}}],
     {Einstoff::unsupp}],
   False,
@@ -501,23 +501,23 @@ VerificationTest[
 
 VerificationTest[
   out /@ {
-    Einstoff`EinstoffShapes[
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{Annotation[Highlighted[b_], 3]}} :> {{Highlighted[b]}}, {{3}}],
-    Einstoff`EinstoffShapes[
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{Highlighted[Annotation[b_, 3]]}} :> {{Highlighted[b]}}, {{3}}],
-    Einstoff`EinstoffShapes[
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{Labeled[3, Highlighted[b_]]}} :> {{Highlighted[b]}}, {{3}}],
-    Einstoff`EinstoffShapes[
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{Highlighted[Labeled[3, b_]]}} :> {{Highlighted[b]}}, {{3}}],
-    Einstoff`EinstoffShapes[
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{Labeled[3, Framed[b_]]}} :> {{Framed[b]}}, {{3}}],
-    Einstoff`EinstoffShapes[
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{Framed[Labeled[3, b_]]}} :> {{Framed[b]}}, {{3}}],
-    Einstoff`EinstoffShapes[
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{Annotation[Slot["b"], 3]}} :> {{Slot["b"]}}, {{3}}],
-    Einstoff`EinstoffShapes[
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{Labeled[3, Slot["b"]]}} :> {{Slot["b"]}}, {{3}}],
-    Einstoff`EinstoffShapes[
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{Slot[Labeled[3, "b"]]}} :> {{Slot["b"]}}, {{3}}]
   },
   ConstantArray[{{3}}, 9],
@@ -526,9 +526,9 @@ VerificationTest[
 
 VerificationTest[
   {
-    out @ Einstoff`EinstoffShapes[
+    out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{Annotation[c, 2]}} :> {{Annotation[c, 2]}}, {{2}}],
-    out @ Einstoff`EinstoffShapes[
+    out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
       {{a_}} :> {{a, c}}, {{3}}, {c -> 2, c -> 2}]
   },
   {{{2}}, {{3, 2}}},
@@ -537,16 +537,16 @@ VerificationTest[
 
 VerificationTest[
   And @@ (Not /@ (sat /@ Quiet[{
-      Einstoff`EinstoffShapes[{{a_}} :> {{a, Annotation[2, 3]}}, {{3}}],
-      Einstoff`EinstoffShapes[{{a_}} :> {{a, Annotation[_, 3]}}, {{3}}],
-      Einstoff`EinstoffShapes[{{a_}} :> {{a, Annotation[__, 3]}}, {{3}}],
-      Einstoff`EinstoffShapes[
+      Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, Annotation[2, 3]}}, {{3}}],
+      Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, Annotation[_, 3]}}, {{3}}],
+      Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, Annotation[__, 3]}}, {{3}}],
+      Gravifer`Einstoff`PackageScope`EinstoffShapes[
         {{a_}} :> {{a, Annotation[CirclePlus[c, d], 3]}}, {{3}}],
-      Einstoff`EinstoffShapes[
+      Gravifer`Einstoff`PackageScope`EinstoffShapes[
         {{a_}} :> {{a, Annotation[Repeated[c], 3]}}, {{3}}],
-      Einstoff`EinstoffShapes[
+      Gravifer`Einstoff`PackageScope`EinstoffShapes[
         {{a_}} :> {{a, Labeled[3, c, Right]}}, {{3}}],
-      Einstoff`EinstoffShapes[
+      Gravifer`Einstoff`PackageScope`EinstoffShapes[
         {{a_}} :> {{a, Labeled[3, {c, d}]}}, {{3}}]
     }, {Einstoff::unsupp}])),
   True,
@@ -557,7 +557,7 @@ VerificationTest[
 
 (* Cross-tensor named axis-sequences: RHS code listifies the captured Sequences and zips them. *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a__}, {b__}} :>
       {{CircleTimes[a, b]..}},
     {{2, 3}, {5, 7}}],
@@ -567,7 +567,7 @@ VerificationTest[
 
 (* Inner binders are re-walked per repetition; they do NOT unify to one value. *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{s__}} :> {{s}},
     {{2, 3, 4}}],
   {{2, 3, 4}},
@@ -576,7 +576,7 @@ VerificationTest[
 
 VerificationTest[
   KeyExistsQ[
-    Einstoff`EinstoffMatch[{{s__}}, {{2, 3, 4}}],
+    Gravifer`Einstoff`PackageScope`EinstoffMatch[{{s__}}, {{2, 3, 4}}],
     "seq"],
   False,
   TestID -> "named-axis-sequence-match-keeps-seq-private"
@@ -584,7 +584,7 @@ VerificationTest[
 
 (* Structured projection keeps the captured term structure; targeted string uses Highlighted. *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{b_, grp : (CircleTimes[s_, Highlighted["ds"]]).., c_}} :>
       {Join[{b}, Map[First, {grp}], {c}]},
     {{2, 6, 12, 5}},
@@ -596,7 +596,7 @@ VerificationTest[
 (* Inner sequence captures can be projected with RHS postfix syntax.  This is an
    Einstoff resolver extension: native WL would not use s.. as list splicing. *)
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{b_, grp : (CircleTimes[s_, Highlighted["ds"]]).., c_}} :>
       {{b, s.., c}},
     {{2, 6, 12, 5}},
@@ -606,7 +606,7 @@ VerificationTest[
 ];
 
 VerificationTest[
-  out @ Einstoff`EinstoffShapes[
+  out @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, z___, b_}} :> {{a, z..., b}},
     {{2, 3}}],
   {{2, 3}},
@@ -614,7 +614,7 @@ VerificationTest[
 ];
 
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{b_, grp : (CircleTimes[s_, 3]).., c_}} :> {b, s.., c},
     {{2, 6, 12, 5}}],
   False,
@@ -623,7 +623,7 @@ VerificationTest[
 
 (* Arbitrary Join is not the declarative spelling for a null sequence projection. *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, z___, b_}} :> {Join[{a}, {z}, {b}]},
     {{2, 3}}],
   False,
@@ -632,7 +632,7 @@ VerificationTest[
 
 (* Captured named axis-sequences must have the same length in this v1 policy. *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a__}, {b__}} :>
       {{CircleTimes[a, b]..}},
     {{2, 3}, {5, 7, 11}}],
@@ -642,7 +642,7 @@ VerificationTest[
 
 VerificationTest[
   StringContainsQ[
-    Einstoff`EinstoffShapes[
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a__}, {b__}} :>
       {{CircleTimes[a, b]..}},
       {{2, 3}, {5, 7, 11}}]["Reason"],
@@ -653,7 +653,7 @@ VerificationTest[
 
 (* Nested Repeated and PatternSequence are intentionally outside the v1 matcher. *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{grp : ((_)..)..}} :> {{grp}},
     {{2, 3}}],
   False,
@@ -661,7 +661,7 @@ VerificationTest[
 ];
 
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{grp : (PatternSequence[_, _])..}} :> {{grp}},
     {{2, 3}}],
   False,
@@ -670,7 +670,7 @@ VerificationTest[
 
 (* Inner binders are list-valued; do not also use them as ordinary scalar axes. *)
 VerificationTest[
-  sat @ Einstoff`EinstoffShapes[
+  sat @ Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{s_}, {grp : (CircleTimes[s_, 3])..}} :> {{s}},
     {{2}, {6}}],
   False,

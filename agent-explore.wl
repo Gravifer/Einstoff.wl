@@ -3,11 +3,11 @@ dir = DirectoryName[$InputFileName];
 Get[FileNameJoin[{dir, "Einstoff", "Parsing.wl"}]];
 
 Print["=== ex5 full result ==="];
-r = Einstoff`Parsing`EinstoffShapes[{{a_, Slot[b_]}} :> {{a}}, {{5, 9}}];
+r = Gravifer`Einstoff`Parsing`EinstoffShapes[{{a_, Slot[b_]}} :> {{a}}, {{5, 9}}];
 Print[r];
 
 Print["=== EinstoffMatch directly on ex5 lhs ==="];
-Print[Einstoff`Parsing`EinstoffMatch[{{a_, Slot[b_]}}, {{5, 9}}]];
+Print[Gravifer`Einstoff`Parsing`EinstoffMatch[{{a_, Slot[b_]}}, {{5, 9}}]];
 
 Print["=== inspect the parsed lhs / heads ==="];
 lhs = {{a_, Slot[b_]}};

@@ -6,7 +6,7 @@
 
 PackageScoped[{buildConstraintDesc, solveConstraintDesc, solveDescIR}]
 
-irs[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
+irs[name_String] := Symbol["Gravifer`Einstoff`Internal`IR`" <> name];
 
 solveDescIR[compiled_Association, inputShapes_] :=
   Catch[Module[{normalized, constraints, solved},

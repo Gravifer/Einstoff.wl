@@ -10,7 +10,7 @@
    TensorContract / Tr and against Einstoff["Massage"] / Einstoff["einsum"].
    Run via: wolframscript -script scripts/run-tests.wls *)
 
-BeginTestSection["Einstoff`Lowering`ArrayContract"];
+BeginTestSection["Gravifer`Einstoff`Lowering`ArrayContract"];
 
 ClearAll[a, b, c, d];
 

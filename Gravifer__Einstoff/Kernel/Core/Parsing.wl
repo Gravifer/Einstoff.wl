@@ -16,12 +16,12 @@
    `CirclePlus` (direct sum), targeted wrappers, and multi-tensor shared
    axes. Named ellipses are resolver-only for now; lowerers reject them.
 
-   Structured Package Format: public symbols are declared with
-   PackageExported (they land in the `Einstoff`` context); every helper below
+   Structured Package Format: shared internal symbols are declared with
+   PackageScoped (they land in the ``Gravifer`Einstoff`PackageScope`` context); every helper below
    is left undeclared and is therefore private to this file
-   (`Einstoff`Parsing`Private``). *)
+   (`Gravifer`Einstoff`Parsing`Private``). *)
 
-PackageExported[{
+PackageScoped[{
   EinstoffShapes,
   EinstoffParse,
   EinstoffMatch
@@ -53,13 +53,13 @@ EinstoffParse[desc_] :=
   Module[{compiled, captured, a, result},
     compiled = compileHeldDescIR[Hold[desc], HoldComplete[{}], "Parse", <||>];
     captured = Lookup[compiled, "Captured", None];
-    If[Head[captured] =!= Einstoff`Internal`IR`CapturedDesc,
+    If[Head[captured] =!= Gravifer`Einstoff`Internal`IR`CapturedDesc,
       <|"LHS" -> $Failed, "RHS" -> $Failed|>,
-      a = Replace[captured, Einstoff`Internal`IR`CapturedDesc[x_Association] :> x];
+      a = Replace[captured, Gravifer`Einstoff`Internal`IR`CapturedDesc[x_Association] :> x];
       result = <|"LHS" -> displayCapturedSurface[a["CanonicalLHS"]],
         "RHS" -> displayCapturedSurface[a["CanonicalRHS"]]|>;
       If[MatchQ[Lookup[compiled, "Surface", None],
-          Einstoff`Internal`IR`SurfaceDesc[HoldComplete[_Rule], ___]],
+          Gravifer`Einstoff`Internal`IR`SurfaceDesc[HoldComplete[_Rule], ___]],
         Append[result, "Warning" -> "prefer :> (RuleDelayed) over -> for desc"],
         result]
     ]
@@ -137,21 +137,21 @@ EinstoffMatch[lhsShapes_, inputShapes_, bindingsIn_ : {}] :=
     Module[{compiled, normalized, solvedBundle, solved, solvedAssoc, axes, env},
       compiled = Quiet[compileMatchIR[lhsShapes, bindingsIn], {Einstoff::unsupp}];
       normalized = Lookup[compiled, "Normalized", Missing["Normalized"]];
-      If[Head[normalized] =!= Einstoff`Internal`IR`NormalizedDesc,
+      If[Head[normalized] =!= Gravifer`Einstoff`Internal`IR`NormalizedDesc,
         Throw[<|"ok" -> False,
           "reason" -> publicFailureReason[normalized, None]|>, publicMatchTag]];
       solvedBundle = solveDescIR[compiled, inputShapes];
       solved = Lookup[solvedBundle, "Solved", Missing["Solved"]];
-      If[Head[solved] =!= Einstoff`Internal`IR`SolvedDesc,
+      If[Head[solved] =!= Gravifer`Einstoff`Internal`IR`SolvedDesc,
         Throw[<|"ok" -> False,
           "reason" -> publicFailureReason[solved, normalized]|>, publicMatchTag]];
       solvedAssoc = Replace[solved,
-        Einstoff`Internal`IR`SolvedDesc[a_Association] :> a];
+        Gravifer`Einstoff`Internal`IR`SolvedDesc[a_Association] :> a];
       axes = publicNormalizedAxes[normalized];
       env = Association @ KeyValueMap[
         Function[{id, size}, publicAxisKey[id, axes] -> size],
         KeySelect[solvedAssoc["AxisSizes"],
-          MatchQ[#, Einstoff`Internal`IR`AxisId[_Integer]] &]];
+          MatchQ[#, Gravifer`Einstoff`Internal`IR`AxisId[_Integer]] &]];
       <|"ok" -> True, "env" -> env|>
     ], publicMatchTag];
 
@@ -165,14 +165,14 @@ EinstoffShapes[desc_, inputShapes_, bindings_ : {}] :=
           targeted, duplicate, solvedBundle, solved, solvedAssoc, bindingsOut},
     compiled = compileHeldDescIR[Hold[desc], HoldComplete[bindings], "Shapes", <||>];
     normalized = Lookup[compiled, "Normalized", Missing["Normalized"]];
-    If[Head[normalized] =!= Einstoff`Internal`IR`NormalizedDesc,
+    If[Head[normalized] =!= Gravifer`Einstoff`Internal`IR`NormalizedDesc,
       Throw[publicShapesFailure[normalized, None, {}], publicShapesTag]];
     normalizedAssoc = Replace[normalized,
-      Einstoff`Internal`IR`NormalizedDesc[a_Association] :> a];
+      Gravifer`Einstoff`Internal`IR`NormalizedDesc[a_Association] :> a];
     axes = Replace[normalizedAssoc["Axes"],
-      Einstoff`Internal`IR`AxisTable[a_Association] :> a];
+      Gravifer`Einstoff`Internal`IR`AxisTable[a_Association] :> a];
     targetedIds = DeleteDuplicates @ Cases[normalizedAssoc["Inputs"],
-      Einstoff`Internal`IR`AxisOccurrence[_, id_, meta_Association] /;
+      Gravifer`Einstoff`Internal`IR`AxisOccurrence[_, id_, meta_Association] /;
           Lookup[meta, "TargetHead", None] =!= None :> id, Infinity];
     targeted = publicAxisKey[#, axes] & /@ targetedIds;
     duplicate = publicDuplicateOutputAxis[normalizedAssoc["Outputs"]];
@@ -185,32 +185,32 @@ EinstoffShapes[desc_, inputShapes_, bindings_ : {}] :=
         "Targeted" -> targeted|>, publicShapesTag]];
     solvedBundle = solveDescIR[compiled, inputShapes];
     solved = Lookup[solvedBundle, "Solved", Missing["Solved"]];
-    If[Head[solved] =!= Einstoff`Internal`IR`SolvedDesc,
+    If[Head[solved] =!= Gravifer`Einstoff`Internal`IR`SolvedDesc,
       Throw[publicShapesFailure[solved, normalized, targeted], publicShapesTag]];
     solvedAssoc = Replace[solved,
-      Einstoff`Internal`IR`SolvedDesc[a_Association] :> a];
+      Gravifer`Einstoff`Internal`IR`SolvedDesc[a_Association] :> a];
     bindingsOut = Association @ KeyValueMap[
       Function[{id, size}, publicAxisKey[id, axes] -> size],
       KeySelect[solvedAssoc["AxisSizes"],
-        MatchQ[#, Einstoff`Internal`IR`AxisId[_Integer]] &]];
+        MatchQ[#, Gravifer`Einstoff`Internal`IR`AxisId[_Integer]] &]];
     <|"Satisfiable" -> True, "OutputShapes" -> solvedAssoc["OutputShapes"],
       "Bindings" -> bindingsOut, "Targeted" -> targeted, "Reason" -> ""|>
   ], publicShapesTag];
 
-publicDuplicateOutputAxis[Einstoff`Internal`IR`Outputs[shapes_List]] :=
+publicDuplicateOutputAxis[Gravifer`Einstoff`Internal`IR`Outputs[shapes_List]] :=
   SelectFirst[shapes,
     Function[shape, With[{ids = Cases[shape,
-        Einstoff`Internal`IR`AxisOccurrence[_, id_, _] :> id, Infinity]},
+        Gravifer`Einstoff`Internal`IR`AxisOccurrence[_, id_, _] :> id, Infinity]},
       ! DuplicateFreeQ[ids]]], Missing["NoDuplicate"]] /.
-    Einstoff`Internal`IR`Shape[terms_List] :>
+    Gravifer`Einstoff`Internal`IR`Shape[terms_List] :>
       First @ Select[Cases[terms,
-        Einstoff`Internal`IR`AxisOccurrence[_, id_, _] :> id, Infinity],
+        Gravifer`Einstoff`Internal`IR`AxisOccurrence[_, id_, _] :> id, Infinity],
         Count[Cases[terms,
-          Einstoff`Internal`IR`AxisOccurrence[_, other_, _] :> other, Infinity], #] > 1 &];
+          Gravifer`Einstoff`Internal`IR`AxisOccurrence[_, other_, _] :> other, Infinity], #] > 1 &];
 publicDuplicateOutputAxis[_] := Missing["NoDuplicate"];
 
 publicAxisName[id_, axes_Association] := Replace[Lookup[axes, id, Missing[]],
-  Einstoff`Internal`IR`AxisInfo[name_String, _Association] :> name];
+  Gravifer`Einstoff`Internal`IR`AxisInfo[name_String, _Association] :> name];
 publicAxisKey[id_, axes_Association] := axisSymbol[publicAxisName[id, axes]];
 
 publicShapesFailure[failure_, normalized_, targeted_List] :=
@@ -220,45 +220,45 @@ publicShapesFailure[failure_, normalized_, targeted_List] :=
     "Targeted" -> targeted|>;
 
 publicFailureReason[
-    Einstoff`Internal`IR`FailureRecord[_, _, details_Association], _] /;
+    Gravifer`Einstoff`Internal`IR`FailureRecord[_, _, details_Association], _] /;
       StringQ[Lookup[details, "Reason", None]] := details["Reason"];
 publicFailureReason[
-    Einstoff`Internal`IR`FailureRecord["MalformedDescription", _, _], _] :=
+    Gravifer`Einstoff`Internal`IR`FailureRecord["MalformedDescription", _, _], _] :=
   "description must be of the form lhs :> rhs (or lhs -> rhs), with each side a list of shapes";
 publicFailureReason[
-    Einstoff`Internal`IR`FailureRecord["OperandCountMismatch", _, d_Association], _] :=
+    Gravifer`Einstoff`Internal`IR`FailureRecord["OperandCountMismatch", _, d_Association], _] :=
   "operand count: desc has " <> ToString[d["Expected"]] <> " shape(s) but " <>
     ToString[d["Actual"]] <> " tensor shape(s) given";
 publicFailureReason[
-    Einstoff`Internal`IR`FailureRecord["ConflictingAxisSizes", _, d_Association],
+    Gravifer`Einstoff`Internal`IR`FailureRecord["ConflictingAxisSizes", _, d_Association],
     normalized_] :=
   With[{axes = publicNormalizedAxes[normalized]},
     "axis " <> publicAxisName[d["Axis"], axes] <> ": expected " <>
       ToString[d["Expected"]] <> " but tensor dimension is " <>
       ToString[d["Actual"]]];
 publicFailureReason[
-    Einstoff`Internal`IR`FailureRecord["ConflictingBindingFacts", _, d_Association],
+    Gravifer`Einstoff`Internal`IR`FailureRecord["ConflictingBindingFacts", _, d_Association],
     normalized_] :=
   With[{name = Lookup[d, "Name",
       publicAxisName[Lookup[d, "Axis", Missing[]], publicNormalizedAxes[normalized]]]},
     "conflicting sizes for axis " <> name <> ": " <>
       StringRiffle[ToString[#, InputForm] & /@ d["Values"], " versus "]];
 publicFailureReason[
-    Einstoff`Internal`IR`FailureRecord["RankMismatch", _, _], _] :=
+    Gravifer`Einstoff`Internal`IR`FailureRecord["RankMismatch", _, _], _] :=
   "no consistent axis binding (shape/rank mismatch)";
 publicFailureReason[
-    Einstoff`Internal`IR`FailureRecord["InvalidInputShapes", _, _], _] :=
+    Gravifer`Einstoff`Internal`IR`FailureRecord["InvalidInputShapes", _, _], _] :=
   "input shapes must be a list of dimension lists";
 publicFailureReason[
-    Einstoff`Internal`IR`FailureRecord["InvalidKnownSize", _, _], _] :=
+    Gravifer`Einstoff`Internal`IR`FailureRecord["InvalidKnownSize", _, _], _] :=
   "each binding must give a positive-integer axis size";
 publicFailureReason[
-    Einstoff`Internal`IR`FailureRecord["SequenceZipLengthMismatch", _, _], _] :=
+    Gravifer`Einstoff`Internal`IR`FailureRecord["SequenceZipLengthMismatch", _, _], _] :=
   "captured axis sequences have different lengths";
-publicFailureReason[Einstoff`Internal`IR`FailureRecord[tag_, _, _], _] :=
+publicFailureReason[Gravifer`Einstoff`Internal`IR`FailureRecord[tag_, _, _], _] :=
   "shape constraints are not satisfiable (" <> tag <> ")";
 publicFailureReason[_, _] := "shape constraints are not satisfiable";
 
-publicNormalizedAxes[Einstoff`Internal`IR`NormalizedDesc[a_Association]] :=
-  Replace[a["Axes"], Einstoff`Internal`IR`AxisTable[x_Association] :> x];
+publicNormalizedAxes[Gravifer`Einstoff`Internal`IR`NormalizedDesc[a_Association]] :=
+  Replace[a["Axes"], Gravifer`Einstoff`Internal`IR`AxisTable[x_Association] :> x];
 publicNormalizedAxes[_] := <||>;

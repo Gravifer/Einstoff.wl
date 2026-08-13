@@ -12,7 +12,7 @@
    Run via: wolframscript -script scripts/run-tests.wls
    BeginTestSection/EndTestSection are MUnit markers; the runner loads MUnit`. *)
 
-BeginTestSection["Einstoff`DescHygiene"];
+BeginTestSection["Gravifer`Einstoff`DescHygiene"];
 
 ClearAll[a, b, c, k, r, n];
 
@@ -156,7 +156,7 @@ VerificationTest[
 VerificationTest[
   Block[{c = 3},
     Sort[bindingKeyName /@ Keys[
-      Einstoff`EinstoffShapes[{{a_, c_}} :> {{c, a}}, {{2, 3}}]["Bindings"]]]],
+      Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_, c_}} :> {{c, a}}, {{2, 3}}]["Bindings"]]]],
   {"a", "c"},
   TestID -> "hyg-decanon-bindings-no-value-leak"
 ];
@@ -164,7 +164,7 @@ VerificationTest[
 (* 15b. ...and EinstoffParse's normalized LHS keeps the blank `c_`, not `Pattern[3, _]`. *)
 VerificationTest[
   Block[{c = 3},
-    FreeQ[Einstoff`EinstoffParse[{{a_, c_}} :> {{c, a}}]["LHS"], 3]],
+    FreeQ[Gravifer`Einstoff`PackageScope`EinstoffParse[{{a_, c_}} :> {{c, a}}]["LHS"], 3]],
   True,
   TestID -> "hyg-decanon-parse-no-value-leak"
 ];
@@ -174,14 +174,14 @@ VerificationTest[
 VerificationTest[
   Block[{c = Null},
     Sort[bindingKeyName /@ Keys[
-      Einstoff`EinstoffShapes[{{a_, c_}} :> {{c, a}}, {{2, 3}}]["Bindings"]]]],
+      Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_, c_}} :> {{c, a}}, {{2, 3}}]["Bindings"]]]],
   {"a", "c"},
   TestID -> "hyg-decanon-null-shadow-no-leak"
 ];
 
 VerificationTest[
   Block[{c = Null},
-    FreeQ[Einstoff`EinstoffParse[{{a_, c_}} :> {{c, a}}]["LHS"], Null]],
+    FreeQ[Gravifer`Einstoff`PackageScope`EinstoffParse[{{a_, c_}} :> {{c, a}}]["LHS"], Null]],
   True,
   TestID -> "hyg-decanon-null-shadow-parse"
 ];
@@ -194,7 +194,7 @@ VerificationTest[
 VerificationTest[
   Block[{c = Null},
     Sort[bindingKeyName /@ Keys[Quiet[
-      Einstoff`EinstoffShapes[
+      Gravifer`Einstoff`PackageScope`EinstoffShapes[
         {{a_, Highlighted[c_]}} :> {{a, c}}, {{2, 3}}, {c -> 2}],
       {Einstoff::evalkey}]["Bindings"]]]],
   {"a", "c"},
@@ -219,19 +219,19 @@ VerificationTest[
        unestablished as a string) must be bound with the bare key `c -> n`, NOT the
        string key `"c" -> n` (which is only for a string-tier axis). *)
 VerificationTest[
-  Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {"c" -> 2}]["Satisfiable"],
+  Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {"c" -> 2}]["Satisfiable"],
   False,
   TestID -> "hyg-string-key-rejected-for-bare-axis"
 ];
 VerificationTest[
-  Block[{c}, Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2}]["OutputShapes"]],
+  Block[{c}, Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2}]["OutputShapes"]],
   {{3, 2}},
   TestID -> "hyg-bare-key-binds-bare-axis"
 ];
 (* ...and the positive counterpart through the public shape resolver: an all-string desc
    whose RHS-only string axis "c" is supplied with the string-tier key "c" -> n. *)
 VerificationTest[
-  Einstoff`EinstoffShapes[{{"a"}} :> {{"a", "c"}}, {{3}}, {"c" -> 2}]["OutputShapes"],
+  Gravifer`Einstoff`PackageScope`EinstoffShapes[{{"a"}} :> {{"a", "c"}}, {{3}}, {"c" -> 2}]["OutputShapes"],
   {{3, 2}},
   TestID -> "hyg-string-key-binds-string-axis-shapes"
 ];
@@ -242,7 +242,7 @@ VerificationTest[
 VerificationTest[
   StringContainsQ[
     Quiet[
-      Einstoff`EinstoffShapes[{{"a b"}} :> {{"a b"}}, {{3}}]["Reason"],
+      Gravifer`Einstoff`PackageScope`EinstoffShapes[{{"a b"}} :> {{"a b"}}, {{3}}]["Reason"],
       {Einstoff::unsupp}],
     "invalid axis name"],
   True,
@@ -251,7 +251,7 @@ VerificationTest[
 VerificationTest[
   StringContainsQ[
     Quiet[
-      Einstoff`EinstoffShapes[{{a_}} :> {{"a"}}, {{3}}]["Reason"],
+      Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{"a"}}, {{3}}]["Reason"],
       {Einstoff::unsupp}],
     "spelled both"],
   True,
@@ -260,7 +260,7 @@ VerificationTest[
 (* ...while a genuinely malformed desc (not lhs :> rhs) still gets the generic reason. *)
 VerificationTest[
   StringContainsQ[
-    Einstoff`EinstoffShapes[{{a_}}, {{3}}]["Reason"],
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}}, {{3}}]["Reason"],
     "must be of the form"],
   True,
   TestID -> "hyg-reject-reason-structural"
@@ -269,12 +269,12 @@ VerificationTest[
 (* The whole LHS is one scope, but a bare LHS symbol is always ambient: it is not
    localized merely because another occurrence uses a binder with the same text. *)
 VerificationTest[
-  Einstoff`EinstoffShapes[{{a_, a}} :> {{a}}, {{3, 5}}]["OutputShapes"],
+  Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_, a}} :> {{a}}, {{3, 5}}]["OutputShapes"],
   {{3}},
   TestID -> "hyg-lhs-bare-not-localized-by-binder"
 ];
 VerificationTest[
-  Einstoff`EinstoffShapes[
+  Gravifer`Einstoff`PackageScope`EinstoffShapes[
     {{a_, b_}, {b, c_}} :> {{a, c}}, {{2, 3}, {9, 4}}]["OutputShapes"],
   {{2, 4}},
   TestID -> "hyg-lhs-bare-cross-operand-is-ambient"
@@ -284,32 +284,32 @@ VerificationTest[
        (axisDisplayName maps a$nn back to "a"); a shadowed name still displays cleanly,
        never its leaked value. *)
 VerificationTest[
-  Einstoff`EinstoffShapes[{{a_}, {a_}} :> {{a}}, {{4}, {7}}]["Reason"],
+  Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}, {a_}} :> {{a}}, {{4}, {7}}]["Reason"],
   "axis a: expected 4 but tensor dimension is 7",
   TestID -> "hyg-reason-user-name-mismatch"
 ];
 VerificationTest[
   StringStartsQ[
-    Einstoff`EinstoffShapes[{{a_}} :> {{a, a}}, {{3}}]["Reason"],
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, a}}, {{3}}]["Reason"],
     "axis a appears more than once"],
   True,
   TestID -> "hyg-reason-user-name-dup-output"
 ];
 VerificationTest[
   Block[{a = 9},
-    Einstoff`EinstoffShapes[{{a_}, {a_}} :> {{a}}, {{4}, {7}}]["Reason"]],
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}, {a_}} :> {{a}}, {{4}, {7}}]["Reason"]],
   "axis a: expected 4 but tensor dimension is 7",
   TestID -> "hyg-reason-user-name-shadowed-no-leak"
 ];
 
-(* 20. The private Einstoff`Axis` identity context holds value-less tokens only; even if a
+(* 20. The private Gravifer`Einstoff`Axis` identity context holds value-less tokens only; even if a
        user has (wrongly) Set a symbol there, axisSymbol clears it before use, so the raw
-       string tier cannot leak that stray value.  With Einstoff`Axis`ptest = 99 AND a
+       string tier cannot leak that stray value.  With Gravifer`Einstoff`Axis`ptest = 99 AND a
        shadowing Block[{ptest = 1}], the axis "ptest" must still key hygienically. *)
 VerificationTest[
-  (Einstoff`Axis`ptest = 99;
+  (Gravifer`Einstoff`Axis`ptest = 99;
    Block[{ptest = 1},
-     SymbolName /@ Keys[Einstoff`EinstoffMatch[{{"ptest"}}, {{5}}]["env"]]]),
+     SymbolName /@ Keys[Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"ptest"}}, {{5}}]["env"]]]),
   {"ptest"},
   TestID -> "hyg-private-context-no-stray-value-leak"
 ];
@@ -320,10 +320,10 @@ VerificationTest[
        per parse, not just per scope). *)
 VerificationTest[
   (Quiet[
-     Einstoff`EinstoffShapes[{{"a b"}} :> {{"a b"}}, {{3}}],
+     Gravifer`Einstoff`PackageScope`EinstoffShapes[{{"a b"}} :> {{"a b"}}, {{3}}],
      {Einstoff::unsupp}];
    StringContainsQ[
-     Einstoff`EinstoffShapes[{{a_}}, {{3}}]["Reason"], "must be of the form"]),
+     Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}}, {{3}}]["Reason"], "must be of the form"]),
   True,
   TestID -> "hyg-reject-reason-no-stale-leak"
 ];
@@ -331,9 +331,9 @@ VerificationTest[
 (* 22. Even a PROTECTED stray value in the private axis context cannot leak — the boundary
        purge Unprotects before clearing (a plain clear cannot touch a Protected symbol). *)
 VerificationTest[
-  (Einstoff`Axis`ztest = 88; Protect[Einstoff`Axis`ztest];
+  (Gravifer`Einstoff`Axis`ztest = 88; Protect[Gravifer`Einstoff`Axis`ztest];
    Block[{ztest = 1},
-     SymbolName /@ Keys[Einstoff`EinstoffMatch[{{"ztest"}}, {{5}}]["env"]]]),
+     SymbolName /@ Keys[Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"ztest"}}, {{5}}]["env"]]]),
   {"ztest"},
   TestID -> "hyg-private-context-protected-no-leak"
 ];
@@ -343,22 +343,22 @@ VerificationTest[
         value-less identity. *)
 VerificationTest[
   Quiet[
-    (Einstoff`Axis`ltest = 88; SetAttributes[Einstoff`Axis`ltest, Locked];
+    (Gravifer`Einstoff`Axis`ltest = 88; SetAttributes[Gravifer`Einstoff`Axis`ltest, Locked];
      Block[{ltest = 1},
-       SymbolName /@ Keys[Einstoff`EinstoffMatch[{{"ltest"}}, {{5}}]["env"]]]),
+       SymbolName /@ Keys[Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"ltest"}}, {{5}}]["env"]]]),
     {Attributes::locked}],
   {"ltest"},
   TestID -> "hyg-private-context-locked-no-leak"
 ];
 
 (* 22c. A Protected+Locked stray token survives the boundary purge, so axisSymbol falls
-        back to a genuinely fresh Unique identity (in Einstoff`Fallback`): the env key is a
+        back to a genuinely fresh Unique identity (in Gravifer`Einstoff`Fallback`): the env key is a
         value-less Symbol (name "protlk$nn"), never the leaked value. *)
 VerificationTest[
-  (Einstoff`Axis`protlk = 21; SetAttributes[Einstoff`Axis`protlk, {Protected, Locked}];
+  (Gravifer`Einstoff`Axis`protlk = 21; SetAttributes[Gravifer`Einstoff`Axis`protlk, {Protected, Locked}];
    With[{env = Block[{protlk = 1},
        Quiet[
-         Einstoff`EinstoffMatch[{{"protlk"}}, {{5}}]["env"],
+         Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"protlk"}}, {{5}}]["env"],
          {Einstoff::privctx}]]},
      {MatchQ[Keys[env], {_Symbol}], FreeQ[Keys[env], 21], Values[env]}]),
   {True, True, {5}},
@@ -366,10 +366,10 @@ VerificationTest[
 ];
 
 (* 22d. ...and the fresh-fallback path warns the user that they populated our reserved
-        Einstoff`Axis` context (rather than silently working around it). *)
+        Gravifer`Einstoff`Axis` context (rather than silently working around it). *)
 VerificationTest[
-  (Einstoff`Axis`protlk2 = 21; SetAttributes[Einstoff`Axis`protlk2, {Protected, Locked}];
-   Block[{protlk2 = 1}, Einstoff`EinstoffMatch[{{"protlk2"}}, {{5}}]["ok"]]),
+  (Gravifer`Einstoff`Axis`protlk2 = 21; SetAttributes[Gravifer`Einstoff`Axis`protlk2, {Protected, Locked}];
+   Block[{protlk2 = 1}, Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"protlk2"}}, {{5}}]["ok"]]),
   True,
   {Einstoff::privctx},
   TestID -> "hyg-private-context-protected-locked-warns"
@@ -379,19 +379,19 @@ VerificationTest[
         name share a memoized identity, so an inconsistent repeated axis is rejected (not
         silently accepted with two distinct keys) and a string key binds its term. *)
 VerificationTest[
-  (Einstoff`Axis`protlk3 = 21; SetAttributes[Einstoff`Axis`protlk3, {Protected, Locked}];
+  (Gravifer`Einstoff`Axis`protlk3 = 21; SetAttributes[Gravifer`Einstoff`Axis`protlk3, {Protected, Locked}];
    Block[{protlk3 = 1},
      {Quiet[
-        Einstoff`EinstoffMatch[{{"protlk3", "protlk3"}}, {{5, 6}}]["ok"],
+        Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"protlk3", "protlk3"}}, {{5, 6}}]["ok"],
         {Einstoff::privctx}],   (* 5=/=6 -> False *)
       Quiet[
-        Einstoff`EinstoffMatch[{{"protlk3", "protlk3"}}, {{5, 5}}]["ok"],
+        Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"protlk3", "protlk3"}}, {{5, 5}}]["ok"],
         {Einstoff::privctx}],   (* consistent -> True *)
       Length @ Keys @ Quiet[
-        Einstoff`EinstoffMatch[{{"protlk3", "protlk3"}}, {{5, 5}}]["env"],
+        Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"protlk3", "protlk3"}}, {{5, 5}}]["env"],
         {Einstoff::privctx}],
       Quiet[
-        Einstoff`EinstoffMatch[{{"protlk3"}}, {{5}}, {"protlk3" -> 5}]["ok"],
+        Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"protlk3"}}, {{5}}, {"protlk3" -> 5}]["ok"],
         {Einstoff::privctx}]}]),   (* key binds term *)
   {False, True, 1, True},
   TestID -> "hyg-private-context-fallback-identity-stable"
@@ -400,21 +400,21 @@ VerificationTest[
 (* 23. A conflicting binding reason names the user's axis, not the fresh identity. *)
 VerificationTest[
   StringContainsQ[
-    Einstoff`EinstoffShapes[{{"a"}} :> {{"a", "c"}}, {{3}}, {"c" -> 2, "c" -> 4}]["Reason"],
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[{{"a"}} :> {{"a", "c"}}, {{3}}, {"c" -> 2, "c" -> 4}]["Reason"],
     "axis c"],
   True,
   TestID -> "hyg-conflicting-key-reason-user-name"
 ];
 
 (* 24. A previously returned result must NOT decay when a later operation runs: the
-       boundary purge is CLEAR-ONLY (never Remove), so a synthetic Einstoff`Axis` token
+       boundary purge is CLEAR-ONLY (never Remove), so a synthetic Gravifer`Einstoff`Axis` token
        that is a live key in an earlier env / Bindings is not rewritten to Removed[…].
        (Regression: a Remove-based purge corrupted m["env"] into <|Removed["keepold"]->5|>.) *)
 VerificationTest[
   (Module[{m, s},
-     m = Block[{keepold = 1}, Einstoff`EinstoffMatch[{{"keepold"}}, {{5}}]];
-     s = Block[{keepold2 = 1}, Einstoff`EinstoffShapes[{{"keepold2"}} :> {{"keepold2"}}, {{5}}]];
-     Block[{nextop = 1}, Einstoff`EinstoffMatch[{{"nextop"}}, {{7}}]];   (* later op purges *)
+     m = Block[{keepold = 1}, Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"keepold"}}, {{5}}]];
+     s = Block[{keepold2 = 1}, Gravifer`Einstoff`PackageScope`EinstoffShapes[{{"keepold2"}} :> {{"keepold2"}}, {{5}}]];
+     Block[{nextop = 1}, Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"nextop"}}, {{7}}]];   (* later op purges *)
      {FreeQ[Keys[m["env"]], _Removed], m["env"][[1]],
       FreeQ[Keys[s["Bindings"]], _Removed]}]),
   {True, 5, True},

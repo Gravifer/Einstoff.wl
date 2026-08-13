@@ -23,7 +23,7 @@
    An output-only axis is repetition (SPEC 5.5) — reduce, then broadcast it on
    through the shared execution plan (e.g. einx.sum("a [b] -> a c", x, c=3)). *)
 
-PackageExported[{EinstoffReduce}]
+PackageScoped[{EinstoffReduce}]
 
 EinstoffReduce::usage =
   "EinstoffReduce[reducer][desc, tensors, bindings] realizes a reduction (einx \

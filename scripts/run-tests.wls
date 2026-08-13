@@ -35,12 +35,12 @@ Needs["MUnit`"];
 
 (* Load the Einstoff paclet from the project tree (structured package format). *)
 PacletDirectoryLoad[root];
-Needs["Einstoff`"];
+Needs["Gravifer`Einstoff`"];
 
 (* Export the project root so headless .wlt files (e.g. the python
    cross-validation suite) can locate sibling resources like .venv without a
    notebook context. Harmless for the WL-only suites. *)
-Einstoff`Tests`$Root = root;
+Gravifer`Einstoff`Tests`$Root = root;
 
 (* ---- verbosity from the command line ----------------------------------
    Dash flags (-v/--verbose/-q/--quiet) are parsed with the CommandLineParse
@@ -107,16 +107,16 @@ millisOf[q_] := Round[QuantityMagnitude[UnitConvert[q, "Seconds"]] * 1000];
 fileLabel[file_] := FileNameJoin[Drop[FileNameSplit[file], Length[FileNameSplit[testsDir]]]];
 
 (* ---- shared Python session --------------------------------------------
-   Spawn ONE ExternalEvaluate session here and expose it as Einstoff`Tests`$PySession
+   Spawn ONE ExternalEvaluate session here and expose it as Gravifer`Einstoff`Tests`$PySession
    so every tests/python/*.wlt reuses it: many short-lived ZMQ sessions per kernel
    are unstable (intermittent 0xC0000005), one shared session is not. Each .wlt
    falls back to its own session when this is unset (e.g. a bare TestReport). *)
 
-Einstoff`Tests`$PySession = None;
+Gravifer`Einstoff`Tests`$PySession = None;
 If[wantPython,
   With[{exe = FileNameJoin[{root, ".venv", "Scripts", "python.exe"}]},
     If[FileExistsQ[exe],
-      Einstoff`Tests`$PySession = Quiet @ Check[
+      Gravifer`Einstoff`Tests`$PySession = Quiet @ Check[
         StartExternalSession[<|"System" -> "Python", "Executable" -> exe|>], None]]]];
 
 (* ---- run --------------------------------------------------------------- *)
@@ -164,8 +164,8 @@ Scan[
   testFiles];
 
 (* Tear down the shared session we spawned (the .wlt files leave it alone). *)
-If[Head[Einstoff`Tests`$PySession] === ExternalSessionObject,
-  Quiet @ DeleteObject[Einstoff`Tests`$PySession]];
+If[Head[Gravifer`Einstoff`Tests`$PySession] === ExternalSessionObject,
+  Quiet @ DeleteObject[Gravifer`Einstoff`Tests`$PySession]];
 
 Print[""];
 Print["==== ", totalPass, " passed, ", totalFail, " failed (",

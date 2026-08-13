@@ -3,7 +3,7 @@
 (* Tests for Einstoff[Operate] — the shape-preserving targeted-block operation
    path split out from the broader generalized Einstoff[Map]. *)
 
-BeginTestSection["Einstoff`Lowering`Operate"];
+BeginTestSection["Gravifer`Einstoff`Lowering`Operate"];
 
 ClearAll[a, b, c];
 

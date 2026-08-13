@@ -16,7 +16,7 @@
                   Massage, >=2 -> Dot fold; pairwise-contraction subset)
      DirectSum.wl Einstoff[Join]/[Split] / EinstoffJoin (CirclePlus concat/split)
 
-   This hub holds what the staged executor paths share: the public `Einstoff` operator
+   This hub holds what the staged executor paths share: the public `Gravifer`Einstoff` operator
    symbol and messages, scalar-safe array primitives, held trace builders, and tagged
    user-code isolation. ShapeChecker.wl owns surface hygiene; Planner.wl owns all
    backend-neutral analysis, planning, and execution.
@@ -48,9 +48,9 @@ Einstoff::unsat =
    (Block[{c=3}, {c->2}] reaches us as {3->2}).  Non-fatal: the entry is dropped and
    resolution continues (it fails later only if the shapes are then unsatisfiable). *)
 Einstoff::evalkey = "`1`";
-(* The internal Einstoff`Axis` identity context has been externally populated with a value
+(* The internal Gravifer`Einstoff`Axis` identity context has been externally populated with a value
    that cannot be cleared (Protected and Locked).  Non-fatal: a fresh internal identity is
-   used instead, but the user should not assign to Einstoff`Axis` symbols. *)
+   used instead, but the user should not assign to Gravifer`Einstoff`Axis` symbols. *)
 (* NB the template text carries NO literal backticks: a backtick collides with the `1`
    slot syntax (StringForm::sfr).  The Protected+Locked symbol's full name is passed as
    the argument, whose value backticks are rendered literally, not re-parsed. *)
@@ -76,11 +76,11 @@ PackageScoped[{atomSize, heldReshape, heldArrayReduce, heldTranspose,
 SetAttributes[einCatch, HoldFirst];
 einCatch[expr_] := Catch[expr, einThrowTag,
   Function[payload,
-    If[Head[payload] === Einstoff`Internal`IR`FailureRecord,
+    If[Head[payload] === Gravifer`Einstoff`Internal`IR`FailureRecord,
       reportPlannerFailure[payload], payload]]];
 
 loweringFailure[tag_String, details_Association] :=
-  Einstoff`Internal`IR`FailureRecord[tag, "Boundary",
+  Gravifer`Einstoff`Internal`IR`FailureRecord[tag, "Boundary",
     Join[<|"MessageParameters" -> {}|>, details]];
 
 traceActionEnabledQ[None | False | Identity] := False;

@@ -7,7 +7,7 @@ If[scriptDir === "", scriptDir = Directory[]];
 args = Select[Rest[$ScriptCommandLine], DirectoryQ];
 root = If[args === {}, ParentDirectory[scriptDir], First[args]];
 PacletDirectoryLoad[root];
-Needs["Einstoff`"];
+Needs["Gravifer`Einstoff`"];
 
 SetAttributes[timeCase, HoldRest];
 timeCase[name_String, repeats_Integer, expr_] :=
@@ -27,7 +27,7 @@ timeCase["composite-split-merge", 20,
   Einstoff[ArrayReshape][
     {{CircleTimes["h", w_]}} :> {{"h", w}}, {Range[120]}, {"h" -> 10}]];
 timeCase["long-ellipsis-solve", 20,
-  Einstoff`EinstoffShapes[{{a__}} :> {{a..}}, {{2, 3, 4, 5, 6, 7, 8}}]];
+  Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a__}} :> {{a..}}, {{2, 3, 4, 5, 6, 7, 8}}]];
 timeCase["multi-operand-dot", 10,
   Einstoff[Dot][{{a_, b_}, {b_, c_}, {c_, d_}} :> {{a, d}}, {x, y, z}]];
 timeCase["direct-sum", 20,

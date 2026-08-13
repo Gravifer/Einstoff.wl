@@ -1,11 +1,11 @@
 (* ::Package:: *)
 
-BeginTestSection["Einstoff`Compiler"];
+BeginTestSection["Gravifer`Einstoff`Compiler"];
 
 ClearAll[a, b, c, k];
 
-compile = Symbol["Einstoff`PackageScope`compileDescIR"];
-ir[name_] := Symbol["Einstoff`Internal`IR`" <> name];
+compile = Symbol["Gravifer`Einstoff`PackageScope`compileDescIR"];
+ir[name_] := Symbol["Gravifer`Einstoff`Internal`IR`" <> name];
 
 VerificationTest[
   Head /@ Values @ compile[{{a_, a_}} :> {{a}}],
@@ -164,10 +164,10 @@ VerificationTest[
 VerificationTest[
   Module[{before, after},
     before = Sort @ Join[
-      Names["Einstoff`Axis`*"], Names["Einstoff`Internal`DisplayAxis`*"]];
+      Names["Gravifer`Einstoff`Axis`*"], Names["Gravifer`Einstoff`Internal`DisplayAxis`*"]];
     Do[compile[{{"compilegrowthaxis"}} :> {{"compilegrowthaxis"}}], {20}];
     after = Sort @ Join[
-      Names["Einstoff`Axis`*"], Names["Einstoff`Internal`DisplayAxis`*"]];
+      Names["Gravifer`Einstoff`Axis`*"], Names["Gravifer`Einstoff`Internal`DisplayAxis`*"]];
     after === before],
   True,
   TestID -> "compiler-does-not-create-axis-symbols"
@@ -176,8 +176,8 @@ VerificationTest[
 VerificationTest[
   FreeQ[
     DownValues /@ {compile,
-      Symbol["Einstoff`PackageScope`captureDescIR"],
-      Symbol["Einstoff`PackageScope`normalizeCapturedDesc"]},
+      Symbol["Gravifer`Einstoff`PackageScope`captureDescIR"],
+      Symbol["Gravifer`Einstoff`PackageScope`normalizeCapturedDesc"]},
     _Unique | _Temporary, Infinity, Heads -> True],
   True,
   TestID -> "compiler-does-not-use-temporary-symbol-identities"

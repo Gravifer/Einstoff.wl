@@ -4,7 +4,7 @@
 
 PackageScoped[{analyzeSolvedDesc, operationSpec}]
 
-ira[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
+ira[name_String] := Symbol["Gravifer`Einstoff`Internal`IR`" <> name];
 
 baseOperationSpec[input_, output_, repeated_, preservation_, function_] := <|
   "InputArity" -> input, "OutputArity" -> output,

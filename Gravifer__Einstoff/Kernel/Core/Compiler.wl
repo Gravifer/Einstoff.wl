@@ -13,7 +13,7 @@ PackageScoped[{
   capturedUnsupported, capturedSizedAxis
 }]
 
-iri[name_String] := Symbol["Einstoff`Internal`IR`" <> name];
+iri[name_String] := Symbol["Gravifer`Einstoff`Internal`IR`" <> name];
 
 compileTargetPolicy[False] :=
   iri["TargetPolicy"][<|"Infer" -> True, "ValidateExplicit" -> False,

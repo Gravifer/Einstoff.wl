@@ -21,7 +21,7 @@
 
    Shape compilation, analysis, and materialization all use the staged pipeline. *)
 
-PackageExported[{EinstoffMap, EinstoffOperate}]
+PackageScoped[{EinstoffMap, EinstoffOperate}]
 
 EinstoffMap::usage =
   "EinstoffMap[f][desc, tensors, bindings] realizes a blockwise transform of \
@@ -70,7 +70,7 @@ mapFunction[f_] := f;
 mapCore[fSpec_, desc_, tensors_, bindings_List, traceAction_, strictQ_] :=
   Module[{f = mapFunction[fSpec], planned},
     planned = If[MissingQ[f],
-      Einstoff`Internal`IR`FailureRecord["UnknownMapOp", "Plan",
+      Gravifer`Einstoff`Internal`IR`FailureRecord["UnknownMapOp", "Plan",
         <|"Value" -> HoldComplete[fSpec]|>],
       tryMapIRPlan[Hold[desc], tensors, bindings, f, strictQ, traceAction]];
     If[plannerFailureQ[planned], reportPlannerFailure[planned], planned]

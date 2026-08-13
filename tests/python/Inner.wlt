@@ -12,16 +12,16 @@
 ClearAll[a, b, c, d];
 
 pyRoot =
-  If[ValueQ[Einstoff`Tests`$Root], Einstoff`Tests`$Root,
-    ParentDirectory[PacletObject["Einstoff"]["Location"]]];
+  If[ValueQ[Gravifer`Einstoff`Tests`$Root], Gravifer`Einstoff`Tests`$Root,
+    ParentDirectory[PacletObject["Gravifer/Einstoff"]["Location"]]];
 pyExe = FileNameJoin[{pyRoot, ".venv", "Scripts", "python.exe"}];
 
-pyOwned = Head[Einstoff`Tests`$PySession] =!= ExternalSessionObject;
+pyOwned = Head[Gravifer`Einstoff`Tests`$PySession] =!= ExternalSessionObject;
 pySession = If[pyOwned,
   Quiet @ Check[
     If[FileExistsQ[pyExe],
       StartExternalSession[<|"System" -> "Python", "Executable" -> pyExe|>], $Failed], $Failed],
-  Einstoff`Tests`$PySession];
+  Gravifer`Einstoff`Tests`$PySession];
 pythonReady = TrueQ @ Quiet @ Check[
   Head[pySession] === ExternalSessionObject &&
   ExternalEvaluate[pySession, "import numpy, einx; True"] === True,
@@ -41,7 +41,7 @@ pyDotN[pattern_, dimsList_List] :=
       "np.asarray(einx.dot(" <> ToString[pattern, InputForm] <> ", " <> args <> ")).tolist()"]];
 
 (* ======================================================================== *)
-BeginTestSection["Einstoff`CrossValidation`Inner", pythonReady];
+BeginTestSection["Gravifer`Einstoff`CrossValidation`Inner", pythonReady];
 
 (* Inner[Times, Plus] matmul === einx.dot *)
 VerificationTest[

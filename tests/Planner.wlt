@@ -1,22 +1,22 @@
 (* ::Package:: *)
 
-BeginTestSection["Einstoff`Planner"];
+BeginTestSection["Gravifer`Einstoff`Planner"];
 
 ClearAll[a, b, c, h, r, w];
 
-compile = Symbol["Einstoff`PackageScope`compileDescIR"];
-solve = Symbol["Einstoff`PackageScope`solveDescIR"];
-plan = Symbol["Einstoff`PackageScope`planStructuralIR"];
-planContract = Symbol["Einstoff`PackageScope`planSelfContractIR"];
-execute = Symbol["Einstoff`PackageScope`executeExecutionPlan"];
-render = Symbol["Einstoff`PackageScope`renderExecutionPlan"];
-validatePlan = Symbol["Einstoff`PackageScope`validateExecutionPlan"];
-planReduce = Symbol["Einstoff`PackageScope`planReduceIR"];
-planMap = Symbol["Einstoff`PackageScope`planMapIR"];
-planInner = Symbol["Einstoff`PackageScope`planInnerIR"];
-planDirectSum = Symbol["Einstoff`PackageScope`planDirectSumIR"];
-reportFailure = Symbol["Einstoff`PackageScope`reportPlannerFailure"];
-ir[name_] := Symbol["Einstoff`Internal`IR`" <> name];
+compile = Symbol["Gravifer`Einstoff`PackageScope`compileDescIR"];
+solve = Symbol["Gravifer`Einstoff`PackageScope`solveDescIR"];
+plan = Symbol["Gravifer`Einstoff`PackageScope`planStructuralIR"];
+planContract = Symbol["Gravifer`Einstoff`PackageScope`planSelfContractIR"];
+execute = Symbol["Gravifer`Einstoff`PackageScope`executeExecutionPlan"];
+render = Symbol["Gravifer`Einstoff`PackageScope`renderExecutionPlan"];
+validatePlan = Symbol["Gravifer`Einstoff`PackageScope`validateExecutionPlan"];
+planReduce = Symbol["Gravifer`Einstoff`PackageScope`planReduceIR"];
+planMap = Symbol["Gravifer`Einstoff`PackageScope`planMapIR"];
+planInner = Symbol["Gravifer`Einstoff`PackageScope`planInnerIR"];
+planDirectSum = Symbol["Gravifer`Einstoff`PackageScope`planDirectSumIR"];
+reportFailure = Symbol["Gravifer`Einstoff`PackageScope`reportPlannerFailure"];
+ir[name_] := Symbol["Gravifer`Einstoff`Internal`IR`" <> name];
 
 makePlan[desc_, x_, bindings_ : {}, op_ : "Reshape"] :=
   plan[solve[compile[desc, bindings], {Dimensions[x]}]["Solved"], op];

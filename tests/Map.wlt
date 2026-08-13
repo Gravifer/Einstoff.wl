@@ -8,7 +8,7 @@
    Run via: wolframscript -script scripts/run-tests.wls
    BeginTestSection/EndTestSection are MUnit markers; the runner loads MUnit`. *)
 
-BeginTestSection["Einstoff`Lowering`Map"];
+BeginTestSection["Gravifer`Einstoff`Lowering`Map"];
 
 ClearAll[a, b, c, r];
 
@@ -342,7 +342,7 @@ VerificationTest[
         TraceAction -> Hold]},
       {! FreeQ[g, _Map], ! FreeQ[g, Reverse],
        ReleaseHold[g] === Einstoff[Map]["flip"][{{a_, Highlighted[b_]}} :> {{a, b}}, {x}],
-       FreeQ[g, _Einstoff`PackageScope`materializeOutput]}]],
+       FreeQ[g, _Gravifer`Einstoff`PackageScope`materializeOutput]}]],
   {True, True, True, True},
   TestID -> "map-traceaction-holds-map"
 ];

@@ -2,7 +2,7 @@
 
 root = ParentDirectory[DirectoryName[$InputFileName]];
 PacletDirectoryLoad[root];
-Needs["Einstoff`"];
+Needs["Gravifer`Einstoff`"];
 
 jsonable[x_] := Replace[x, {
     $Failed -> <|"__failed" -> True|>,

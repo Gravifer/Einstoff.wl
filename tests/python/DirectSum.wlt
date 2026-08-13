@@ -14,19 +14,19 @@
 ClearAll[a, b, c, d, e, m, n, p, x];
 
 pyRoot =
-  If[ValueQ[Einstoff`Tests`$Root], Einstoff`Tests`$Root,
-    ParentDirectory[PacletObject["Einstoff"]["Location"]]];
+  If[ValueQ[Gravifer`Einstoff`Tests`$Root], Gravifer`Einstoff`Tests`$Root,
+    ParentDirectory[PacletObject["Gravifer/Einstoff"]["Location"]]];
 pyExe = FileNameJoin[{pyRoot, ".venv", "Scripts", "python.exe"}];
 
 (* Reuse the runner's shared session if it spawned one (one ZMQ session per kernel
    is stable, many are not); otherwise spawn our own so the file still runs under a
    bare TestReport, and own only that teardown. *)
-pyOwned = Head[Einstoff`Tests`$PySession] =!= ExternalSessionObject;
+pyOwned = Head[Gravifer`Einstoff`Tests`$PySession] =!= ExternalSessionObject;
 pySession = If[pyOwned,
   Quiet @ Check[
     If[FileExistsQ[pyExe],
       StartExternalSession[<|"System" -> "Python", "Executable" -> pyExe|>], $Failed], $Failed],
-  Einstoff`Tests`$PySession];
+  Gravifer`Einstoff`Tests`$PySession];
 pythonReady = TrueQ @ Quiet @ Check[
   Head[pySession] === ExternalSessionObject &&
   ExternalEvaluate[pySession, "import numpy, einx; True"] === True,
@@ -64,7 +64,7 @@ pySplit[pattern_, dims_List, kwargs_Association] :=
         ", x" <> If[kw === "", "", ", " <> kw] <> ")]"]];
 
 (* ======================================================================== *)
-BeginTestSection["Einstoff`CrossValidation`DirectSum", pythonReady];
+BeginTestSection["Gravifer`Einstoff`CrossValidation`DirectSum", pythonReady];
 
 (* concat 'm a, m b -> m (a + b)'  <->  {{m_,a_},{m_,b_}} :> {{m, a ⊕ b}} *)
 VerificationTest[

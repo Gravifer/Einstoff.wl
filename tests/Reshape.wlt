@@ -6,7 +6,7 @@
    BeginTestSection/EndTestSection are MUnit markers; the runner loads MUnit`
    so they carry section semantics. The .wlt itself does not import MUnit`. *)
 
-BeginTestSection["Einstoff`Lowering`Reshape"];
+BeginTestSection["Gravifer`Einstoff`Lowering`Reshape"];
 
 ClearAll[a, b, c];
 
@@ -398,7 +398,7 @@ VerificationTest[
 
 (* 26. ...and {} is accepted in a non-output position by the matcher (Dimensions 1). *)
 VerificationTest[
-  Einstoff`EinstoffMatch[{{2, {}, 3}, {2, ___}}, {{2, 1, 3}, {2, 4, 5}}]["ok"],
+  Gravifer`Einstoff`PackageScope`EinstoffMatch[{{2, {}, 3}, {2, ___}}, {{2, 1, 3}, {2, 4, 5}}]["ok"],
   True,
   TestID -> "unit-empty-term-match"
 ];
@@ -465,12 +465,12 @@ VerificationTest[
    the axis named `a`, unified like a bare symbol — consistent with EinstoffShapes, whose
    desc parse canonicalizes strings before matching. *)
 VerificationTest[
-  Einstoff`EinstoffMatch[{{"a"}}, {{3}}]["ok"],
+  Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"a"}}, {{3}}]["ok"],
   True,
   TestID -> "match-string-axis-ok"
 ];
 VerificationTest[
-  SymbolName /@ Keys[Einstoff`EinstoffMatch[{{"a"}}, {{3}}]["env"]],
+  SymbolName /@ Keys[Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"a"}}, {{3}}]["env"]],
   {"a"},
   TestID -> "match-string-axis-binding-name"
 ];
@@ -479,7 +479,7 @@ VerificationTest[
    supplied with the string-tier key "a" -> n in the raw matcher (SPEC §5.7), converted
    to the same Symbol["a"] identity the term side uses. *)
 VerificationTest[
-  Einstoff`EinstoffMatch[{{CircleTimes["a", "b"]}}, {{6}}, {"a" -> 2}]["ok"],
+  Gravifer`Einstoff`PackageScope`EinstoffMatch[{{CircleTimes["a", "b"]}}, {{6}}, {"a" -> 2}]["ok"],
   True,
   TestID -> "match-string-axis-string-binding-ok"
 ];
@@ -488,12 +488,12 @@ VerificationTest[
    raw matcher, NOT a Symbol::symname crash — for a string term and a string binding key
    alike (string names validated before Symbol[…], SPEC §5.6). *)
 VerificationTest[
-  Einstoff`EinstoffMatch[{{"a b"}}, {{3}}]["ok"],
+  Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"a b"}}, {{3}}]["ok"],
   False,
   TestID -> "match-string-axis-invalid-name-reject"
 ];
 VerificationTest[
-  Einstoff`EinstoffMatch[{{CircleTimes["a", "b"]}}, {{6}}, {"a b" -> 2}]["ok"],
+  Gravifer`Einstoff`PackageScope`EinstoffMatch[{{CircleTimes["a", "b"]}}, {{6}}, {"a b" -> 2}]["ok"],
   False,
   TestID -> "match-string-key-invalid-name-reject"
 ];
@@ -501,12 +501,12 @@ VerificationTest[
 (* 26g-h. Invalid string names are also validated inside a bracket (Slot) and inside a
    composite factor — clean unsat, not a Symbol::symname crash. *)
 VerificationTest[
-  Einstoff`EinstoffMatch[{{Slot["a b"]}}, {{3}}]["ok"],
+  Gravifer`Einstoff`PackageScope`EinstoffMatch[{{Slot["a b"]}}, {{3}}]["ok"],
   False,
   TestID -> "match-slot-invalid-name-reject"
 ];
 VerificationTest[
-  Einstoff`EinstoffMatch[{{CircleTimes["a b", "c"]}}, {{6}}]["ok"],
+  Gravifer`Einstoff`PackageScope`EinstoffMatch[{{CircleTimes["a b", "c"]}}, {{6}}]["ok"],
   False,
   TestID -> "match-composite-invalid-factor-reject"
 ];
@@ -517,25 +517,25 @@ VerificationTest[
    the clean Global` symbol as key. *)
 VerificationTest[
   Block[{c = 3},
-    {Einstoff`EinstoffMatch[{{"c"}}, {{5}}]["ok"],
-     SymbolName /@ Keys[Einstoff`EinstoffMatch[{{"c"}}, {{5}}]["env"]]}],
+    {Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"c"}}, {{5}}]["ok"],
+     SymbolName /@ Keys[Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"c"}}, {{5}}]["env"]]}],
   {True, {"c"}},
   TestID -> "match-string-axis-shadowed-no-leak"
 ];
 VerificationTest[
   Block[{c = 3},
-    Einstoff`EinstoffMatch[{{"c"}}, {{5}}, {"c" -> 5}]["ok"]],
+    Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"c"}}, {{5}}, {"c" -> 5}]["ok"]],
   True,
   TestID -> "match-string-key-shadowed-no-leak"
 ];
 VerificationTest[
   Block[{c = 3},
-    SymbolName /@ Keys[Einstoff`EinstoffMatch[{{Slot["c"]}}, {{5}}]["env"]]],
+    SymbolName /@ Keys[Gravifer`Einstoff`PackageScope`EinstoffMatch[{{Slot["c"]}}, {{5}}]["env"]]],
   {"c"},
   TestID -> "match-slot-axis-shadowed-no-leak"
 ];
 VerificationTest[
-  Keys[Einstoff`EinstoffMatch[{{"c"}}, {{5}}]["env"]],
+  Keys[Gravifer`Einstoff`PackageScope`EinstoffMatch[{{"c"}}, {{5}}]["env"]],
   {c},
   TestID -> "match-string-axis-unbound-clean-key"
 ];
@@ -543,7 +543,7 @@ VerificationTest[
 (* 26m. A bracket binding key #a = Slot["a"] is reserved for actual slot axes;
    it does not bind a non-slot string factor. *)
 VerificationTest[
-  Einstoff`EinstoffMatch[{{CircleTimes["a", "b"]}}, {{6}}, {Slot["a"] -> 2}]["ok"],
+  Gravifer`Einstoff`PackageScope`EinstoffMatch[{{CircleTimes["a", "b"]}}, {{6}}, {Slot["a"] -> 2}]["ok"],
   False,
   TestID -> "match-bracket-key-raw-reject-non-slot"
 ];
@@ -597,7 +597,7 @@ VerificationTest[
   With[{x = ArrayReshape[Range[6], {2, 3}]},
     With[{g = Einstoff[ArrayReshape][{{a_, b_}} :> {{b, a}}, {x}, {}, TraceAction -> Hold]},
       {MatchQ[g, Hold[_ArrayReshape]], ! FreeQ[g, _Transpose],
-       FreeQ[g, _Einstoff`PackageScope`materializeOutput]}]],
+       FreeQ[g, _Gravifer`Einstoff`PackageScope`materializeOutput]}]],
   {True, True, True},
   TestID -> "traceaction-holds-public-lowering"
 ];

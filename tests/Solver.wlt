@@ -1,12 +1,12 @@
 (* ::Package:: *)
 
-BeginTestSection["Einstoff`Solver"];
+BeginTestSection["Gravifer`Einstoff`Solver"];
 
 ClearAll[a, b, c, grp, q, s];
 
-compile = Symbol["Einstoff`PackageScope`compileDescIR"];
-solve = Symbol["Einstoff`PackageScope`solveDescIR"];
-ir[name_] := Symbol["Einstoff`Internal`IR`" <> name];
+compile = Symbol["Gravifer`Einstoff`PackageScope`compileDescIR"];
+solve = Symbol["Gravifer`Einstoff`PackageScope`solveDescIR"];
+ir[name_] := Symbol["Gravifer`Einstoff`Internal`IR`" <> name];
 
 solved[desc_, shapes_, bindings_ : {}] := solve[compile[desc, bindings], shapes]["Solved"];
 out[ir["SolvedDesc"][a_Association]] := a["OutputShapes"];
@@ -52,11 +52,11 @@ VerificationTest[
 VerificationTest[
   {
     out @ solved[{{a_, b_}} :> {{b, a}}, {{2, 3}}] ===
-      Einstoff`EinstoffShapes[{{a_, b_}} :> {{b, a}}, {{2, 3}}]["OutputShapes"],
+      Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_, b_}} :> {{b, a}}, {{2, 3}}]["OutputShapes"],
     out @ solved[{{a_}} :> {{a, c}}, {{3}}, {c -> 2}] ===
-      Einstoff`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2}]["OutputShapes"],
+      Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a_}} :> {{a, c}}, {{3}}, {c -> 2}]["OutputShapes"],
     out @ solved[{{a_, CircleTimes["b", c_]}} :> {{c, a}}, {{4, 8}}, {"b" -> 2}] ===
-      Einstoff`EinstoffShapes[
+      Gravifer`Einstoff`PackageScope`EinstoffShapes[
         {{a_, CircleTimes["b", c_]}} :> {{c, a}}, {{4, 8}}, {"b" -> 2}]["OutputShapes"]
   },
   {True, True, True},

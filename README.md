@@ -31,7 +31,7 @@ developer and agent-facing design notes live under [`.agents/`](.agents/).
 
 ```mathematica
 PacletDirectoryLoad[Directory[]];
-Needs["Einstoff`"];
+Needs["Gravifer`Einstoff`"];
 
 x = ArrayReshape[Range[2*3*4], {2, 3, 4}];
 

@@ -8,16 +8,16 @@ scriptDir = DirectoryName[$InputFileName];
 If[scriptDir === "", scriptDir = Directory[]];
 root = ParentDirectory[scriptDir];
 PacletDirectoryLoad[root];
-Needs["Einstoff`"];
+Needs["Gravifer`Einstoff`"];
 
-compile = Symbol["Einstoff`PackageScope`compileDescIR"];
+compile = Symbol["Gravifer`Einstoff`PackageScope`compileDescIR"];
 
 SetAttributes[runCase, HoldRest];
 runCase[name_String, repeats_Integer, expr_] :=
   Module[{value, elapsed},
     elapsed = First @ AbsoluteTiming[
       Do[value = expr, {repeats}]];
-    If[value === $Failed || Head[value] === Einstoff`Internal`IR`FailureRecord,
+    If[value === $Failed || Head[value] === Gravifer`Einstoff`Internal`IR`FailureRecord,
       Print["FAIL ", name, ": ", InputForm[value]];
       Exit[1]];
     <|"Case" -> name, "Repeats" -> repeats,
@@ -29,7 +29,7 @@ y = ArrayReshape[Range[84], {12, 7}];
 z = ArrayReshape[Range[35], {7, 5}];
 
 beforeNames = Sort @ Join[
-  Names["Einstoff`Axis`*"], Names["Einstoff`Internal`DisplayAxis`*"]];
+  Names["Gravifer`Einstoff`Axis`*"], Names["Gravifer`Einstoff`Internal`DisplayAxis`*"]];
 
 results = {
   runCase["simple-reshape", 20,
@@ -38,7 +38,7 @@ results = {
     Einstoff[ArrayReshape][
       {{CircleTimes["h", w_]}} :> {{"h", w}}, {Range[120]}, {"h" -> 10}]],
   runCase["long-ellipsis-solve", 20,
-    Einstoff`EinstoffShapes[{{a__}} :> {{a..}},
+    Gravifer`Einstoff`PackageScope`EinstoffShapes[{{a__}} :> {{a..}},
       {{2, 3, 4, 5, 6, 7, 8}}]],
   runCase["multi-operand-dot", 10,
     Einstoff[Dot][{{a_, b_}, {b_, c_}, {c_, d_}} :> {{a, d}}, {x, y, z}]],
@@ -50,7 +50,7 @@ results = {
 };
 
 afterNames = Sort @ Join[
-  Names["Einstoff`Axis`*"], Names["Einstoff`Internal`DisplayAxis`*"]];
+  Names["Gravifer`Einstoff`Axis`*"], Names["Gravifer`Einstoff`Internal`DisplayAxis`*"]];
 growth = Complement[afterNames, beforeNames];
 
 Scan[Print[# ["Case"], ": ",

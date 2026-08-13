@@ -7,7 +7,7 @@
    BeginTestSection/EndTestSection are MUnit markers; the runner loads MUnit`
    so they carry section semantics. The .wlt itself does not import MUnit`. *)
 
-BeginTestSection["Einstoff`Lowering`DirectSum"];
+BeginTestSection["Gravifer`Einstoff`Lowering`DirectSum"];
 
 ClearAll[a, b, c, d, k, m, p, q, r];
 
@@ -68,7 +68,7 @@ VerificationTest[
         {x, y}, {}, TraceAction -> Hold]},
       {! FreeQ[g, _Join],
        ReleaseHold[g] === Join[x, y, 2],
-       FreeQ[g, _Einstoff`PackageScope`materializeOutput]}]],
+       FreeQ[g, _Gravifer`Einstoff`PackageScope`materializeOutput]}]],
   {True, True, True},
   TestID -> "concat-traceaction-holds-join"
 ];
@@ -641,7 +641,7 @@ VerificationTest[
     With[{g = Einstoff[Split][{{b_, CirclePlus[q, k]}} :> {{b, q}, {b, k}},
         {x}, {q -> 3, k -> 2}, TraceAction -> Hold]},
       {Length @ Cases[g, _Take, Infinity], ReleaseHold[g],
-       FreeQ[g, _Einstoff`PackageScope`materializeOutput]}]],
+       FreeQ[g, _Gravifer`Einstoff`PackageScope`materializeOutput]}]],
   With[{x = ArrayReshape[Range[10], {2, 5}]},
     {2, {Take[x, All, {1, 3}], Take[x, All, {4, 5}]}, True}],
   TestID -> "split-traceaction-holds-take-slices"

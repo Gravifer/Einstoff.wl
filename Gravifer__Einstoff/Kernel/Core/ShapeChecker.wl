@@ -230,12 +230,12 @@ axisDisplayName[x_] := ToString[x, InputForm];
 axisSymbol[nm_String] :=
   If[axisShadowedQ[nm],
     If[legacyAxisCompromisedQ[nm],
-      Message[Einstoff::privctx, "Einstoff`Axis`" <> nm]];
-    Symbol["Einstoff`Internal`DisplayAxis`" <> nm],
+      Message[Einstoff::privctx, "Gravifer`Einstoff`Axis`" <> nm]];
+    Symbol["Gravifer`Einstoff`Internal`DisplayAxis`" <> nm],
     Symbol[nm]];
 
 legacyAxisCompromisedQ[nm_String] :=
-  With[{full = "Einstoff`Axis`" <> nm},
+  With[{full = "Gravifer`Einstoff`Axis`" <> nm},
     axisShadowedQ[full] &&
       ContainsAll[axisAttributes[full], {Protected, Locked}]];
 
