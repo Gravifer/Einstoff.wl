@@ -76,7 +76,14 @@ If[command === "build",
       publishedArchive,
       OverwriteTarget -> True
     ];
-    If[FileExistsQ[publishedArchive], DeleteFile[archive]]
+    If[
+      publishedArchive === $Failed ||
+        ! StringQ[publishedArchive] ||
+        ! FileExistsQ[publishedArchive],
+      Print["Failed to publish the paclet archive to ", buildDir, "."];
+      Exit[1]
+    ];
+    DeleteFile[archive]
   ];
   Print["PACLET_ARCHIVE=", ExpandFileName[publishedArchive]],
   Print["PacletCICD build-target checks passed."]
