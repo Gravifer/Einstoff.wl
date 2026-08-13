@@ -154,28 +154,28 @@ image from a local file, use notebook-relative paths when possible (e.g. ",
  CellID->781690366,ExpressionUUID->"57ce7a56-fe7f-444a-8b0c-93d7bde6fc69"],
 
 Cell[BoxData[
- TagBox[
-  GraphicsBox[
-   {EdgeForm[GrayLevel[0]], FaceForm[GrayLevel[1]], RectangleBox[{0, 0}], 
-    InsetBox[
-     StyleBox[
-      TagBox["\<\"Image Placeholder\"\>",
-       Annotation[#, "PlaceholderImage"]& ],
-      StripOnInput->False,
-      FontFamily->"Source Sans Pro",
-      FontSize->16], {0.5, 0.6}], InsetBox[
-     StyleBox["\<\"Replace this with an image\\nthat you would like to \
-display\\non the landing page for your paclet.\"\>",
-      StripOnInput->False,
-      TextAlignment->Center,
-      FontFamily->"Source Sans Pro",
-      FontSize->10,
-      FontColor->GrayLevel[0.5]], {0.5, 0.4}]},
-   ImageSize->250],
-  #& ,
-  TaggingRules -> {"DefaultContentBoxes" -> True},
-  AutoDelete->True]], "Input",
- CellTags->"DefaultContent",
+ GraphicsBox[{
+   {RGBColor[0.075, 0.12, 0.24], RectangleBox[{0, 0}, {1, 1}]},
+   {RGBColor[0.27, 0.48, 0.96],
+    RectangleBox[{0.12, 0.17}, {0.25, 0.3}],
+    RectangleBox[{0.27, 0.17}, {0.4, 0.3}],
+    RectangleBox[{0.12, 0.32}, {0.25, 0.45}],
+    RectangleBox[{0.27, 0.32}, {0.4, 0.45}]},
+   {RGBColor[0.33, 0.79, 0.88], Thickness[0.018],
+    LineBox[{{0.44, 0.31}, {0.64, 0.31}}],
+    PolygonBox[{{0.64, 0.31}, {0.59, 0.35}, {0.59, 0.27}}]},
+   {RGBColor[0.91, 0.48, 0.27],
+    RectangleBox[{0.68, 0.17}, {0.86, 0.45}]},
+   InsetBox[
+    StyleBox["\<\"Einstoff\"\>", StripOnInput->False,
+     FontFamily->"Source Sans Pro", FontSize->28, FontWeight->Bold,
+     FontColor->GrayLevel[1]], {0.5, 0.73}],
+   InsetBox[
+    StyleBox["\<\"declarative tensor notation\"\>", StripOnInput->False,
+     FontFamily->"Source Sans Pro", FontSize->11,
+     FontColor->RGBColor[0.78, 0.84, 0.94]], {0.5, 0.57}]},
+  ImageSize->{400, 300}, AspectRatio->3/4, PlotRange->{{0, 1}, {0, 1}},
+  PlotRangePadding->None]], "Input",
  CellID->608088053,ExpressionUUID->"9b75463b-1168-e244-9db6-4ec2642fb4fc"]
 }, Open  ]],
 
