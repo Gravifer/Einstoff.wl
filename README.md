@@ -90,6 +90,17 @@ Run optional Python cross-validation:
 wolframscript -script scripts/run-tests.wls python -q
 ```
 
+For release validation, regenerate the native documentation, validate the source
+paclet, build an archive, and rerun the suite against the extracted artifact:
+
+```powershell
+pwsh -NoProfile -File scripts/validate-release.ps1
+```
+
+Add `-Python` to include the optional Python cross-validation suite. The release
+script writes only to the ignored `build/` directory and temporary extraction space;
+it does not install the candidate into the normal user paclet repository.
+
 The Python tests use `ExternalEvaluate` and ZMQ; on some Windows/sandboxed setups,
 Python session startup can be flaky even when the Wolfram-only suite is healthy.
 

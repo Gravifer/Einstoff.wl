@@ -28,13 +28,32 @@ scriptDir = DirectoryName[$InputFileName];
 If[scriptDir === "", scriptDir = Directory[]];
 root = ParentDirectory[scriptDir];
 
+(* When EINSTOFF_TEST_PACLET_ARCHIVE names a built .paclet file, extract that
+   artifact into a fresh temporary directory and run the same suite against it.
+   $Root remains the repository root so optional Python fixtures still resolve. *)
+archive = Environment["EINSTOFF_TEST_PACLET_ARCHIVE"];
+archiveTemp = None;
+pacletLoadRoot = root;
+If[StringQ[archive] && archive =!= "",
+  If[! FileExistsQ[archive],
+    Print["Built paclet archive does not exist: ", archive];
+    Exit[1]
+  ];
+  archiveTemp = CreateDirectory[];
+  If[FailureQ @ Quiet @ Check[ExtractArchive[archive, archiveTemp], $Failed],
+    Print["Could not extract built paclet archive: ", archive];
+    Exit[1]
+  ];
+  pacletLoadRoot = archiveTemp;
+];
+
 (* MUnit gives BeginTestSection/EndTestSection their section semantics
    (skip/require). The .wlt files use those markers but deliberately do not
    import MUnit` themselves (public-paclet convention), so the runner loads it. *)
 Needs["MUnit`"];
 
 (* Load the Einstoff paclet from the project tree (structured package format). *)
-PacletDirectoryLoad[root];
+PacletDirectoryLoad[pacletLoadRoot];
 Needs["Gravifer`Einstoff`"];
 
 (* Export the project root so headless .wlt files (e.g. the python
@@ -166,6 +185,9 @@ Scan[
 (* Tear down the shared session we spawned (the .wlt files leave it alone). *)
 If[Head[Gravifer`Einstoff`Tests`$PySession] === ExternalSessionObject,
   Quiet @ DeleteObject[Gravifer`Einstoff`Tests`$PySession]];
+
+If[StringQ[archiveTemp],
+  Quiet @ DeleteDirectory[archiveTemp, DeleteContents -> True]];
 
 Print[""];
 Print["==== ", totalPass, " passed, ", totalFail, " failed (",
