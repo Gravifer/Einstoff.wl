@@ -20,20 +20,20 @@ $cellID = 200000;
 nextCellID[] := ++$cellID;
 cell[content_, style_String, opts___Rule] :=
   Cell[content, style, opts, CellID -> nextCellID[]];
-group[cells_List, state_: Open] := CellGroupData[cells, state];
+group[cells_List, state_: Open] := Cell[CellGroupData[cells, state]];
 
 SetAttributes[heldBoxes, HoldAllComplete];
 heldBoxes[expr_] := ToBoxes[Defer[expr], StandardForm];
 
-SetAttributes[usageCell, HoldAllComplete];
-usageCell[expr_, description_String] :=
-  cell[
-    TextData[{
-      Cell[BoxData[heldBoxes[expr]], "InlineFormula"],
-      " " <> description
-    }],
-    "Usage"
-  ];
+usageLine[boxes_, description_String] := {
+  Cell["   ", "ModInfo"],
+  Cell[BoxData[boxes], "InlineFormula"],
+  " \[LineSeparator]" <> description,
+  "\n"
+};
+
+usageCell[lines_List] :=
+  cell[TextData[Delete[Flatten[lines, 1], -1]], "Usage"];
 
 SetAttributes[inputCell, HoldAllComplete];
 inputCell[expr_] := cell[BoxData[heldBoxes[expr]], "Input"];
@@ -98,54 +98,56 @@ functionNotebook = Notebook[
     {
       group[{
         cell["Einstoff", "ObjectName"],
-        usageCell[
-          Einstoff[ArrayReshape][desc, tensors],
-          "performs an element-count-preserving rearrangement of tensors according to desc."
-        ],
-        usageCell[
-          Einstoff["Massage"][desc, tensors],
-          "uses the permissive single-tensor structural engine."
-        ],
-        usageCell[
-          Einstoff["ArrayContract"][desc, tensors],
-          "performs within-tensor pairwise contraction together with reshaping."
-        ],
-        usageCell[
-          Einstoff[ArrayReduce][f][desc, tensors],
-          "reduces selected axes of one tensor using f."
-        ],
-        usageCell[
-          Einstoff[Operate][f][desc, tensors],
-          "applies a shape-preserving operation f to targeted blocks."
-        ],
-        usageCell[
-          Einstoff[Map][f][desc, tensors],
-          "maps a possibly shape-changing operation f over targeted blocks."
-        ],
-        usageCell[
-          Einstoff[Dot][desc, tensors],
-          "performs sum-of-products contraction over two or more tensors."
-        ],
-        usageCell[
-          Einstoff[Inner][mul, add][desc, tensors],
-          "performs generalized contraction using mul and add."
-        ],
-        usageCell[
-          Einstoff[Join][desc, tensors],
-          "concatenates structural direct sums."
-        ],
-        usageCell[
-          Einstoff[Split][desc, tensors],
-          "splits structural direct sums."
-        ],
-        usageCell[
-          Einstoff["einsum"][desc, tensors],
-          "dispatches the implemented einsum-style contraction subset."
-        ],
-        usageCell[
-          Einstoff[op][desc, tensors, bindings],
-          "uses explicit axis-size bindings in addition to sizes inferred from desc."
-        ],
+        usageCell[{
+          usageLine[
+            heldBoxes[Einstoff[ArrayReshape][desc, tensors]],
+            "performs an element-count-preserving rearrangement of tensors according to desc."
+          ],
+          usageLine[
+            heldBoxes[Einstoff["Massage"][desc, tensors]],
+            "uses the permissive single-tensor structural engine."
+          ],
+          usageLine[
+            heldBoxes[Einstoff["ArrayContract"][desc, tensors]],
+            "performs within-tensor pairwise contraction together with reshaping."
+          ],
+          usageLine[
+            heldBoxes[Einstoff[ArrayReduce][f][desc, tensors]],
+            "reduces selected axes of one tensor using f."
+          ],
+          usageLine[
+            heldBoxes[Einstoff[Operate][f][desc, tensors]],
+            "applies a shape-preserving operation f to targeted blocks."
+          ],
+          usageLine[
+            heldBoxes[Einstoff[Map][f][desc, tensors]],
+            "maps a possibly shape-changing operation f over targeted blocks."
+          ],
+          usageLine[
+            heldBoxes[Einstoff[Dot][desc, tensors]],
+            "performs sum-of-products contraction over two or more tensors."
+          ],
+          usageLine[
+            heldBoxes[Einstoff[Inner][mul, add][desc, tensors]],
+            "performs generalized contraction using mul and add."
+          ],
+          usageLine[
+            heldBoxes[Einstoff[Join][desc, tensors]],
+            "concatenates structural direct sums."
+          ],
+          usageLine[
+            heldBoxes[Einstoff[Split][desc, tensors]],
+            "splits structural direct sums."
+          ],
+          usageLine[
+            heldBoxes[Einstoff["einsum"][desc, tensors]],
+            "dispatches the implemented einsum-style contraction subset."
+          ],
+          usageLine[
+            heldBoxes[Einstoff[op][desc, tensors, bindings]],
+            "uses explicit axis-size bindings in addition to sizes inferred from desc."
+          ]
+        }],
         cell[
           "The canonical description is a RuleDelayed of the form {in1, in2, ...} :> {out1, out2, ...}. Rule is warned best-effort compatibility because its right-hand side may evaluate before capture.",
           "Notes"

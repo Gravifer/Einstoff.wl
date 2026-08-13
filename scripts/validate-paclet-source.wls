@@ -49,12 +49,30 @@ Scan[
   Function[file,
     nb = Quiet @ Check[Get[file], $Failed];
     check["documentation expression: " <> FileNameTake[file], MatchQ[nb, _Notebook], file];
-    check["documentation has no placeholders: " <> FileNameTake[file], FreeQ[nb, "XXXX", Infinity], file]
+    check["documentation has no placeholders: " <> FileNameTake[file], FreeQ[nb, "XXXX", Infinity], file];
+    topLevelCells = If[MatchQ[nb, _Notebook], First[nb], {}];
+    check[
+      "documentation has well-formed top-level cells: " <> FileNameTake[file],
+      ListQ[topLevelCells] && AllTrue[topLevelCells, MatchQ[#, _Cell] &],
+      Cases[topLevelCells, item_ /; ! MatchQ[item, _Cell] :> HoldForm[item]]
+    ]
   ],
   docs
 ];
 
 symbolDoc = Quiet @ Check[Get[First[docs]], $Failed];
+usageCells = Cases[symbolDoc, c : Cell[_, "Usage", ___] :> c, Infinity];
+usageForms = If[
+  Length[usageCells] === 1,
+  Cases[First[usageCells], Cell[BoxData[_], "InlineFormula", ___], Infinity],
+  {}
+];
+check[
+  "single structured usage cell",
+  Length[usageCells] === 1 && Length[usageForms] === 12,
+  <|"UsageCells" -> Length[usageCells], "UsageForms" -> Length[usageForms]|>
+];
+
 optionTables = Cases[
   symbolDoc,
   Cell[BoxData[GridBox[rows_List]], "3ColumnTableMod", ___] :> rows,
