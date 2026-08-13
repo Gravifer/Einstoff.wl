@@ -12,24 +12,8 @@ env:
   WLPR_PACLET_SITE: https://resources.wolframcloud.com/PacletRepository/pacletsite
 
 jobs:
-  check:
-    name: Check paclet
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Check definition notebook
-        uses: WolframResearch/check-paclet@v1.11.0
-        with:
-          target: Build
-          paclet_cicd_version: 0.36.2
-          definition_notebook: ./Gravifer__Einstoff/ResourceDefinition.nb
-
   build:
-    name: Build paclet
-    needs: check
+    name: Check and build paclet
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -40,7 +24,7 @@ jobs:
         uses: WolframResearch/build-paclet@v1.11.0
         with:
           target: Build
-          check: false
+          check: true
           paclet_cicd_version: 0.36.2
           definition_notebook: ./Gravifer__Einstoff/ResourceDefinition.nb
 

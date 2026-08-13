@@ -72,8 +72,9 @@ wolframscript -script scripts/paclet-cicd.wls check
 After a successful check, use the `build` argument to produce the PacletCICD archive
 under the ignored `build/` directory. The build command does not repeat the check.
 These commands target `"Build"`; they do not submit anything.
-The GitHub workflow likewise performs only check and build jobs. It requires the
-`WOLFRAMSCRIPT_ENTITLEMENTID` Actions secret, but not a publisher token.
+The GitHub workflow performs the same check and build in one job and one licensed
+Wolfram invocation. It requires the `WOLFRAMSCRIPT_ENTITLEMENTID` Actions secret,
+but not a publisher token.
 
 ## Generated and Local Files
 
