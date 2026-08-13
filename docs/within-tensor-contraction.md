@@ -59,7 +59,7 @@ The einsum rule is *total and deterministic* — numpy/einops never guess. The
      slots). Well-defined, but a *different* primitive and a non-summing operation.
    - repeated on the **output** → **error** everywhere. Keep rejecting it.
 3. **Equal dimensions required** — a coupled index forces its slots to share a size
-   (numpy errors otherwise). `Gravifer`Einstoff`'s `unify` already enforces this, so a mismatch
+   (numpy errors otherwise). ``Gravifer`Einstoff` ``'s `unify` already enforces this, so a mismatch
    is caught as unsatisfiable before any lowering.
 
 ## 4. What an N-way contraction actually *means*
@@ -145,6 +145,6 @@ these. We must legislate them:
 User-facing docs should: (a) present contraction as **pairwise index coupling** (one
 repeated name = couple two slots), with Ricci-style examples; (b) explicitly distinguish
 this from numpy's permissive `>2` super-diagonal and label the latter as non-tensorial;
-(c) state that `Gravifer`Einstoff` operates at the **array** level and does **not** track
+(c) state that ``Gravifer`Einstoff` `` operates at the **array** level and does **not** track
 co/contravariance — placing indices in the right slots (raising/lowering with a metric)
 is the user's responsibility, exactly as in `numpy.einsum`.

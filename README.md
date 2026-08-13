@@ -7,8 +7,9 @@ It uses native pattern objects such as `a_`, `_`, `__`, `___`, `CircleTimes` (`â
 description is compiled into a private staged IR; native patterns are not the semantic
 AST after capture.
 
-The planned destination is `ResourceFunction["Einstoff"]`. For now this repository is
-an unreleased development tree.
+The first planned release is the `Gravifer/Einstoff` paclet. After that paclet is
+publicly installable, a thin `ResourceFunction["Einstoff"]` facade can install, load,
+and forward to it.
 
 ## What It Does
 
@@ -18,8 +19,10 @@ Einstoff covers a growing subset of ein-style array notation:
 - `Einstoff[ArrayReshape]` for bijective rearrange/reshape operations.
 - `Einstoff["Massage"]` for the permissive single-tensor structural engine, including
   repetition, direct sums, and pairwise within-tensor contraction.
+- `Einstoff["ArrayContract"]` for the no-repetition reshape-and-contract subset.
 - `Einstoff[ArrayReduce][f]` for targeted reductions.
-- `Einstoff[Map][f]` for shape-preserving targeted block maps.
+- `Einstoff[Operate][f]` for shape-preserving targeted block operations.
+- `Einstoff[Map][f]` for general targeted block maps.
 - `Einstoff[Dot]` and `Einstoff[Inner][mul, add]` for cross-tensor contractions.
 - `Einstoff[Join]` and `Einstoff[Split]` for structural direct sums.
 - `Einstoff["einsum"]` for the implemented pairwise einsum-style subset.
@@ -55,7 +58,7 @@ Einstoff[ArrayReduce][Total][
 
 ## Repository Layout
 
-- `Einstoff/` contains the Wolfram paclet-style package sources.
+- `Gravifer__Einstoff/` is the publisher-qualified paclet source directory.
 - `docs/Einstoff.en.md` is the public reference documentation draft.
 - `tests/*.wlt` are the source unit tests.
 - `tests/python/*.wlt` are opt-in cross-validation tests against `einx`, `einops`, and
@@ -66,8 +69,8 @@ Einstoff[ArrayReduce][Total][
 
 ## Getting Started
 
-Have your own Wolfram Language system ready. Einstoff currently targets Wolfram
-Language 14.0 or newer, and the test suite runs through `wolframscript`.
+Have your own Wolfram Language system ready. The `0.2.0` release targets Wolfram
+Language 15.0 or newer, and the test suite runs through `wolframscript`.
 
 Python is used only for the optional cross-validation harness:
 
@@ -94,8 +97,9 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for more details.
 
 ## Status
 
-Einstoff is pre-release. Public APIs, messages, and documentation may still change.
-The changelog will stay under `Unreleased` until the project is packaged and published.
+Einstoff is preparing its first Paclet Repository submission as
+`Gravifer/Einstoff` version `0.2.0`. The publisher-ID request and repository review are
+external release gates; source preparation remains in progress here.
 
 ## License
 
