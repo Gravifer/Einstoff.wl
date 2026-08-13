@@ -7,6 +7,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 env:
   WOLFRAMSCRIPT_ENTITLEMENTID: ${{ secrets.WOLFRAMSCRIPT_ENTITLEMENTID }}
   WLPR_PACLET_SITE: https://resources.wolframcloud.com/PacletRepository/pacletsite
@@ -18,10 +21,10 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Build archive
-        uses: WolframResearch/build-paclet@v1.11.0
+        uses: WolframResearch/build-paclet@4d9b2c95ed6f6a86cee9abb5f95154c7b36a76a7 # v1.11.0
         with:
           target: Build
           check: true
@@ -29,7 +32,7 @@ jobs:
           definition_notebook: ./Gravifer__Einstoff/ResourceDefinition.nb
 
       - name: Upload archive
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Einstoff-${{ github.sha }}
           path: ${{ env.PACLET_BUILD_DIR }}
