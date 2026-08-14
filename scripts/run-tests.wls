@@ -11,6 +11,12 @@
                                cross-validation via ExternalEvaluate; excluded
                                by default so the WL-only loop stays fast)
 
+   Exit codes:
+     0                         all requested tests ran and passed
+     1                         a test failed or the requested test count was wrong
+     2                         Python configuration or dependency preflight failed
+     75                        Python/ZMQ startup failed before any test ran
+
    Invoke either way:
      wolframscript -script scripts/run-tests.wls -q          (dash flags, clean)
      wolframscript -file   scripts/run-tests.wls quiet        (plain words)
@@ -26,7 +32,11 @@
 
 scriptDir = DirectoryName[$InputFileName];
 If[scriptDir === "", scriptDir = Directory[]];
-root = ParentDirectory[scriptDir];
+configuredRoot = Quiet @ Check[Environment["EINSTOFF_SOURCE_ROOT"], ""];
+root = If[StringQ[configuredRoot] && configuredRoot =!= "",
+  ExpandFileName[configuredRoot],
+  ParentDirectory[scriptDir]
+];
 
 (* When EINSTOFF_TEST_PACLET_ARCHIVE names a built .paclet file, extract that
    artifact into a fresh temporary directory and run the same suite against it.
@@ -34,6 +44,10 @@ root = ParentDirectory[scriptDir];
 archive = Environment["EINSTOFF_TEST_PACLET_ARCHIVE"];
 archiveTemp = None;
 pacletLoadRoot = root;
+cleanupArchiveTemp[] := If[
+  StringQ[archiveTemp] && DirectoryQ[archiveTemp],
+  Quiet @ DeleteDirectory[archiveTemp, DeleteContents -> True]
+];
 If[StringQ[archive] && archive =!= "",
   If[! FileExistsQ[archive],
     Print["Built paclet archive does not exist: ", archive];
@@ -130,17 +144,77 @@ millisOf[q_] := Round[QuantityMagnitude[UnitConvert[q, "Seconds"]] * 1000];
 fileLabel[file_] := FileNameJoin[Drop[FileNameSplit[file], Length[FileNameSplit[testsDir]]]];
 
 (* ---- shared Python session --------------------------------------------
-   Spawn ONE ExternalEvaluate session here and expose it as Gravifer`Einstoff`Tests`$PySession
-   so every tests/python/*.wlt reuses it: many short-lived ZMQ sessions per kernel
-   are unstable (intermittent 0xC0000005), one shared session is not. Each .wlt
-   falls back to its own session when this is unset (e.g. a bare TestReport). *)
+   First verify the configured interpreter path. Then spawn and transport-probe
+   ONE ExternalEvaluate session before any TestReport runs. Only failure of
+   that external-session transport is temporary/retryable. Once transport is
+   established, a dependency import failure is deterministic configuration.
+   Every Python .wlt reuses this session; a bare TestReport still retains its
+   local fallback. *)
 
 Gravifer`Einstoff`Tests`$PySession = None;
 If[wantPython,
-  With[{exe = FileNameJoin[{root, ".venv", "Scripts", "python.exe"}]},
-    If[FileExistsQ[exe],
-      Gravifer`Einstoff`Tests`$PySession = Quiet @ Check[
-        StartExternalSession[<|"System" -> "Python", "Executable" -> exe|>], None]]]];
+  configuredPython = Quiet @ Check[Environment["EINSTOFF_TEST_PYTHON"], ""];
+  pythonCandidates = If[StringQ[configuredPython] && configuredPython =!= "",
+    {configuredPython},
+    {
+      FileNameJoin[{root, ".venv", "Scripts", "python.exe"}],
+      FileNameJoin[{root, ".venv", "bin", "python"}]
+    }
+  ];
+  pythonExecutable = SelectFirst[
+    pythonCandidates,
+    StringQ[#] && FileExistsQ[#] &,
+    Missing["NotAvailable"]
+  ];
+  If[MissingQ[pythonExecutable],
+    cleanupArchiveTemp[];
+    Print[
+      "PYTHON_CONFIGURATION_FAILED: no configured Python executable exists."
+    ];
+    Exit[2]
+  ];
+  Gravifer`Einstoff`Tests`$PySession = Quiet @ Check[
+    StartExternalSession[
+      <|"System" -> "Python", "Executable" -> pythonExecutable|>
+    ],
+    None
+  ];
+  pythonReady = Head[Gravifer`Einstoff`Tests`$PySession] === ExternalSessionObject &&
+    TrueQ @ Quiet @ Check[
+      ExternalEvaluate[
+        Gravifer`Einstoff`Tests`$PySession,
+        "True"
+      ],
+      False
+    ];
+  If[! TrueQ[pythonReady],
+    If[
+      Head[Gravifer`Einstoff`Tests`$PySession] === ExternalSessionObject,
+      Quiet @ DeleteObject[Gravifer`Einstoff`Tests`$PySession]
+    ];
+    cleanupArchiveTemp[];
+    Print[
+      "PYTHON_SESSION_STARTUP_FAILED: could not start and probe the configured ",
+      "Python/ZMQ session."
+    ];
+    Exit[75]
+  ];
+  dependenciesReady = TrueQ @ Quiet @ Check[
+    ExternalEvaluate[
+      Gravifer`Einstoff`Tests`$PySession,
+      "import numpy, einops, einx, zmq; True"
+    ],
+    False
+  ];
+  If[! TrueQ[dependenciesReady],
+    Quiet @ DeleteObject[Gravifer`Einstoff`Tests`$PySession];
+    cleanupArchiveTemp[];
+    Print[
+      "PYTHON_CONFIGURATION_FAILED: dependency import probe failed."
+    ];
+    Exit[2]
+  ]
+];
 
 (* ---- run --------------------------------------------------------------- *)
 
@@ -191,8 +265,7 @@ Scan[
 If[Head[Gravifer`Einstoff`Tests`$PySession] === ExternalSessionObject,
   Quiet @ DeleteObject[Gravifer`Einstoff`Tests`$PySession]];
 
-If[StringQ[archiveTemp],
-  Quiet @ DeleteDirectory[archiveTemp, DeleteContents -> True]];
+cleanupArchiveTemp[];
 
 Print[""];
 Print["==== ", totalPass, " passed, ", totalFail, " failed (",

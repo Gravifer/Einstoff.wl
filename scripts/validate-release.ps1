@@ -4,6 +4,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'retry-python-tests.ps1')
 
 function Invoke-WolframScript {
     param([Parameter(Mandatory)] [string[]] $Arguments)
@@ -41,7 +42,11 @@ try {
         $env:EINSTOFF_TEST_PACLET_ARCHIVE = $archive
         Invoke-WolframScript -Arguments @('-script', 'scripts/run-tests.wls', '-q')
         if ($Python) {
-            Invoke-WolframScript -Arguments @('-script', 'scripts/run-tests.wls', 'python', '-q')
+            $pythonTestArguments = @('-script', 'scripts/run-tests.wls', 'python', '-q')
+            Invoke-WithPythonStartupRetries -Operation {
+                & wolframscript @pythonTestArguments | Out-Host
+                $LASTEXITCODE
+            }
         }
     }
     finally {
