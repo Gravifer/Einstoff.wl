@@ -80,6 +80,37 @@ running untrusted code with that secret, fork and Dependabot pull requests skip 
 licensed job; a maintainer can run it after bringing trusted changes onto a branch in
 this repository.
 
+## Release Workflow
+
+Maintainers create signed annotated `v*` tags whose version matches
+`Gravifer__Einstoff/PacletInfo.wl` and whose commit is contained in `main`. The
+workflow structurally requires an annotated tag; signature creation remains a
+maintainer responsibility and is not cryptographically reverified in CI. The release
+workflow is intentionally non-submitting: it does not use a Paclet Repository
+publisher token.
+
+For a release candidate:
+
+1. Update `PacletInfo.wl` and move the matching notes out of the changelog's
+   `Unreleased` section.
+2. Run `scripts/validate-release.ps1 -Python -ExpectedTag vX.Y.Z`, then merge the
+   release changes to `main`.
+3. Dispatch `release.yml` on `main` with `ref=main` and the expected tag. Trusted
+   release tooling from the workflow commit validates that separately checked-out
+   candidate. Confirm the dry-run archive and checksum artifacts; this event has only
+   read permission and cannot instantiate the publication job.
+4. Create a signed annotated tag at the validated `main` commit and push it to
+   GitHub. The tag event rebuilds and tests under read-only permissions, then passes
+   the validated bundle to a serialized publication job.
+5. Verify build provenance with `gh attestation verify` and the immutable release
+   attestation with `gh release verify`; the workflow performs both checks.
+6. Synchronize the updated `main` and tag to Codeberg manually.
+
+Python/ZMQ startup is probed before MUnit starts. Release validation makes one initial
+attempt plus at most three startup-only retries. Invalid interpreter/dependency setup
+and real test failures are never retried. Stable publication is globally serialized;
+an older stable version is never allowed to replace a newer release as `Latest`.
+
 ## Generated and Local Files
 
 Keep local scratch work out of commits unless it is part of the requested change. In

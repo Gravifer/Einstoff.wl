@@ -94,7 +94,7 @@ For release validation, regenerate the native documentation, validate the source
 paclet, build an archive, and rerun the suite against the extracted artifact:
 
 ```powershell
-pwsh -NoProfile -File scripts/validate-release.ps1
+pwsh -NoProfile -File scripts/validate-release.ps1 -ExpectedTag v0.2.0-alpha.1
 ```
 
 Add `-Python` to include the optional Python cross-validation suite. The release
@@ -123,9 +123,52 @@ The GitHub workflow checks and builds only; it never submits a paclet. Its Wolfr
 Engine image and PacletCICD archive are pinned by digest. Licensed jobs run only for
 trusted branch events, same-repository pull requests, and manual dispatches; fork and
 Dependabot pull requests skip the licensed job. Hosted runs require a GitHub Actions
-secret named `WOLFRAMSCRIPT_ENTITLEMENTID`. Publisher approval and a resource
-publisher token are separate requirements needed only for a later submission
-workflow.
+secret named `WOLFRAMSCRIPT_ENTITLEMENTID`. The approved Publisher ID is not used by
+this workflow; a resource publisher token is a separate requirement needed only for
+a later submission workflow.
+
+## Publishing GitHub Releases
+
+GitHub Release publication is automated for version tags and remains separate from
+Paclet Repository submission. Prepare a release by updating `PacletInfo.wl` and the
+matching `CHANGELOG.md` section on a branch, validating it, and merging it to `main`.
+After the release changes and workflow are on `main`, run the non-publishing dry run:
+
+```powershell
+gh workflow run release.yml --ref main -f ref=main -f expected_tag=v0.2.0-alpha.2
+```
+
+The dry run uses trusted tooling from the workflow commit to build the separately
+checked-out requested ref, runs PacletCICD checks and the complete Wolfram/Python
+suites against the archive, and uploads the paclet and SHA-256 file as Actions
+artifacts. Its job has read-only repository permission and cannot instantiate the
+tag-only publication job.
+
+Once the dry run passes, create and push a signed annotated tag from that `main`
+commit:
+
+```powershell
+git tag -s v0.2.0-alpha.2 -m "Einstoff v0.2.0-alpha.2"
+git push github v0.2.0-alpha.2
+```
+
+The maintainer signs the tag; CI structurally rejects lightweight tags but does not
+reverify the cryptographic signature. The tag workflow verifies that the annotated
+tag matches the paclet version and points into `main`, rebuilds and retests under
+read-only permissions, then passes the validated bundle to a globally serialized
+publication job. It creates a SHA-256 checksum and GitHub build provenance and
+publishes a prerelease or stable release as appropriate. Older stable versions are
+not permitted to replace a newer release as `Latest`.
+
+The workflow verifies build provenance with `gh attestation verify` and separately
+verifies GitHub's immutable-release attestation. Maintainers can repeat the latter:
+
+```powershell
+gh release verify v0.2.0-alpha.2 --repo Gravifer/Einstoff.wl
+```
+
+GitHub is the automated publication target. After publication, the maintainer syncs
+`main` and the new tag to Codeberg explicitly.
 
 The Python tests use `ExternalEvaluate` and ZMQ; on some Windows/sandboxed setups,
 Python session startup can be flaky even when the Wolfram-only suite is healthy.
@@ -136,8 +179,8 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for more details.
 
 Einstoff is preparing its first Paclet Repository submission as
 `Gravifer/Einstoff`. Version `0.2.0-alpha.1` is a repository-hosted prerelease;
-publisher approval and Paclet Repository review remain external gates for the
-eventual `0.2.0` release.
+the `Gravifer` Publisher ID is approved, while the publisher token, submission, and
+Paclet Repository review remain later gates for the eventual `0.2.0` release.
 
 ## License
 
