@@ -2,26 +2,41 @@
 
 set -euo pipefail
 
+run_paclet="${INPUT_RUN_PACLET:-true}"
+run_wolfram="${INPUT_RUN_WOLFRAM:-false}"
 release_validation="${INPUT_RELEASE_VALIDATION:-false}"
 expected_tag="${INPUT_EXPECTED_TAG:-}"
 source_path="${INPUT_SOURCE_PATH:-.}"
 tooling_path="${INPUT_TOOLING_PATH:-.}"
 
-case "${release_validation}" in
-  true|false) ;;
-  *)
-    echo "release_validation must be true or false." >&2
-    exit 2
-    ;;
-esac
+for boolean_name in run_paclet run_wolfram release_validation; do
+  boolean_value="${!boolean_name}"
+  case "${boolean_value}" in
+    true|false) ;;
+    *)
+      echo "${boolean_name} must be true or false." >&2
+      exit 2
+      ;;
+  esac
+done
 
 if [[ "${release_validation}" == "true" && -z "${expected_tag}" ]]; then
   echo "expected_tag is required when release_validation is true." >&2
   exit 2
 fi
 
+if [[ "${release_validation}" == "true" && "${run_paclet}" != "true" ]]; then
+  echo "run_paclet must be true when release_validation is true." >&2
+  exit 2
+fi
+
 if [[ "${release_validation}" == "false" && -n "${expected_tag}" ]]; then
   echo "expected_tag is only valid when release_validation is true." >&2
+  exit 2
+fi
+
+if [[ "${release_validation}" == "false" && "${run_paclet}" == "false" && "${run_wolfram}" == "false" ]]; then
+  echo "At least one ordinary validation phase must be enabled." >&2
   exit 2
 fi
 
@@ -54,13 +69,21 @@ if [[ "${release_validation}" == "true" ]]; then
   echo "::endgroup::"
 fi
 
-echo "::group::Installing pinned PacletCICD dependency..."
-wolframscript -script "${tooling_root}/scripts/install-paclet-cicd.wls"
-echo "::endgroup::"
+if [[ "${release_validation}" == "false" && "${run_wolfram}" == "true" ]]; then
+  echo "::group::Running the default Wolfram test suite..."
+  wolframscript -script "${tooling_root}/scripts/run-tests.wls" -q
+  echo "::endgroup::"
+fi
 
-echo "::group::Checking and building paclet..."
-wolframscript -script "${tooling_root}/scripts/paclet-cicd.wls" ci
-echo "::endgroup::"
+if [[ "${run_paclet}" == "true" ]]; then
+  echo "::group::Installing pinned PacletCICD dependency..."
+  wolframscript -script "${tooling_root}/scripts/install-paclet-cicd.wls"
+  echo "::endgroup::"
+
+  echo "::group::Checking and building paclet..."
+  wolframscript -script "${tooling_root}/scripts/paclet-cicd.wls" ci
+  echo "::endgroup::"
+fi
 
 if [[ "${release_validation}" == "true" ]]; then
   shopt -s nullglob

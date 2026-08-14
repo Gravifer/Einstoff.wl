@@ -1,7 +1,15 @@
 name: Pinned Paclet CI
-description: Check and build Einstoff in an immutable Wolfram Engine image
+description: Run selected Einstoff validation phases in an immutable Wolfram Engine image
 
 inputs:
+  run_paclet:
+    description: Run the PacletCICD check and build phases
+    required: false
+    default: "true"
+  run_wolfram:
+    description: Run the default Wolfram test suite against the source tree
+    required: false
+    default: "false"
   release_validation:
     description: Run source checks and the Wolfram/Python suites against the archive
     required: false
