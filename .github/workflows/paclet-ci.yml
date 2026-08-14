@@ -16,15 +16,20 @@ concurrency:
 
 jobs:
   contract:
-    name: Validate release contract (unlicensed)
+    name: Classify and validate CI contract (unlicensed)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
+    outputs:
+      run_paclet: ${{ steps.classify.outputs.run_paclet }}
+      run_wolfram: ${{ steps.classify.outputs.run_wolfram }}
+      run_python_smoke: ${{ steps.classify.outputs.run_python_smoke }}
     steps:
       - name: Check out repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Check release workflow contract
@@ -34,13 +39,58 @@ jobs:
         shell: pwsh
         run: ./scripts/test-retry-python-tests.ps1
 
+      - name: Check change classifier
+        run: python3 scripts/test_ci_change_classifier.py
+
+      - name: Classify changed paths
+        id: classify
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: >-
+          python3 scripts/classify_ci_changes.py
+          --event-name "${EVENT_NAME}"
+          --base "${BASE_SHA}"
+          --head "${HEAD_SHA}"
+          --github-output "${GITHUB_OUTPUT}"
+
+  python-smoke:
+    name: Check locked Python environment (unlicensed)
+    needs: contract
+    if: needs.contract.outputs.run_python_smoke == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: 0.11.26
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Sync and probe locked dependencies
+        run: |
+          uv sync --locked
+          uv run --no-sync python -c "import numpy, einops, einx, zmq"
+
   build:
-    name: Check and build paclet
+    name: Run licensed Paclet and Wolfram validation
     needs: contract
     if: >-
-      github.event_name != 'pull_request' ||
+      (needs.contract.outputs.run_paclet == 'true' ||
+      needs.contract.outputs.run_wolfram == 'true') &&
+      github.event_name != 'push' &&
+      (github.event_name != 'pull_request' ||
       (github.event.pull_request.head.repo.full_name == github.repository &&
-      github.actor != 'dependabot[bot]')
+      github.actor != 'dependabot[bot]'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -51,11 +101,15 @@ jobs:
 
       - name: Build archive
         uses: ./.github/actions/paclet-ci
+        with:
+          run_paclet: ${{ needs.contract.outputs.run_paclet }}
+          run_wolfram: ${{ needs.contract.outputs.run_wolfram }}
         env:
           WOLFRAMSCRIPT_ENTITLEMENTID: ${{ secrets.WOLFRAMSCRIPT_ENTITLEMENTID }}
           WLPR_PACLET_SITE: https://resources.wolframcloud.com/PacletRepository/pacletsite
 
       - name: Upload archive
+        if: needs.contract.outputs.run_paclet == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Einstoff-${{ github.sha }}
