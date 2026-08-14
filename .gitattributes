@@ -1,0 +1,6 @@
+# Resource definition notebooks store required submission metadata in notebook
+# options, so they must not pass through the user's output-stripping notebook filter.
+Gravifer__Einstoff/ResourceDefinition.nb -filter
+
+# Docker-action entrypoints must keep a Unix shebang when checked out on Windows.
+.github/actions/**/*.sh text eol=lf

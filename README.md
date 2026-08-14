@@ -101,6 +101,32 @@ Add `-Python` to include the optional Python cross-validation suite. The release
 script writes only to the ignored `build/` directory and temporary extraction space;
 it does not install the candidate into the normal user paclet repository.
 
+For Paclet Repository preparation, install the checksum-verified PacletCICD version
+pinned by this repository, then validate the definition notebook or build through
+the same tooling used by CI:
+
+```powershell
+wolframscript -script scripts/install-paclet-cicd.wls
+wolframscript -script scripts/paclet-cicd.wls check
+wolframscript -script scripts/paclet-cicd.wls build
+```
+
+If the Wolfram kernel cannot download the release directly, download the configured
+archive separately and pass its path to `scripts/install-paclet-cicd.wls`; the same
+SHA-256 verification is applied before installation. The installer replaces an
+existing copy of the pinned version only after the replacement archive is verified.
+
+Run `check` before `build`; the build command does not repeat the relatively costly
+definition-notebook inspection.
+
+The GitHub workflow checks and builds only; it never submits a paclet. Its Wolfram
+Engine image and PacletCICD archive are pinned by digest. Licensed jobs run only for
+trusted branch events, same-repository pull requests, and manual dispatches; fork and
+Dependabot pull requests skip the licensed job. Hosted runs require a GitHub Actions
+secret named `WOLFRAMSCRIPT_ENTITLEMENTID`. Publisher approval and a resource
+publisher token are separate requirements needed only for a later submission
+workflow.
+
 The Python tests use `ExternalEvaluate` and ZMQ; on some Windows/sandboxed setups,
 Python session startup can be flaky even when the Wolfram-only suite is healthy.
 
