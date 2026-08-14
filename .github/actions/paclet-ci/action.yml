@@ -1,6 +1,24 @@
 name: Pinned Paclet CI
 description: Check and build Einstoff in an immutable Wolfram Engine image
 
+inputs:
+  release_validation:
+    description: Run source checks and the Wolfram/Python suites against the archive
+    required: false
+    default: "false"
+  expected_tag:
+    description: Version tag that must equal v plus the paclet version in release mode
+    required: false
+    default: ""
+  source_path:
+    description: Repository-relative path to the candidate source tree
+    required: false
+    default: "."
+  tooling_path:
+    description: Repository-relative path to the trusted release tooling tree
+    required: false
+    default: "."
+
 runs:
   using: docker
   image: Dockerfile

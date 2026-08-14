@@ -15,8 +15,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  contract:
+    name: Validate release contract (unlicensed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Check release workflow contract
+        run: python3 scripts/validate-release-contract.py
+
+      - name: Check PowerShell retry policy
+        shell: pwsh
+        run: ./scripts/test-retry-python-tests.ps1
+
   build:
     name: Check and build paclet
+    needs: contract
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.head.repo.full_name == github.repository &&
@@ -25,7 +45,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Check out repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Build archive
         uses: ./.github/actions/paclet-ci
@@ -34,7 +56,7 @@ jobs:
           WLPR_PACLET_SITE: https://resources.wolframcloud.com/PacletRepository/pacletsite
 
       - name: Upload archive
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Einstoff-${{ github.sha }}
           path: ./build/*.paclet

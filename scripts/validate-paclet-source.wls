@@ -5,8 +5,18 @@
 
 scriptDir = DirectoryName[$InputFileName];
 If[scriptDir === "", scriptDir = Directory[]];
-root = ParentDirectory[scriptDir];
+configuredRoot = Quiet @ Check[Environment["EINSTOFF_SOURCE_ROOT"], ""];
+root = If[StringQ[configuredRoot] && configuredRoot =!= "",
+  ExpandFileName[configuredRoot],
+  ParentDirectory[scriptDir]
+];
 pacletDir = FileNameJoin[{root, "Gravifer__Einstoff"}];
+arguments = Rest[$ScriptCommandLine];
+If[Length[arguments] > 1,
+  Print["Usage: validate-paclet-source.wls [expected-version-tag]"];
+  Exit[2]
+];
+expectedTag = First[arguments, None];
 
 failures = {};
 check[name_String, condition_, detail_] :=
@@ -27,7 +37,24 @@ check[
 
 If[Length[paclets] == 1,
   paclet = First[paclets];
-  check["version", paclet["Version"] === "0.2.0-alpha.1", paclet["Version"]];
+  version = paclet["Version"];
+  check[
+    "version format",
+    StringQ[version] && StringMatchQ[
+      version,
+      RegularExpression[
+        "[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?"
+      ]
+    ],
+    version
+  ];
+  If[StringQ[expectedTag],
+    check[
+      "version tag",
+      expectedTag === "v" <> version,
+      <|"ExpectedTag" -> expectedTag, "PacletVersion" -> version|>
+    ]
+  ];
   check["minimum Wolfram version", paclet["WolframVersion"] === "15.0+", paclet["WolframVersion"]];
   check["publisher ID", paclet["PublisherID"] === "Gravifer", paclet["PublisherID"]];
   check["primary context", paclet["PrimaryContext"] === "Gravifer`Einstoff`", paclet["PrimaryContext"]];

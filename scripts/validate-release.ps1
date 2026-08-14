@@ -1,9 +1,11 @@
 param(
-    [switch] $Python
+    [switch] $Python,
+    [string] $ExpectedTag
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'retry-python-tests.ps1')
 
 function Invoke-WolframScript {
     param([Parameter(Mandatory)] [string[]] $Arguments)
@@ -17,7 +19,11 @@ function Invoke-WolframScript {
 Push-Location $root
 try {
     Invoke-WolframScript -Arguments @('-script', 'scripts/generate-paclet-docs.wls')
-    Invoke-WolframScript -Arguments @('-script', 'scripts/validate-paclet-source.wls')
+    $sourceValidationArguments = @('-script', 'scripts/validate-paclet-source.wls')
+    if ($ExpectedTag) {
+        $sourceValidationArguments += $ExpectedTag
+    }
+    Invoke-WolframScript -Arguments $sourceValidationArguments
 
     $buildOutput = & wolframscript -script scripts/build-paclet.wls
     if ($LASTEXITCODE -ne 0) {
@@ -41,7 +47,11 @@ try {
         $env:EINSTOFF_TEST_PACLET_ARCHIVE = $archive
         Invoke-WolframScript -Arguments @('-script', 'scripts/run-tests.wls', '-q')
         if ($Python) {
-            Invoke-WolframScript -Arguments @('-script', 'scripts/run-tests.wls', 'python', '-q')
+            $pythonTestArguments = @('-script', 'scripts/run-tests.wls', 'python', '-q')
+            Invoke-WithPythonStartupRetries -Operation {
+                & wolframscript @pythonTestArguments | Out-Host
+                $LASTEXITCODE
+            }
         }
     }
     finally {
