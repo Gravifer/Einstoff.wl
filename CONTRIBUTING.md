@@ -39,26 +39,82 @@ The maintainer updates that generated notebook when new tests arrive on `main`.
 
 ## Tests
 
-Before submitting a pull request or merge request, make sure the default
-Wolfram-only suite passes at your branch HEAD:
+When your change affects Wolfram source or behavior, run the default suite at your
+branch HEAD:
 
 ```powershell
 wolframscript -script scripts/run-tests.wls -q
 ```
 
-The optional Python suite cross-validates against `einx`, `einops`, and NumPy:
+The optional Python suite cross-validates against `einx`, `einops`, and NumPy. Run it
+when changing cross-validation cases, Python dependencies, or behavior compared with
+those libraries:
 
 ```powershell
 uv sync
 wolframscript -script scripts/run-tests.wls python -q
 ```
 
-The Python suite is useful but not required for every contribution. It depends on a
-Python environment and may fail to start under some Windows sandbox restrictions even
-when the Wolfram-only suite passes.
+The Python suite is useful but is not required for every contribution. It still starts
+a Wolfram kernel through `ExternalEvaluate`, and may fail to establish its Python/ZMQ
+session under some Windows sandbox restrictions even when the Wolfram-only suite
+passes. Record every command you ran in the pull request. If a relevant check was not
+available locally, say so; do not obtain or share a maintainer credential.
 
 Additional tests are appreciated when they clarify behavior, cover a regression, or
 pin down a design boundary.
+
+## Hosted Validation
+
+Ordinary GitHub CI separates free checks from work that consumes Wolfram on-demand
+credits:
+
+- Every pull request and `main` push runs the unlicensed workflow-contract and
+  changed-file classifier checks.
+- Python dependency or cross-validation changes run an unlicensed locked-environment
+  smoke check that imports NumPy, einx, einops, and pyzmq. This does **not** execute the
+  Python cross-validation suite.
+- A trusted pull request runs PacletCICD only when paclet source or build machinery
+  changes, and runs the default Wolfram suite only when Wolfram source, tests, or
+  shared test machinery changes.
+- Pushes to `main` do not repeat licensed validation already performed during review.
+- Manual Paclet CI dispatches run the complete ordinary PacletCICD and Wolfram path.
+- Release validation remains the comprehensive hosted path: it builds the archive and
+  runs both the Wolfram and Python suites against that artifact.
+
+Jobs are skipped individually rather than filtering out the workflow. A skipped
+licensed job on a documentation-only change or fork pull request is expected, not a
+missing validation result. Unknown executable or build-related paths fail closed by
+selecting every ordinary check on trusted events.
+
+### Fork pull requests and entitlements
+
+GitHub does not pass either the upstream repository's secrets or a fork's repository
+secrets into an upstream `pull_request` workflow. Approving a fork workflow run does
+not change that boundary. Consequently, upstream fork pull requests receive the free
+checks but skip licensed validation.
+
+A contributor who has their own Wolfram entitlement may validate in their fork:
+
+1. Enable GitHub Actions in the fork.
+2. Add `WOLFRAMSCRIPT_ENTITLEMENTID` as a repository Actions secret in that fork.
+3. Manually dispatch `paclet-ci.yml` on the contribution branch, either in the GitHub
+   UI or with:
+
+   ```powershell
+   gh workflow run paclet-ci.yml --repo OWNER/Einstoff.wl --ref contribution-branch
+   ```
+
+That run uses the fork owner's secret and credits; it does not make the secret
+available to the upstream pull request. Link the resulting run in the pull request if
+it is useful evidence.
+
+If an upstream maintainer needs an upstream-trusted licensed result, they must first
+review the exact executable commit—including workflows, actions, scripts, dependency
+files, and Wolfram code—then place the trusted commit on a branch in this repository
+and manually dispatch Paclet CI there. Any alteration after that review requires a new
+trust decision and result. Never paste entitlement IDs into pull requests, issues,
+logs, or workflow inputs.
 
 ## Paclet Repository Checks
 
@@ -74,11 +130,10 @@ wolframscript -script scripts/paclet-cicd.wls check
 After a successful check, use the `build` argument to produce the PacletCICD archive
 under the ignored `build/` directory. The build command does not repeat the check.
 These commands target `"Build"`; they do not submit anything.
-The GitHub workflow performs the same check and build in one job. It requires the
-`WOLFRAMSCRIPT_ENTITLEMENTID` Actions secret, but not a publisher token. To avoid
-running untrusted code with that secret, fork and Dependabot pull requests skip the
-licensed job; a maintainer can run it after bringing trusted changes onto a branch in
-this repository.
+The licensed GitHub Paclet phase performs the same check and build in one job. It
+requires `WOLFRAMSCRIPT_ENTITLEMENTID`, but not a publisher token. The changed-file
+classifier avoids this phase when paclet artifacts cannot be affected; a manual
+dispatch intentionally runs it in full.
 
 ## Release Workflow
 
