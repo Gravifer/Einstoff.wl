@@ -1,0 +1,337 @@
+name: GitHub Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag, or commit to validate without publishing
+        required: true
+        default: main
+        type: string
+      expected_tag:
+        description: Version tag expected from PacletInfo.wl, such as v0.2.0-alpha.2
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate release candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    concurrency:
+      group: github-release-validation-${{ github.event_name == 'push' && github.ref_name || inputs.expected_tag }}
+      cancel-in-progress: false
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      archive: ${{ steps.release.outputs.archive }}
+      checksum: ${{ steps.release.outputs.checksum }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
+      publication_artifact: ${{ steps.release.outputs.publication_artifact }}
+    steps:
+      - name: Check out trusted release tooling
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+          path: tooling
+
+      - name: Check out release source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
+          path: candidate
+
+      - name: Resolve release metadata
+        id: release
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_TAG: ${{ inputs.expected_tag }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${EVENT_NAME}" == "push" ]]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            tag="${DISPATCH_TAG}"
+          fi
+
+          if [[ ! "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+            echo "Invalid release tag: ${tag}" >&2
+            exit 1
+          fi
+
+          version="${tag#v}"
+          built_archive="candidate/build/Gravifer__Einstoff-${version}.paclet"
+          staging="${RUNNER_TEMP}/einstoff-release-${GITHUB_RUN_ID}"
+          archive="${staging}/Gravifer__Einstoff-${version}.paclet"
+          checksum="${archive}.sha256"
+          prerelease=false
+          if [[ "${version}" == *-* ]]; then
+            prerelease=true
+          fi
+          publication_artifact="Einstoff-publication-${version}-${GITHUB_RUN_ID}"
+
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "built_archive=${built_archive}" >> "${GITHUB_OUTPUT}"
+          echo "archive=${archive}" >> "${GITHUB_OUTPUT}"
+          echo "checksum=${checksum}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${prerelease}" >> "${GITHUB_OUTPUT}"
+          echo "publication_artifact=${publication_artifact}" >> "${GITHUB_OUTPUT}"
+
+      - name: Validate release ref
+        shell: bash
+        working-directory: candidate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
+            echo "Release commit must be contained in main." >&2
+            exit 1
+          fi
+
+          if [[ "${EVENT_NAME}" == "push" ]]; then
+            if [[ "$(git cat-file -t "refs/tags/${RELEASE_TAG}")" != "tag" ]]; then
+              echo "Published releases require an annotated tag." >&2
+              exit 1
+            fi
+            if [[ "$(git rev-list -n 1 "refs/tags/${RELEASE_TAG}")" != "$(git rev-parse HEAD)" ]]; then
+              echo "Checked-out commit does not match ${RELEASE_TAG}." >&2
+              exit 1
+            fi
+            if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+              echo "A GitHub Release already exists for ${RELEASE_TAG}." >&2
+              exit 1
+            fi
+          fi
+
+      - name: Build and validate release archive
+        uses: ./tooling/.github/actions/paclet-ci
+        with:
+          release_validation: "true"
+          expected_tag: ${{ steps.release.outputs.tag }}
+          source_path: candidate
+          tooling_path: tooling
+        env:
+          WOLFRAMSCRIPT_ENTITLEMENTID: ${{ secrets.WOLFRAMSCRIPT_ENTITLEMENTID }}
+          WLPR_PACLET_SITE: https://resources.wolframcloud.com/PacletRepository/pacletsite
+
+      - name: Prepare release assets and notes
+        shell: bash
+        env:
+          BUILT_ARCHIVE: ${{ steps.release.outputs.built_archive }}
+          ARCHIVE: ${{ steps.release.outputs.archive }}
+          CHECKSUM: ${{ steps.release.outputs.checksum }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f "${BUILT_ARCHIVE}" ]]; then
+            echo "Release archive was not produced: ${BUILT_ARCHIVE}" >&2
+            exit 1
+          fi
+
+          staging="$(dirname "${ARCHIVE}")"
+          mkdir -p "${staging}"
+          cp "${BUILT_ARCHIVE}" "${ARCHIVE}"
+
+          digest="$(sha256sum "${ARCHIVE}" | cut -d ' ' -f 1)"
+          printf '%s  %s\n' "${digest}" "$(basename "${ARCHIVE}")" > "${CHECKSUM}"
+
+          notes="${staging}/release-preamble.md"
+          {
+            echo "This release was built and validated from the release commit."
+            echo
+            echo "Validation:"
+            echo
+            echo "- PacletCICD build-target checks passed;"
+            echo "- the complete Wolfram test suite passed against the built archive;"
+            echo "- all Python einx/einops cross-validation tests executed and passed."
+            echo
+            echo "SHA-256 (\`$(basename "${ARCHIVE}")\`):"
+            echo "\`${digest}\`"
+          } > "${notes}"
+
+      - name: Upload dry-run assets
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Einstoff-release-dry-run-${{ steps.release.outputs.version }}
+          path: |
+            ${{ steps.release.outputs.archive }}
+            ${{ steps.release.outputs.checksum }}
+          if-no-files-found: error
+
+      - name: Upload publication bundle
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.release.outputs.publication_artifact }}
+          path: |
+            ${{ steps.release.outputs.archive }}
+            ${{ steps.release.outputs.checksum }}
+            ${{ runner.temp }}/einstoff-release-${{ github.run_id }}/release-preamble.md
+          if-no-files-found: error
+
+  publish:
+    name: Attest and publish release
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    concurrency:
+      group: github-release-publication
+      cancel-in-progress: false
+    steps:
+      - name: Download validated publication bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.validate.outputs.publication_artifact }}
+          path: release-assets
+
+      - name: Validate publication bundle and policy
+        id: policy
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+          VERSION: ${{ needs.validate.outputs.version }}
+          PRERELEASE: ${{ needs.validate.outputs.prerelease }}
+          ARCHIVE_NAME: ${{ needs.validate.outputs.archive }}
+          CHECKSUM_NAME: ${{ needs.validate.outputs.checksum }}
+        run: |
+          set -euo pipefail
+
+          minimum_gh="2.81.0"
+          actual_gh="$(gh --version | head -n 1 | awk '{print $3}')"
+          oldest="$(printf '%s\n' "${minimum_gh}" "${actual_gh}" | sort -V | head -n 1)"
+          if [[ "${oldest}" != "${minimum_gh}" ]]; then
+            echo "GitHub CLI ${minimum_gh} or later is required; found ${actual_gh}." >&2
+            exit 1
+          fi
+
+          archive="release-assets/$(basename "${ARCHIVE_NAME}")"
+          checksum="release-assets/$(basename "${CHECKSUM_NAME}")"
+          notes="release-assets/release-preamble.md"
+          if [[ ! -f "${archive}" || ! -f "${checksum}" || ! -f "${notes}" ]]; then
+            echo "The validated publication bundle is incomplete." >&2
+            exit 1
+          fi
+
+          mapfile -t archives < <(find release-assets -maxdepth 1 -type f -name '*.paclet' -print)
+          if (( ${#archives[@]} != 1 )) || [[ "${archives[0]}" != "${archive}" ]]; then
+            echo "The publication bundle must contain exactly the expected paclet." >&2
+            exit 1
+          fi
+          (cd release-assets && sha256sum --check "$(basename "${checksum}")")
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "A GitHub Release already exists for ${RELEASE_TAG}." >&2
+            exit 1
+          fi
+
+          mark_latest=false
+          if [[ "${PRERELEASE}" == "false" ]]; then
+            mark_latest=true
+            while IFS= read -r existing_tag; do
+              if [[ "${existing_tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                existing_version="${existing_tag#v}"
+                newest="$(printf '%s\n' "${VERSION}" "${existing_version}" | sort -V | tail -n 1)"
+                if [[ "${existing_version}" != "${VERSION}" && "${newest}" == "${existing_version}" ]]; then
+                  mark_latest=false
+                  break
+                fi
+              fi
+            done < <(
+              gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+                --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name'
+            )
+          fi
+
+          echo "archive=${archive}" >> "${GITHUB_OUTPUT}"
+          echo "checksum=${checksum}" >> "${GITHUB_OUTPUT}"
+          echo "notes=${notes}" >> "${GITHUB_OUTPUT}"
+          echo "mark_latest=${mark_latest}" >> "${GITHUB_OUTPUT}"
+
+      - name: Attest release archive
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: ${{ steps.policy.outputs.archive }}
+
+      - name: Verify build provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE: ${{ steps.policy.outputs.archive }}
+        run: |
+          set -euo pipefail
+          gh attestation verify "${ARCHIVE}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml" \
+            --source-ref "${GITHUB_REF}" \
+            --source-digest "${GITHUB_SHA}"
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+          PRERELEASE: ${{ needs.validate.outputs.prerelease }}
+          MARK_LATEST: ${{ steps.policy.outputs.mark_latest }}
+          ARCHIVE: ${{ steps.policy.outputs.archive }}
+          CHECKSUM: ${{ steps.policy.outputs.checksum }}
+          NOTES: ${{ steps.policy.outputs.notes }}
+        run: |
+          set -euo pipefail
+
+          arguments=(
+            release create "${RELEASE_TAG}"
+            "${ARCHIVE}"
+            "${CHECKSUM}"
+            --verify-tag
+            --fail-on-no-commits
+            --generate-notes
+            --title "Einstoff ${RELEASE_TAG}"
+            --notes-file "${NOTES}"
+          )
+          if [[ "${PRERELEASE}" == "true" ]]; then
+            arguments+=(--prerelease --latest=false)
+          elif [[ "${MARK_LATEST}" == "true" ]]; then
+            arguments+=(--latest)
+          else
+            arguments+=(--latest=false)
+          fi
+
+          gh "${arguments[@]}"
+
+      - name: Verify immutable release attestation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+          ARCHIVE: ${{ steps.policy.outputs.archive }}
+        run: |
+          set -euo pipefail
+          gh release verify "${RELEASE_TAG}"
+          gh release verify-asset "${RELEASE_TAG}" "${ARCHIVE}"

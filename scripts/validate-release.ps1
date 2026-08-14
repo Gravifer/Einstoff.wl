@@ -1,5 +1,6 @@
 param(
-    [switch] $Python
+    [switch] $Python,
+    [string] $ExpectedTag
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,7 +19,11 @@ function Invoke-WolframScript {
 Push-Location $root
 try {
     Invoke-WolframScript -Arguments @('-script', 'scripts/generate-paclet-docs.wls')
-    Invoke-WolframScript -Arguments @('-script', 'scripts/validate-paclet-source.wls')
+    $sourceValidationArguments = @('-script', 'scripts/validate-paclet-source.wls')
+    if ($ExpectedTag) {
+        $sourceValidationArguments += $ExpectedTag
+    }
+    Invoke-WolframScript -Arguments $sourceValidationArguments
 
     $buildOutput = & wolframscript -script scripts/build-paclet.wls
     if ($LASTEXITCODE -ne 0) {

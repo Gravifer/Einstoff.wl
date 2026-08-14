@@ -5,7 +5,11 @@
 
 scriptDir = DirectoryName[$InputFileName];
 If[scriptDir === "", scriptDir = Directory[]];
-root = ParentDirectory[scriptDir];
+configuredRoot = Quiet @ Check[Environment["EINSTOFF_SOURCE_ROOT"], ""];
+root = If[StringQ[configuredRoot] && configuredRoot =!= "",
+  ExpandFileName[configuredRoot],
+  ParentDirectory[scriptDir]
+];
 definition = FileNameJoin[{
   root,
   "Gravifer__Einstoff",
