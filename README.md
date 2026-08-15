@@ -108,14 +108,16 @@ CI:
 ```powershell
 wolframscript -script scripts/install-paclet-cicd.wls
 wolframscript -script scripts/paclet-cicd.wls check
+wolframscript -script scripts/paclet-cicd.wls submission-check
 wolframscript -script scripts/paclet-cicd.wls build
 ```
 
 Run `check` before `build`; the build command does not repeat the definition-notebook
-inspection. The ordinary GitHub workflow selects free or licensed phases from the
-changed files, and deliberately avoids hosted Python cross-validation. Fork pull
-requests receive free checks; contributors with their own entitlement can run the
-licensed workflow in their fork.
+inspection. `submission-check` performs a non-authenticated, non-submitting repository
+preflight. The ordinary GitHub workflow selects free or licensed phases from the changed
+files, and deliberately avoids hosted Python cross-validation. Fork pull requests
+receive free checks; contributors with their own entitlement can run the licensed
+workflow in their fork.
 
 ## Releases and Publication
 

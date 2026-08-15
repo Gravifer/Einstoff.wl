@@ -125,15 +125,60 @@ verified PacletCICD release, then run:
 ```powershell
 wolframscript -script scripts/install-paclet-cicd.wls
 wolframscript -script scripts/paclet-cicd.wls check
+wolframscript -script scripts/paclet-cicd.wls submission-check
 ```
 
 After a successful check, use the `build` argument to produce the PacletCICD archive
 under the ignored `build/` directory. The build command does not repeat the check.
-These commands target `"Build"`; they do not submit anything.
+`check` and `build` target `"Build"`. `submission-check` runs the stricter
+submission-target validation, but it never authenticates or calls `SubmitPaclet` and
+does not require `RESOURCE_PUBLISHER_TOKEN`.
 The licensed GitHub Paclet phase performs the same check and build in one job. It
 requires `WOLFRAMSCRIPT_ENTITLEMENTID`, but not a publisher token. The changed-file
 classifier avoids this phase when paclet artifacts cannot be affected; a manual
 dispatch intentionally runs it in full.
+
+PacletCICD currently emits two reviewed code-inspection hint families during these
+checks:
+
+- `CodeInspectionFileIssue/UnscopedObjectError` points at held `Slot` and
+  `SlotSequence` forms. They are parsed as Einstoff surface syntax and pattern data;
+  they are not evaluated as anonymous-function slots.
+- `CodeInspectionFileIssue/OptionsPattern` suggests removing optional defaults from
+  `bindings_List : {}` arguments. The distinction is intentional: option rules cannot
+  match `List`, and the test suite covers calls that omit the bindings list across the
+  operator families.
+
+Treat new error classes or new instances outside these reviewed constructs as real
+findings rather than adding them to this list.
+
+## First Paclet Repository Submission
+
+Submission is deliberately separate from ordinary CI and GitHub Release publication.
+The readiness branch retains the prerelease version; promote it to stable `0.2.0` in a
+separate release-candidate change only when the package is ready to submit.
+
+1. Merge the readiness work.
+2. In a separate change, set `PacletInfo.wl` to `0.2.0` and move the matching notes
+   out of `Unreleased` in `CHANGELOG.md`.
+3. Run source validation, `submission-check`, build, and the main Wolfram suite against
+   the resulting archive. Use the paid GitHub release dry run at most once, and only
+   if local evidence leaves a material uncertainty.
+4. Merge the release candidate, create the signed annotated `v0.2.0` tag, and let the
+   GitHub Release workflow publish and verify the archive.
+5. In an authenticated Wolfram session, create a
+   [`RESOURCE_PUBLISHER_TOKEN`](https://resources.wolframcloud.com/PacletRepository/resources/Wolfram/PacletCICD/ref/envar/ResourcePublisherToken.html)
+   for publisher ID `Gravifer`. Keep it outside the repository and logs.
+6. Invoke
+   [`SubmitPaclet`](https://resources.wolframcloud.com/PacletRepository/resources/Wolfram/PacletCICD/ref/SubmitPaclet.html)
+   only in a separately authorized submission task. This repository does not submit
+   automatically.
+7. Monitor the repository review and respond to reviewer feedback.
+8. Synchronize the merged `main` and release tag to Codeberg manually.
+
+Before submission, review Wolfram's current
+[`Creating Paclets`](https://resources.wolframcloud.com/PacletRepository/creating-paclets/)
+instructions and [Paclet Repository guidelines](https://resources.wolframcloud.com/PacletRepository/guidelines).
 
 ## Release Workflow
 
