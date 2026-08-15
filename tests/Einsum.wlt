@@ -154,4 +154,12 @@ VerificationTest[
   TestID -> "einsum-invalid-targeting-uses-shared-boundary"
 ];
 
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
+    Head @ Einstoff["einsum"][
+      {{a_, b_}, {b_, c_}} :> {{a, c}}, {x, y}, TraceAction -> Hold]],
+  Hold,
+  TestID -> "einsum-option-without-bindings"
+];
+
 EndTestSection[];

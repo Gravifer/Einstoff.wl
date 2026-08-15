@@ -616,6 +616,20 @@ VerificationTest[
   TestID -> "traceaction-defer-head"
 ];
 
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
+    Head @ Einstoff[ArrayReshape][{{a_, b_}} :> {{b, a}}, {x}, TraceAction -> Hold]],
+  Hold,
+  TestID -> "reshape-option-without-bindings"
+];
+
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
+    Head @ Einstoff["Massage"][{{a_, b_}} :> {{b, a}}, {x}, TraceAction -> Hold]],
+  Hold,
+  TestID -> "massage-option-without-bindings"
+];
+
 (* Inline bindings are consumed by the same scoped parser used by operators. *)
 VerificationTest[
   Einstoff["Massage"][{{a_}} :> {{a, Annotation[c, 2]}}, {Range[3]}],

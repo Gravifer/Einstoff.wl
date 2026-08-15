@@ -3,8 +3,8 @@ PacletObject[<|
   "PublisherID" -> "Gravifer",
   "Version" -> "0.2.0-alpha.1",
   "WolframVersion" -> "15.0+",
-  "Description" -> "einops/einx-style tensor-axis notation for Wolfram Language, \
-using native pattern objects as an embedded surface syntax compiled to a staged IR.",
+  "Description" -> "Wolfram-native tensor-axis notation for reshaping, reducing, \
+mapping, contracting, broadcasting, joining and splitting arrays",
   "Creator" -> "Gravifer",
   "License" -> "GPL-3.0-or-later",
   "URL" -> "https://codeberg.org/Gravifer/Einstoff.wl",

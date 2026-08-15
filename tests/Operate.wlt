@@ -93,4 +93,12 @@ VerificationTest[
   TestID -> "operate-reject-shape-changing"
 ];
 
+VerificationTest[
+  With[{x = ArrayReshape[Range[8], {2, 4}]},
+    Head @ Einstoff[Operate]["flip"][
+      {{a_, Highlighted[b_]}} :> {{a, b}}, {x}, TraceAction -> Hold]],
+  Hold,
+  TestID -> "operate-option-without-bindings"
+];
+
 EndTestSection[];

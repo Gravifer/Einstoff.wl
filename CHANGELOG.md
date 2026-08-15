@@ -6,6 +6,11 @@ This project is pre-release, so interfaces may still change before `1.0.0`.
 
 ## Unreleased
 
+### Changed
+
+- Completed and synchronized the first-submission metadata, and added a supported
+  non-submitting Paclet Repository preflight.
+
 ## 0.2.0-alpha.1 - 2026-08-13
 
 ### Added

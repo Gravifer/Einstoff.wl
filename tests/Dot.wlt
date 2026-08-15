@@ -346,4 +346,12 @@ VerificationTest[
   TestID -> "dot-traceaction-holds-contraction"
 ];
 
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[12], {3, 4}]},
+    Head @ Einstoff[Dot][
+      {{a_, b_}, {b_, c_}} :> {{a, c}}, {x, y}, TraceAction -> Hold]],
+  Hold,
+  TestID -> "dot-option-without-bindings"
+];
+
 EndTestSection[];

@@ -347,4 +347,12 @@ VerificationTest[
   TestID -> "map-traceaction-holds-map"
 ];
 
+VerificationTest[
+  With[{x = ArrayReshape[Range[8], {2, 4}]},
+    Head @ Einstoff[Map]["flip"][
+      {{a_, Highlighted[b_]}} :> {{a, b}}, {x}, TraceAction -> Hold]],
+  Hold,
+  TestID -> "map-option-without-bindings"
+];
+
 EndTestSection[];

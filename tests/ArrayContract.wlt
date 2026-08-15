@@ -68,6 +68,14 @@ VerificationTest[
   TestID -> "contract-permute-ok"
 ];
 
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}]},
+    Head @ Einstoff["ArrayContract"][
+      {{a_, b_}} :> {{b, a}}, {x}, TraceAction -> Hold]],
+  Hold,
+  TestID -> "contract-option-without-bindings"
+];
+
 (* 7. Unit-axis squeeze 'a 1 c -> a c' is allowed (count-preserving). *)
 VerificationTest[
   Einstoff["ArrayContract"][{{a_, 1, c_}} :> {{a, c}}, {ArrayReshape[Range[6], {2, 1, 3}]}],

@@ -687,4 +687,22 @@ VerificationTest[
   TestID -> "concat-drop-operand-axis-reject"
 ];
 
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {2, 3}], y = ArrayReshape[Range[4], {2, 2}]},
+    Head @ Einstoff[Join][
+      {{b_, c_}, {b_, k_}} :> {{b, CirclePlus[c, k]}}, {x, y},
+      TraceAction -> Hold]],
+  Hold,
+  TestID -> "direct-sum-option-without-bindings"
+];
+
+VerificationTest[
+  With[{x = ArrayReshape[Range[10], {2, 5}]},
+    Head @ Einstoff[Split][
+      {{b_, CirclePlus[Annotation[q, 3], Annotation[k, 2]]}} :> {{b, q}, {b, k}},
+      {x}, TraceAction -> Hold]],
+  Hold,
+  TestID -> "split-option-without-bindings"
+];
+
 EndTestSection[];

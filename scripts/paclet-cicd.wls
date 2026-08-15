@@ -1,7 +1,8 @@
 #!/usr/bin/env wolframscript
 
 (* Run the Paclet Repository definition-notebook checks or build locally.
-   Submission is deliberately out of scope for this script. *)
+   The submission-check command applies repository submission validation but
+   never authenticates or submits anything. *)
 
 scriptDir = DirectoryName[$InputFileName];
 If[scriptDir === "", scriptDir = Directory[]];
@@ -74,6 +75,13 @@ result = Block[{Wolfram`PacletCICD`$WorkflowValueScope = None},
         "Target" -> "Build",
         "FailureCondition" -> "Error"
       ],
+    "submission-check",
+      Wolfram`PacletCICD`CheckPaclet[
+        File[definition],
+        "Dataset",
+        "Target" -> "Submit",
+        "FailureCondition" -> "Error"
+      ],
     "build",
       Wolfram`PacletCICD`BuildPaclet[
         File[definition],
@@ -95,7 +103,7 @@ result = Block[{Wolfram`PacletCICD`$WorkflowValueScope = None},
     _,
       Print[
         "Usage: wolframscript -script scripts/paclet-cicd.wls ",
-        "[check|build|ci]"
+        "[check|submission-check|build|ci]"
       ];
       Exit[2]
   ]
@@ -134,5 +142,9 @@ If[MemberQ[{"build", "ci"}, command],
     DeleteFile[archive]
   ];
   Print["PACLET_ARCHIVE=", ExpandFileName[publishedArchive]],
-  Print["PacletCICD build-target checks passed."]
+  Print[
+    "PacletCICD ",
+    If[command === "submission-check", "submission-target", "build-target"],
+    " checks passed."
+  ]
 ];
