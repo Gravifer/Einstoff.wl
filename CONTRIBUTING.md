@@ -161,9 +161,10 @@ separate release-candidate change only when the package is ready to submit.
 1. Merge the readiness work.
 2. In a separate change, set `PacletInfo.wl` to `0.2.0` and move the matching notes
    out of `Unreleased` in `CHANGELOG.md`.
-3. Run source validation, `submission-check`, build, and the main Wolfram suite against
-   the resulting archive. Use the paid GitHub release dry run at most once, and only
-   if local evidence leaves a material uncertainty.
+3. Run source validation and `submission-check` against the source paclet and definition
+   notebook, build the archive, then run the main Wolfram suite against that archive.
+   Use the paid GitHub release dry run at most once, and only if local evidence leaves
+   a material uncertainty.
 4. Merge the release candidate, create the signed annotated `v0.2.0` tag, and let the
    GitHub Release workflow publish and verify the archive.
 5. In an authenticated Wolfram session, create a
