@@ -196,6 +196,8 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      GH_REPO: ${{ github.repository }}
     permissions:
       contents: write
       id-token: write
