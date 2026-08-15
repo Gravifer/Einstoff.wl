@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/branding/readme-banner.png" alt="Einstoff — Wolfram-native tensor-axis notation">
+</p>
+
 # Einstoff
 
 Einstoff is an experimental Wolfram Language package for writing tensor and
@@ -69,7 +73,7 @@ Einstoff[ArrayReduce][Total][
 
 ## Getting Started
 
-Have your own Wolfram Language system ready. The `0.2.0-alpha.1` prerelease targets
+Have your own Wolfram Language system ready. The `0.2.0` release targets
 Wolfram Language 15.0 or newer, and the test suite runs through `wolframscript`.
 
 Python is used only for the optional cross-validation harness:
@@ -94,7 +98,7 @@ For release validation, regenerate the native documentation, validate the source
 paclet, build an archive, and rerun the suite against the extracted artifact:
 
 ```powershell
-pwsh -NoProfile -File scripts/validate-release.ps1 -ExpectedTag v0.2.0-alpha.1
+pwsh -NoProfile -File scripts/validate-release.ps1 -ExpectedTag v0.2.0
 ```
 
 Add `-Python` to include the optional Python cross-validation suite. The release
@@ -135,9 +139,9 @@ tags to Codeberg explicitly.
 ## Status
 
 Einstoff is preparing its first Paclet Repository submission as
-`Gravifer/Einstoff`. Version `0.2.0-alpha.1` is a repository-hosted prerelease;
+`Gravifer/Einstoff`. Version `0.2.0` is the stable submission candidate;
 the `Gravifer` Publisher ID is approved, while the publisher token, submission, and
-Paclet Repository review remain later gates for the eventual `0.2.0` release.
+Paclet Repository review remain later gates.
 
 ## License
 

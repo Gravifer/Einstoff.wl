@@ -6,6 +6,8 @@ This project is pre-release, so interfaces may still change before `1.0.0`.
 
 ## Unreleased
 
+## 0.2.0 - 2026-08-15
+
 ### Changed
 
 - Completed and synchronized the first-submission metadata, and added a supported
