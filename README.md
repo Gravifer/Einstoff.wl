@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/branding/readme-banner.png" alt="Einstoff — Wolfram-native tensor-axis notation">
+</p>
+
 # Einstoff
 
 Einstoff is an experimental Wolfram Language package for writing tensor and
