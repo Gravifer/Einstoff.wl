@@ -108,6 +108,7 @@ def check_contract() -> None:
     require(publish, "id-token: write", "publication OIDC permission")
     require(publish, "attestations: write", "publication attestation permission")
     require(publish, "group: github-release-publication", "global publication lock")
+    require(publish, "GH_REPO: ${{ github.repository }}", "checkout-free repository context")
     require(publish, "gh attestation verify", "build provenance verification")
     require(publish, "gh release verify", "immutable release verification")
     require(publish, "gh release verify-asset", "immutable asset verification")
