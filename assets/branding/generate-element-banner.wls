@@ -303,7 +303,7 @@ scriptDirectory = Replace[
 
 bannerOutputPath = FileNameJoin[{scriptDirectory, "element-banner.png"}];
 
-Export[
+exportResult = Export[
  bannerOutputPath,
  Rasterize[
   banner,
@@ -312,6 +312,11 @@ Export[
   Background -> White
   ],
  "PNG"
+ ];
+
+If[exportResult === $Failed,
+ Print["Failed to export ", bannerOutputPath];
+ Exit[1]
  ];
 
 Print["Exported ", bannerOutputPath];
