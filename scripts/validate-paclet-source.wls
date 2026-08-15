@@ -11,6 +11,7 @@ root = If[StringQ[configuredRoot] && configuredRoot =!= "",
   ParentDirectory[scriptDir]
 ];
 pacletDir = FileNameJoin[{root, "Gravifer__Einstoff"}];
+definitionFile = FileNameJoin[{pacletDir, "ResourceDefinition.nb"}];
 arguments = Rest[$ScriptCommandLine];
 If[Length[arguments] > 1,
   Print["Usage: validate-paclet-source.wls [expected-version-tag]"];
@@ -28,6 +29,27 @@ check[name_String, condition_, detail_] :=
 
 PacletDirectoryLoad[root];
 paclets = PacletFind["Gravifer/Einstoff"];
+definitionNotebook = Quiet @ Check[Get[definitionFile], $Failed];
+
+cellHasTagQ[cell_Cell, tag_String] := MemberQ[
+  Flatten @ Cases[List @@ cell, (CellTags -> value_) :> value, {1}],
+  tag
+];
+taggedCellContents[nb_Notebook, tag_String] := Cases[
+  nb,
+  cell_Cell /; cellHasTagQ[cell, tag] :> First[List @@ cell],
+  Infinity
+];
+taggedCellContents[_, _] := {};
+
+check[
+  "definition notebook expression",
+  MatchQ[definitionNotebook, _Notebook],
+  definitionFile
+];
+
+definitionNames = taggedCellContents[definitionNotebook, "Name"];
+definitionDescriptions = taggedCellContents[definitionNotebook, "Description"];
 
 check[
   "publisher paclet discovery",
@@ -59,6 +81,66 @@ If[Length[paclets] == 1,
   check["publisher ID", paclet["PublisherID"] === "Gravifer", paclet["PublisherID"]];
   check["primary context", paclet["PrimaryContext"] === "Gravifer`Einstoff`", paclet["PrimaryContext"]];
   check["license", paclet["License"] === "GPL-3.0-or-later", paclet["License"]];
+  check[
+    "definition notebook name",
+    definitionNames === {paclet["Name"]},
+    <|"DefinitionNotebook" -> definitionNames, "PacletInfo" -> paclet["Name"]|>
+  ];
+  check[
+    "definition notebook description",
+    definitionDescriptions === {paclet["Description"]},
+    <|
+      "DefinitionNotebook" -> definitionDescriptions,
+      "PacletInfo" -> paclet["Description"]
+    |>
+  ];
+  description = paclet["Description"];
+  check[
+    "short description length",
+    StringQ[description] && StringLength[description] <= 128,
+    If[StringQ[description], StringLength[description], description]
+  ];
+  descriptionFirst = If[StringQ[description] && description =!= "", StringTake[description, 1], ""];
+  check[
+    "short description capitalization",
+    descriptionFirst =!= "" &&
+      ToUpperCase[descriptionFirst] === descriptionFirst &&
+      ToLowerCase[descriptionFirst] =!= descriptionFirst,
+    description
+  ];
+  check[
+    "short description terminal punctuation",
+    StringQ[description] && description =!= "" &&
+      ! StringContainsQ[".!?;:,", StringTake[description, -1]],
+    description
+  ];
+];
+
+defaultContentCells = If[
+  MatchQ[definitionNotebook, _Notebook],
+  Cases[
+    definitionNotebook,
+    cell_Cell /; cellHasTagQ[cell, "DefaultContent"] :> cell,
+    Infinity
+  ],
+  {}
+];
+check[
+  "definition notebook has no template placeholders",
+  defaultContentCells === {},
+  Length[defaultContentCells]
+];
+check[
+  "definition notebook credits einops and einx",
+  ! FreeQ[definitionNotebook, text_String /; StringContainsQ[text, "https://einops.rocks/"], Infinity] &&
+    ! FreeQ[definitionNotebook, text_String /; StringContainsQ[text, "https://github.com/fferflo/einx"], Infinity],
+  "Expected source references were not both found."
+];
+check[
+  "definition notebook project links",
+  ! FreeQ[definitionNotebook, text_String /; StringContainsQ[text, "https://github.com/Gravifer/Einstoff.wl"], Infinity] &&
+    ! FreeQ[definitionNotebook, text_String /; StringContainsQ[text, "https://community.wolfram.com/groups/-/m/t/3749957"], Infinity],
+  "Expected project links were not both found."
 ];
 
 loadResult = Quiet @ Check[Needs["Gravifer`Einstoff`"], $Failed];

@@ -467,4 +467,12 @@ VerificationTest[
   TestID -> "reduce-traceaction-holds-public-lowering"
 ];
 
+VerificationTest[
+  With[{x = ArrayReshape[Range[6], {3, 2}]},
+    Head @ Einstoff[ArrayReduce][Total][
+      {{a_, Highlighted[b_]}} :> {{a}}, {x}, TraceAction -> Hold]],
+  Hold,
+  TestID -> "reduce-option-without-bindings"
+];
+
 EndTestSection[];
