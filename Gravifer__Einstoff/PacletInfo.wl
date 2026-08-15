@@ -9,7 +9,8 @@ PacletObject[<|
   "URL" -> "https://codeberg.org/Gravifer/Einstoff.wl",
   "PrimaryContext" -> "Gravifer`Einstoff`",
   "Extensions" -> {
-    {"Kernel", "Root" -> "Kernel", "Context" -> "Gravifer`Einstoff`"},
+    {"Kernel", "Root" -> "Kernel", "Context" -> "Gravifer`Einstoff`",
+      "Symbols" -> {"Gravifer`Einstoff`Einstoff"}},
     {"Documentation", "Language" -> "English"}
   }
 |>]
