@@ -16,8 +16,8 @@ Cell["Gravifer/Einstoff", "Title",
    "Title"},ExpressionUUID->"b5668721-73c5-1d42-b45b-a611944fad27"],
 
 Cell["\<\
-einops/einx-style tensor-axis notation for Wolfram Language, using native \
-pattern objects as an embedded surface syntax compiled to a staged IR.\
+Wolfram-native tensor-axis notation for reshaping, reducing, mapping, \
+contracting, broadcasting, joining and splitting arrays\
 \>", "Text",
  Deletable->False,
  CellTags->{
@@ -1133,17 +1133,8 @@ repository that are related to this paclet.", "MoreInfoText"], Background ->
  TaggingRules->{"TemplateGroupName" -> "Related Resource Objects"},
  DefaultNewCellStyle->"Item",
  CellTags->{"Related Resource Objects", "TemplateCellGroup"},
- CellID->44497251,ExpressionUUID->"58e64549-9e39-2c49-b8e6-ef842eb95253"],
+ CellID->44497251,ExpressionUUID->"58e64549-9e39-2c49-b8e6-ef842eb95253"]
 
-Cell["Resource Name (resources from any Wolfram repository)", "Item",
- CellEventActions->{Inherited, {"KeyDown", "\t"} :> Replace[SelectionMove[
-       SelectedNotebook[], After, Cell]; NotebookFind[
-       SelectedNotebook[], "TabNext", Next, CellTags, AutoScroll -> True, 
-       WrapAround -> True], Blank[NotebookSelection] :> SelectionMove[
-       SelectedNotebook[], All, CellContents, AutoScroll -> True]], 
-   PassEventsDown -> False, PassEventsUp -> False},
- CellTags->{"DefaultContent", "TabNext"},
- CellID->121377300,ExpressionUUID->"e1b39b58-13db-6c4b-bba0-8e1e86957029"]
 }, Open  ]],
 
 Cell[CellGroupData[{
@@ -1179,15 +1170,24 @@ repository).", "MoreInfoText"], Background -> GrayLevel[0.95], FrameMargins ->
    "TemplateCellGroup"},
  CellID->322677526,ExpressionUUID->"56e5ce59-2ea7-9a46-aea2-ed62dd355eea"],
 
-Cell["Source, reference or citation", "Item",
- CellEventActions->{Inherited, {"KeyDown", "\t"} :> Replace[SelectionMove[
-       SelectedNotebook[], After, Cell]; NotebookFind[
-       SelectedNotebook[], "TabNext", Next, CellTags, AutoScroll -> True, 
-       WrapAround -> True], Blank[NotebookSelection] :> SelectionMove[
-       SelectedNotebook[], All, CellContents, AutoScroll -> True]], 
-   PassEventsDown -> False, PassEventsUp -> False},
- CellTags->{"DefaultContent", "TabNext"},
- CellID->190772471,ExpressionUUID->"0c20016c-020c-8841-ba88-805b49120b36"]
+Cell[TextData[{
+ "einops: Clear and Reliable Tensor Manipulations with Einstein-like \
+Notation (",
+ ButtonBox["project site",
+  BaseStyle->"Hyperlink",
+  ButtonData->{URL["https://einops.rocks/"], None},
+  ButtonNote->"https://einops.rocks/"], ")"
+}], "Item",
+ CellID->190772471,ExpressionUUID->"0c20016c-020c-8841-ba88-805b49120b36"],
+
+Cell[TextData[{
+ "einx: Universal Tensor Operations in Python (",
+ ButtonBox["source repository",
+  BaseStyle->"Hyperlink",
+  ButtonData->{URL["https://github.com/fferflo/einx"], None},
+  ButtonNote->"https://github.com/fferflo/einx"], ")"
+}], "Item",
+ CellID->190772472,ExpressionUUID->"27e960a2-ecf8-4ef4-9783-5a9f68cb5ed2"]
 }, Open  ]],
 
 Cell[CellGroupData[{
@@ -1220,15 +1220,22 @@ to the paclet.", "MoreInfoText"], Background -> GrayLevel[0.95], FrameMargins ->
  CellTags->{"Links", "TemplateCellGroup"},
  CellID->690841521,ExpressionUUID->"a1459773-be24-1241-bba4-722558b8b76d"],
 
-Cell["Link to other related material", "Item",
- CellEventActions->{Inherited, {"KeyDown", "\t"} :> Replace[SelectionMove[
-       SelectedNotebook[], After, Cell]; NotebookFind[
-       SelectedNotebook[], "TabNext", Next, CellTags, AutoScroll -> True, 
-       WrapAround -> True], Blank[NotebookSelection] :> SelectionMove[
-       SelectedNotebook[], All, CellContents, AutoScroll -> True]], 
-   PassEventsDown -> False, PassEventsUp -> False},
- CellTags->{"DefaultContent", "TabNext"},
- CellID->210331081,ExpressionUUID->"a19480cb-86ee-fe46-9a40-c67d641270e8"]
+Cell[TextData[{
+ ButtonBox["GitHub mirror and releases",
+  BaseStyle->"Hyperlink",
+  ButtonData->{URL["https://github.com/Gravifer/Einstoff.wl"], None},
+  ButtonNote->"https://github.com/Gravifer/Einstoff.wl"]
+}], "Item",
+ CellID->210331081,ExpressionUUID->"a19480cb-86ee-fe46-9a40-c67d641270e8"],
+
+Cell[TextData[{
+ ButtonBox["Wolfram Community discussion",
+  BaseStyle->"Hyperlink",
+  ButtonData->{URL["https://community.wolfram.com/groups/-/m/t/3749957"],
+   None},
+  ButtonNote->"https://community.wolfram.com/groups/-/m/t/3749957"]
+}], "Item",
+ CellID->210331082,ExpressionUUID->"77251843-b818-49f8-b27e-f974094bfb81"]
 }, Open  ]],
 
 Cell[CellGroupData[{
@@ -2524,14 +2531,10 @@ that are otherwise beyond the scope of the paclet documentation.",
  CellTags->{"Author Notes", "TemplateCellGroup"},
  CellID->427099699,ExpressionUUID->"c3ba62c8-8238-fd4d-b1ae-8b9063c7b663"],
 
-Cell["Additional information about limitations, issues, etc.", "Text",
- CellEventActions->{Inherited, {"KeyDown", "\t"} :> Replace[SelectionMove[
-       SelectedNotebook[], After, Cell]; NotebookFind[
-       SelectedNotebook[], "TabNext", Next, CellTags, AutoScroll -> True, 
-       WrapAround -> True], Blank[NotebookSelection] :> SelectionMove[
-       SelectedNotebook[], All, CellContents, AutoScroll -> True]], 
-   PassEventsDown -> False, PassEventsUp -> False},
- CellTags->{"DefaultContent", "TabNext"},
+Cell["Einstoff intentionally exposes one public symbol with operator-specific \
+forms. Its surface notation is inspired by einops and einx while following \
+Wolfram Language pattern and wrapper conventions. The API remains \
+experimental before version 1.0.", "Text",
  CellID->3773185,ExpressionUUID->"d69a45a1-3ef9-8e42-a2ac-2d1f950ffa7b"]
 }, Open  ]]
 }, Open  ]]
