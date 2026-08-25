@@ -2,6 +2,7 @@
 # options, so they must not pass through the user's output-stripping notebook filter.
 Gravifer__Einstoff/ResourceDefinition.nb -filter -whitespace
 publishing/FunctionRepository/Einstoff.nb -filter -whitespace
+publishing/WolframCommunity/*.nb -filter -whitespace -text
 
 # Docker-action entrypoints must keep a Unix shebang when checked out on Windows.
 .github/actions/**/*.sh text eol=lf
