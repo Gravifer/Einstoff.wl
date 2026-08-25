@@ -14,9 +14,15 @@ the paclet. The function resource must not duplicate or fork those semantics.
 
 The accepted resource is published at
 [resources.wolframcloud.com/FunctionRepository/resources/Einstoff](https://resources.wolframcloud.com/FunctionRepository/resources/Einstoff).
-`Einstoff.nb` is the clean, maintainable submission source. Reviewer-returned
-notebooks can contain reviewer identity and private submission-system metadata;
-keep those copies local and do not publish their Git history.
+`Einstoff.nb` is the definition notebook downloaded from that public resource
+page and is the canonical tracked artifact. Reviewer-returned notebooks can
+contain reviewer identity and private submission-system metadata; keep those
+copies local and do not publish their Git history.
+
+The public 1.0.0 download currently reports `13.0+` in its scraped compatibility
+metadata even though its documentation and the paclet require 15.0 or later. It
+also retains only **Data Manipulation & Analysis** from the three submitted
+categories. The validator reports both site-export differences as warnings.
 
 ## Free local validation
 
