@@ -14,6 +14,10 @@ inputs:
     description: Run source checks and the Wolfram/Python suites against the archive
     required: false
     default: "false"
+  repository_publication:
+    description: Submit a stable release source to the Wolfram Paclet Repository
+    required: false
+    default: "false"
   expected_tag:
     description: Version tag that must equal v plus the paclet version in release mode
     required: false
@@ -26,6 +30,10 @@ inputs:
     description: Repository-relative path to the trusted release tooling tree
     required: false
     default: "."
+
+outputs:
+  submission_record:
+    description: Sanitized JSON record returned after Paclet Repository submission
 
 runs:
   using: docker

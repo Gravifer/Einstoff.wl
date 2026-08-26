@@ -19,6 +19,7 @@ definition = FileNameJoin[{
 buildDir = FileNameJoin[{root, "build"}];
 arguments = Rest[$ScriptCommandLine];
 command = ToLowerCase[First[arguments, "check"]];
+expectedTag = If[Length[arguments] >= 2, arguments[[2]], ""];
 config = Get[FileNameJoin[{scriptDir, "paclet-cicd-config.wl"}]];
 
 repositoryDirectory = FileNameJoin[{
@@ -62,6 +63,126 @@ If[! FileExistsQ[definition],
   Exit[1]
 ];
 
+ClearAll[failPublication];
+failPublication[message_String] := (
+  Print["Paclet Repository publication refused: ", message];
+  Exit[1]
+);
+
+ClearAll[stableVersionParts, versionAtLeastQ];
+stableVersionParts[version_String] :=
+  If[
+    StringMatchQ[version, RegularExpression["^[0-9]+\\.[0-9]+\\.[0-9]+$"]],
+    FromDigits /@ StringSplit[version, "."],
+    $Failed
+  ];
+versionAtLeastQ[current_String, candidate_String] := Module[
+  {currentParts = stableVersionParts[current], candidateParts = stableVersionParts[candidate]},
+  If[currentParts === $Failed || candidateParts === $Failed, False,
+    Which[
+      currentParts[[1]] != candidateParts[[1]], currentParts[[1]] > candidateParts[[1]],
+      currentParts[[2]] != candidateParts[[2]], currentParts[[2]] > candidateParts[[2]],
+      True, currentParts[[3]] >= candidateParts[[3]]
+    ]
+  ]
+];
+
+ClearAll[submitStablePaclet];
+submitStablePaclet[tag_String] := Module[
+  {
+    version, pacletInfoPath, pacletInfo, sourceVersion, tokenString,
+    remotePaclets, remoteVersions, sourceCommit, archiveDigest, definitionDigest,
+    submission, submissionData, submissionName, record
+  },
+  If[Environment["EINSTOFF_RELEASE_PUBLISH"] =!= "true",
+    failPublication["EINSTOFF_RELEASE_PUBLISH is not true"]
+  ];
+  If[! StringMatchQ[tag, RegularExpression["^v[0-9]+\\.[0-9]+\\.[0-9]+$"]],
+    failPublication["expected tag must be a stable vX.Y.Z version"]
+  ];
+  version = StringDrop[tag, 1];
+
+  pacletInfoPath = FileNameJoin[{root, "Gravifer__Einstoff", "PacletInfo.wl"}];
+  pacletInfo = Quiet @ Check[Get[pacletInfoPath], $Failed];
+  sourceVersion = Quiet @ Check[pacletInfo["Version"], $Failed];
+  If[! StringQ[sourceVersion] || sourceVersion =!= version,
+    failPublication["expected tag does not match PacletInfo.wl"]
+  ];
+
+  sourceCommit = Quiet @ Check[Environment["EINSTOFF_RELEASE_SOURCE_SHA"], ""];
+  archiveDigest = ToLowerCase @ Quiet @ Check[
+    Environment["EINSTOFF_RELEASE_ARCHIVE_SHA256"],
+    ""
+  ];
+  If[! StringMatchQ[sourceCommit, RegularExpression["^[0-9a-fA-F]{40}$"]],
+    failPublication["release source commit is missing or malformed"]
+  ];
+  If[! StringMatchQ[archiveDigest, RegularExpression["^[0-9a-f]{64}$"]],
+    failPublication["GitHub archive SHA-256 is missing or malformed"]
+  ];
+
+  tokenString = Quiet @ Check[Environment["RESOURCE_PUBLISHER_TOKEN"], ""];
+  If[! StringQ[tokenString] || tokenString === "",
+    failPublication["RESOURCE_PUBLISHER_TOKEN is not configured"]
+  ];
+
+  remotePaclets = Quiet @ Check[PacletFindRemote["Gravifer/Einstoff"], $Failed];
+  If[remotePaclets === $Failed || ! ListQ[remotePaclets],
+    failPublication["current public paclet version could not be determined"]
+  ];
+  remoteVersions = DeleteCases[
+    Quiet @ Check[#1["Version"], Nothing] & /@ remotePaclets,
+    Except[_String]
+  ];
+  If[AnyTrue[remoteVersions, versionAtLeastQ[#1, version] &],
+    failPublication["an equal or newer stable paclet version is already public"]
+  ];
+
+  definitionDigest = ToLowerCase @ IntegerString[
+    FileHash[definition, "SHA256"],
+    16,
+    64
+  ];
+  submission = Quiet @ Check[
+    Wolfram`PacletCICD`SubmitPaclet[
+      File[definition],
+      PublisherID -> "Gravifer",
+      PublisherToken -> tokenString,
+      "ExitOnFail" -> False,
+      "SetWorkflowValue" -> False
+    ],
+    $Failed
+  ];
+  If[submission === $Failed || FailureQ[submission] || Head[submission] =!= Success,
+    failPublication[
+      "SubmitPaclet did not acknowledge success; inspect the public resource before retrying"
+    ]
+  ];
+
+  submissionData = Quiet @ Check[submission[[2]], <||>];
+  submissionName = If[
+    AssociationQ[submissionData],
+    Lookup[submissionData, "Name", "Gravifer/Einstoff"],
+    "Gravifer/Einstoff"
+  ];
+  If[submissionName =!= "Gravifer/Einstoff",
+    failPublication["submission acknowledgement named an unexpected resource"]
+  ];
+  record = <|
+    "Name" -> submissionName,
+    "Version" -> version,
+    "Status" -> "Submitted",
+    "Timestamp" -> DateString[Now, "ISODateTime"],
+    "SourceCommit" -> ToLowerCase[sourceCommit],
+    "DefinitionNotebookSHA256" -> definitionDigest,
+    "GitHubArchiveSHA256" -> archiveDigest
+  |>;
+  Print[
+    "PACLET_SUBMISSION_RECORD=",
+    ExportString[record, "RawJSON", "Compact" -> True]
+  ];
+];
+
 (* PacletCICD 0.36.2 drops CheckPaclet's SetWorkflowValue option before its
    internal call. A workflow scope of None keeps that bug from writing to the
    user's ApplicationData directory, including in read-only containers. *)
@@ -100,14 +221,18 @@ result = Block[{Wolfram`PacletCICD`$WorkflowValueScope = None},
         "ExitOnFail" -> False,
         "SetWorkflowValue" -> False
       ],
+    "submit",
+      submitStablePaclet[expectedTag],
     _,
       Print[
         "Usage: wolframscript -script scripts/paclet-cicd.wls ",
-        "[check|submission-check|build|ci]"
+        "[check|submission-check|build|ci|submit] [expected-tag]"
       ];
       Exit[2]
   ]
 ];
+
+If[command === "submit", Exit[0]];
 
 If[result === $Failed || FailureQ[result],
   Print["PacletCICD ", command, " failed: ", result // InputForm];
