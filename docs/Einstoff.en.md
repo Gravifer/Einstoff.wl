@@ -55,6 +55,12 @@ related_functions:
 
 # Einstoff
 
+> The comprehensive public reference is the published
+> [`ResourceFunction["Einstoff"]` page](https://resources.wolframcloud.com/FunctionRepository/resources/Einstoff/).
+> Installation instructions and the native paclet documentation are available on the
+> [`Gravifer/Einstoff` paclet page](https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/).
+> This Markdown document remains an authoring draft in the source repository.
+
 `Einstoff[ArrayReshape][desc, tensors]` performs an element-count-preserving rearrangement of the tensors according to the shape description `desc`.
 
 `Einstoff["Massage"][desc, tensors]` uses the permissive single-tensor structural engine.
@@ -393,7 +399,8 @@ Out[44]= {1, 2, 1, 2, 3}
 
 ### Version History
 
-* 0.1.0 — 07 July 2026 <!-- not actually published yet -->
+* [`Gravifer/Einstoff` 0.2.0](https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/) — 15 August 2026
+* [`ResourceFunction["Einstoff"]` 1.0.0](https://resources.wolframcloud.com/FunctionRepository/resources/Einstoff/) — 24 August 2026
 
 ### Related Resources
 

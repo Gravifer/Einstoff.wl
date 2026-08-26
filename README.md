@@ -11,9 +11,12 @@ It uses native pattern objects such as `a_`, `_`, `__`, `___`, `CircleTimes` (`â
 description is compiled into a private staged IR; native patterns are not the semantic
 AST after capture.
 
-The first planned release is the `Gravifer/Einstoff` paclet. After that paclet is
-publicly installable, a thin `ResourceFunction["Einstoff"]` facade can install, load,
-and forward to it.
+Einstoff is published through both Wolfram repositories:
+
+- The [`Gravifer/Einstoff` paclet](https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/)
+  contains the implementation, installed documentation, and native paclet interface.
+- [`ResourceFunction["Einstoff"]`](https://resources.wolframcloud.com/FunctionRepository/resources/Einstoff/)
+  is a thin discoverability facade that loads and forwards to the published paclet.
 
 ## What It Does
 
@@ -31,8 +34,12 @@ Einstoff covers a growing subset of ein-style array notation:
 - `Einstoff[Join]` and `Einstoff[Split]` for structural direct sums.
 - `Einstoff["einsum"]` for the implemented pairwise einsum-style subset.
 
-The primary user reference is [`docs/Einstoff.en.md`](docs/Einstoff.en.md). The
-developer and agent-facing design notes live under [`.agents/`](.agents/).
+The comprehensive public reference and examples are on the
+[`ResourceFunction["Einstoff"]` page](https://resources.wolframcloud.com/FunctionRepository/resources/Einstoff/).
+The [paclet page](https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/)
+provides installation instructions and the native guide and symbol reference.
+[`docs/Einstoff.en.md`](docs/Einstoff.en.md) is the repository's Markdown reference
+draft. Developer and agent-facing design notes live under [`.agents/`](.agents/).
 
 ## Example
 
@@ -63,7 +70,8 @@ Einstoff[ArrayReduce][Total][
 ## Repository Layout
 
 - `Gravifer__Einstoff/` is the publisher-qualified paclet source directory.
-- `docs/Einstoff.en.md` is the public reference documentation draft.
+- `docs/Einstoff.en.md` is a Markdown reference draft; the live Wolfram repository
+  pages are the public references.
 - `tests/*.wlt` are the source unit tests.
 - `tests/python/*.wlt` are opt-in cross-validation tests against `einx`, `einops`, and
   NumPy where applicable.
@@ -73,8 +81,20 @@ Einstoff[ArrayReduce][Total][
 
 ## Getting Started
 
-Have your own Wolfram Language system ready. The `0.2.0` release targets
-Wolfram Language 15.0 or newer, and the test suite runs through `wolframscript`.
+For ordinary use with Wolfram Language 15.0 or newer, install and load the published
+paclet:
+
+```mathematica
+PacletInstall["Gravifer/Einstoff"];
+Needs["Gravifer`Einstoff`"];
+```
+
+Alternatively, use the published
+[`ResourceFunction["Einstoff"]`](https://resources.wolframcloud.com/FunctionRepository/resources/Einstoff/)
+as the operator-selecting entry point.
+
+For source development, have your own Wolfram Language system ready. The test suite
+runs through `wolframscript`.
 
 Python is used only for the optional cross-validation harness:
 
@@ -128,7 +148,11 @@ workflow in their fork.
 GitHub Release publication is automated for signed version tags after a
 non-publishing dry run. Release validation builds the archive, runs the complete
 Wolfram and Python suites against it, produces a checksum, and verifies GitHub
-attestations. Paclet Repository submission is a separate later workflow and is never
+attestations. Einstoff is also distributed through the
+[Wolfram Paclet Repository](https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/),
+with a companion facade in the
+[Wolfram Function Repository](https://resources.wolframcloud.com/FunctionRepository/resources/Einstoff/).
+Updates to those Wolfram repositories remain separately authorized and are never
 performed by ordinary CI or GitHub Release automation.
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the CI selection policy, fork workflow,
@@ -138,10 +162,11 @@ tags to Codeberg explicitly.
 
 ## Status
 
-Einstoff is preparing its first Paclet Repository submission as
-`Gravifer/Einstoff`. Version `0.2.0` is the stable submission candidate;
-the `Gravifer` Publisher ID is approved, while the publisher token, submission, and
-Paclet Repository review remain later gates.
+[`Gravifer/Einstoff` 0.2.0](https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/)
+and [`ResourceFunction["Einstoff"]` 1.0.0](https://resources.wolframcloud.com/FunctionRepository/resources/Einstoff/)
+are published. The paclet remains experimental and pre-1.0: the public API is usable,
+while the supported notation and diagnostics may continue to evolve with user
+feedback.
 
 ## License
 

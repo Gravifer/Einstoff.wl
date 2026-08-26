@@ -6,7 +6,9 @@ boundaries.
 
 ## Audiences
 
-- Users should start with `README.md` and `docs/Einstoff.en.md`.
+- Users should start with `README.md`, the published
+  [`ResourceFunction["Einstoff"]` reference](https://resources.wolframcloud.com/FunctionRepository/resources/Einstoff/),
+  and the [`Gravifer/Einstoff` paclet page](https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/).
 - Human contributors should use this file for workflow and testing conventions.
 - Coding agents should read `.agents/agents.md` and `.agents/SPEC.md`; those files are
   intentionally more implementation-heavy than the public documentation.
@@ -18,8 +20,9 @@ boundaries.
   `docs(agents): ...`.
 - Keep changes focused. Move unrelated cleanups into separate commits.
 - When changing behavior, add or update `.wlt` tests in the relevant test file.
-- When changing user-visible behavior, update `docs/Einstoff.en.md` or the README as
-  appropriate.
+- When changing user-visible behavior, update the native paclet documentation,
+  `docs/Einstoff.en.md`, the Function Repository source notebook, or the README as
+  appropriate for the affected public surface.
 - When changing design boundaries or deferred items, update `.agents/SPEC.md`.
 
 Coding agents may be credited with a commit trailer.
@@ -152,32 +155,33 @@ checks:
 Treat new error classes or new instances outside these reviewed constructs as real
 findings rather than adding them to this list.
 
-## First Paclet Repository Submission
+## Wolfram Repository Publication
 
-Submission is deliberately separate from ordinary CI and GitHub Release publication.
-The readiness branch retains the prerelease version; promote it to stable `0.2.0` in a
-separate release-candidate change only when the package is ready to submit.
+The implementation is published as the
+[`Gravifer/Einstoff` paclet](https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/).
+The separately versioned
+[`ResourceFunction["Einstoff"]`](https://resources.wolframcloud.com/FunctionRepository/resources/Einstoff/)
+is a thin facade over that paclet. Their publication source notebooks live in
+`Gravifer__Einstoff/ResourceDefinition.nb` and
+`publishing/FunctionRepository/Einstoff.nb`, respectively.
 
-1. Merge the readiness work.
-2. In a separate change, set `PacletInfo.wl` to `0.2.0` and move the matching notes
-   out of `Unreleased` in `CHANGELOG.md`.
-3. Run source validation and `submission-check` against the source paclet and definition
-   notebook, build the archive, then run the main Wolfram suite against that archive.
-   Use the paid GitHub release dry run at most once, and only if local evidence leaves
-   a material uncertainty.
-4. Merge the release candidate, create the signed annotated `v0.2.0` tag, and let the
-   GitHub Release workflow publish and verify the archive.
-5. In an authenticated Wolfram session, create a
-   [`RESOURCE_PUBLISHER_TOKEN`](https://resources.wolframcloud.com/PacletRepository/resources/Wolfram/PacletCICD/ref/envar/ResourcePublisherToken.html)
-   for publisher ID `Gravifer`. Keep it outside the repository and logs.
-6. Invoke
+Publication remains deliberately separate from ordinary CI and GitHub Release
+publication. For a future update:
+
+1. Prepare and validate the paclet release using the release workflow below.
+2. Run `submission-check` against the source paclet and definition notebook.
+3. Invoke
    [`SubmitPaclet`](https://resources.wolframcloud.com/PacletRepository/resources/Wolfram/PacletCICD/ref/SubmitPaclet.html)
-   only in a separately authorized submission task. This repository does not submit
-   automatically.
-7. Monitor the repository review and respond to reviewer feedback.
-8. Synchronize the merged `main` and release tag to Codeberg manually.
+   only from a separately authorized task or authenticated Wolfram session, using a
+   [`RESOURCE_PUBLISHER_TOKEN`](https://resources.wolframcloud.com/PacletRepository/resources/Wolfram/PacletCICD/ref/envar/ResourcePublisherToken.html)
+   kept outside the repository and logs.
+4. Update the Function Repository notebook when its facade, documentation, examples,
+   compatibility statement, or linked paclet version changes; use its **Check**,
+   **Preview**, and submission controls in an authenticated Wolfram session.
+5. Verify the rendered Paclet and Function Repository pages after acceptance.
+6. Synchronize the merged `main` and release tag to Codeberg manually.
 
-Before submission, review Wolfram's current
+Before a repository update, review Wolfram's current
 [`Creating Paclets`](https://resources.wolframcloud.com/PacletRepository/creating-paclets/)
 instructions and [Paclet Repository guidelines](https://resources.wolframcloud.com/PacletRepository/guidelines).
 
