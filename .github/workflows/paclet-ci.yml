@@ -35,6 +35,9 @@ jobs:
       - name: Check release workflow contract
         run: python3 scripts/validate-release-contract.py
 
+      - name: Check guarded Paclet publication action
+        run: bash scripts/test-paclet-publication-action.sh
+
       - name: Check PowerShell retry policy
         shell: pwsh
         run: ./scripts/test-retry-python-tests.ps1

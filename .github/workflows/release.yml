@@ -36,6 +36,9 @@ jobs:
       checksum: ${{ steps.release.outputs.checksum }}
       prerelease: ${{ steps.release.outputs.prerelease }}
       publication_artifact: ${{ steps.release.outputs.publication_artifact }}
+      source_sha: ${{ steps.assets.outputs.source_sha }}
+      archive_digest: ${{ steps.assets.outputs.archive_digest }}
+      definition_digest: ${{ steps.assets.outputs.definition_digest }}
     steps:
       - name: Check out trusted release tooling
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -135,11 +138,16 @@ jobs:
           WLPR_PACLET_SITE: https://resources.wolframcloud.com/PacletRepository/pacletsite
 
       - name: Prepare release assets and notes
+        id: assets
         shell: bash
         env:
           BUILT_ARCHIVE: ${{ steps.release.outputs.built_archive }}
           ARCHIVE: ${{ steps.release.outputs.archive }}
           CHECKSUM: ${{ steps.release.outputs.checksum }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+          PACLET_CICD_VERSION: "0.36.2"
+          PACLET_REPOSITORY_RESOURCE: https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/
         run: |
           set -euo pipefail
 
@@ -154,6 +162,37 @@ jobs:
 
           digest="$(sha256sum "${ARCHIVE}" | cut -d ' ' -f 1)"
           printf '%s  %s\n' "${digest}" "$(basename "${ARCHIVE}")" > "${CHECKSUM}"
+
+          source_sha="$(git -C candidate rev-parse HEAD)"
+          definition_notebook="candidate/Gravifer__Einstoff/ResourceDefinition.nb"
+          definition_digest="$(sha256sum "${definition_notebook}" | cut -d ' ' -f 1)"
+          manifest="${staging}/release-manifest.json"
+          export RELEASE_MANIFEST="${manifest}" SOURCE_SHA="${source_sha}"
+          export ARCHIVE_DIGEST="${digest}" DEFINITION_DIGEST="${definition_digest}"
+          python3 -c '
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = {
+              "pacletName": "Gravifer/Einstoff",
+              "tag": os.environ["RELEASE_TAG"],
+              "version": os.environ["VERSION"],
+              "sourceCommit": os.environ["SOURCE_SHA"],
+              "definitionNotebookSHA256": os.environ["DEFINITION_DIGEST"],
+              "githubArchiveSHA256": os.environ["ARCHIVE_DIGEST"],
+              "pacletCICDVersion": os.environ["PACLET_CICD_VERSION"],
+              "workflow": os.environ["GITHUB_WORKFLOW_REF"],
+              "pacletRepositoryResource": os.environ["PACLET_REPOSITORY_RESOURCE"],
+          }
+          Path(os.environ["RELEASE_MANIFEST"]).write_text(
+              json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+          )
+          '
+
+          echo "source_sha=${source_sha}" >> "${GITHUB_OUTPUT}"
+          echo "archive_digest=${digest}" >> "${GITHUB_OUTPUT}"
+          echo "definition_digest=${definition_digest}" >> "${GITHUB_OUTPUT}"
 
           notes="${staging}/release-preamble.md"
           {
@@ -177,6 +216,7 @@ jobs:
           path: |
             ${{ steps.release.outputs.archive }}
             ${{ steps.release.outputs.checksum }}
+            ${{ runner.temp }}/einstoff-release-${{ github.run_id }}/release-manifest.json
           if-no-files-found: error
 
       - name: Upload publication bundle
@@ -188,6 +228,7 @@ jobs:
             ${{ steps.release.outputs.archive }}
             ${{ steps.release.outputs.checksum }}
             ${{ runner.temp }}/einstoff-release-${{ github.run_id }}/release-preamble.md
+            ${{ runner.temp }}/einstoff-release-${{ github.run_id }}/release-manifest.json
           if-no-files-found: error
 
   publish:
@@ -236,7 +277,8 @@ jobs:
           archive="release-assets/$(basename "${ARCHIVE_NAME}")"
           checksum="release-assets/$(basename "${CHECKSUM_NAME}")"
           notes="release-assets/release-preamble.md"
-          if [[ ! -f "${archive}" || ! -f "${checksum}" || ! -f "${notes}" ]]; then
+          manifest="release-assets/release-manifest.json"
+          if [[ ! -f "${archive}" || ! -f "${checksum}" || ! -f "${notes}" || ! -f "${manifest}" ]]; then
             echo "The validated publication bundle is incomplete." >&2
             exit 1
           fi
@@ -274,6 +316,7 @@ jobs:
           echo "archive=${archive}" >> "${GITHUB_OUTPUT}"
           echo "checksum=${checksum}" >> "${GITHUB_OUTPUT}"
           echo "notes=${notes}" >> "${GITHUB_OUTPUT}"
+          echo "manifest=${manifest}" >> "${GITHUB_OUTPUT}"
           echo "mark_latest=${mark_latest}" >> "${GITHUB_OUTPUT}"
 
       - name: Attest release archive
@@ -303,6 +346,7 @@ jobs:
           MARK_LATEST: ${{ steps.policy.outputs.mark_latest }}
           ARCHIVE: ${{ steps.policy.outputs.archive }}
           CHECKSUM: ${{ steps.policy.outputs.checksum }}
+          MANIFEST: ${{ steps.policy.outputs.manifest }}
           NOTES: ${{ steps.policy.outputs.notes }}
         run: |
           set -euo pipefail
@@ -311,6 +355,7 @@ jobs:
             release create "${RELEASE_TAG}"
             "${ARCHIVE}"
             "${CHECKSUM}"
+            "${MANIFEST}"
             --verify-tag
             --fail-on-no-commits
             --generate-notes
@@ -333,7 +378,180 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.validate.outputs.tag }}
           ARCHIVE: ${{ steps.policy.outputs.archive }}
+          CHECKSUM: ${{ steps.policy.outputs.checksum }}
+          MANIFEST: ${{ steps.policy.outputs.manifest }}
         run: |
           set -euo pipefail
           gh release verify "${RELEASE_TAG}"
           gh release verify-asset "${RELEASE_TAG}" "${ARCHIVE}"
+          gh release verify-asset "${RELEASE_TAG}" "${CHECKSUM}"
+          gh release verify-asset "${RELEASE_TAG}" "${MANIFEST}"
+
+  verify-wolfram:
+    name: Verify Wolfram publication candidate
+    if: github.event_name == 'push' && needs.validate.outputs.prerelease == 'false'
+    needs:
+      - validate
+      - publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_REPO: ${{ github.repository }}
+    permissions:
+      contents: read
+    steps:
+      - name: Check out trusted release tooling
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+          path: tooling
+
+      - name: Check out validated release source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.validate.outputs.source_sha }}
+          path: candidate
+
+      - name: Reverify immutable GitHub release and provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+          SOURCE_SHA: ${{ needs.validate.outputs.source_sha }}
+          ARCHIVE_DIGEST: ${{ needs.validate.outputs.archive_digest }}
+          DEFINITION_DIGEST: ${{ needs.validate.outputs.definition_digest }}
+        run: |
+          set -euo pipefail
+
+          mkdir release-assets
+          gh release download "${RELEASE_TAG}" --dir release-assets
+          gh release verify "${RELEASE_TAG}"
+
+          archive="release-assets/Gravifer__Einstoff-${RELEASE_TAG#v}.paclet"
+          checksum="${archive}.sha256"
+          manifest="release-assets/release-manifest.json"
+          for asset in "${archive}" "${checksum}" "${manifest}"; do
+            [[ -f "${asset}" ]] || { echo "Missing release asset: ${asset}" >&2; exit 1; }
+            gh release verify-asset "${RELEASE_TAG}" "${asset}"
+          done
+          (cd release-assets && sha256sum --check "$(basename "${checksum}")")
+
+          actual_source_sha="$(git -C candidate rev-parse HEAD)"
+          actual_archive_digest="$(sha256sum "${archive}" | cut -d ' ' -f 1)"
+          actual_definition_digest="$(sha256sum candidate/Gravifer__Einstoff/ResourceDefinition.nb | cut -d ' ' -f 1)"
+          [[ "${actual_source_sha}" == "${SOURCE_SHA}" ]] || { echo "Validated source commit changed." >&2; exit 1; }
+          [[ "${actual_archive_digest}" == "${ARCHIVE_DIGEST}" ]] || { echo "Release archive digest changed." >&2; exit 1; }
+          [[ "${actual_definition_digest}" == "${DEFINITION_DIGEST}" ]] || { echo "Definition notebook digest changed." >&2; exit 1; }
+
+          export RELEASE_MANIFEST="${manifest}"
+          python3 -c '
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(Path(os.environ["RELEASE_MANIFEST"]).read_text(encoding="utf-8"))
+          expected = {
+              "pacletName": "Gravifer/Einstoff",
+              "tag": os.environ["RELEASE_TAG"],
+              "version": os.environ["RELEASE_TAG"].removeprefix("v"),
+              "sourceCommit": os.environ["SOURCE_SHA"],
+              "definitionNotebookSHA256": os.environ["DEFINITION_DIGEST"],
+              "githubArchiveSHA256": os.environ["ARCHIVE_DIGEST"],
+              "pacletCICDVersion": "0.36.2",
+              "pacletRepositoryResource": "https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/",
+          }
+          mismatches = {key: (manifest.get(key), value) for key, value in expected.items() if manifest.get(key) != value}
+          if mismatches:
+              raise SystemExit(f"Release manifest mismatch: {mismatches}")
+          '
+
+  publish-wolfram:
+    name: Publish to Wolfram Paclet Repository
+    if: github.event_name == 'push' && needs.validate.outputs.prerelease == 'false'
+    needs:
+      - validate
+      - publish
+      - verify-wolfram
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    environment:
+      name: wolfram-paclet-repository
+      url: https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/
+    concurrency:
+      group: wolfram-paclet-repository-publication
+      cancel-in-progress: false
+    steps:
+      - name: Check out trusted release tooling
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+          path: tooling
+
+      - name: Check out validated release source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.validate.outputs.source_sha }}
+          path: candidate
+
+      - name: Submit stable paclet source
+        id: submit
+        uses: ./tooling/.github/actions/paclet-ci
+        with:
+          run_paclet: "false"
+          run_wolfram: "false"
+          repository_publication: "true"
+          expected_tag: ${{ needs.validate.outputs.tag }}
+          source_path: candidate
+          tooling_path: tooling
+        env:
+          EINSTOFF_RELEASE_PUBLISH: "true"
+          EINSTOFF_RELEASE_SOURCE_SHA: ${{ needs.validate.outputs.source_sha }}
+          EINSTOFF_RELEASE_ARCHIVE_SHA256: ${{ needs.validate.outputs.archive_digest }}
+          RESOURCE_PUBLISHER_TOKEN: ${{ secrets.RESOURCE_PUBLISHER_TOKEN }}
+          WOLFRAMSCRIPT_ENTITLEMENTID: ${{ secrets.WOLFRAMSCRIPT_ENTITLEMENTID }}
+          WLPR_PACLET_SITE: https://resources.wolframcloud.com/PacletRepository/pacletsite
+
+      - name: Record acknowledged Wolfram submission
+        if: steps.submit.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          SUBMISSION_RECORD: ${{ steps.submit.outputs.submission_record }}
+        run: |
+          python3 -c '
+          import json
+          import os
+          from pathlib import Path
+
+          record = json.loads(os.environ["SUBMISSION_RECORD"])
+          Path("paclet-submission-record.json").write_text(
+              json.dumps(record, indent=2) + "\n", encoding="utf-8"
+          )
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## Wolfram Paclet Repository submission\n\n")
+              summary.write("- Name: `{}`\n".format(record.get("Name")))
+              summary.write("- Version: `{}`\n".format(record.get("Version")))
+              summary.write("- Status: `{}`\n".format(record.get("Status")))
+              summary.write("- Source commit: `{}`\n".format(record.get("SourceCommit")))
+              summary.write("- Definition notebook SHA-256: `{}`\n".format(record.get("DefinitionNotebookSHA256")))
+              summary.write("- GitHub archive SHA-256: `{}`\n".format(record.get("GitHubArchiveSHA256")))
+          '
+
+      - name: Upload Wolfram submission record
+        if: steps.submit.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Einstoff-Wolfram-submission-${{ needs.validate.outputs.version }}-${{ github.run_id }}
+          path: paclet-submission-record.json
+          if-no-files-found: warn

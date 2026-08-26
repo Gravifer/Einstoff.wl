@@ -5,11 +5,12 @@ set -euo pipefail
 run_paclet="${INPUT_RUN_PACLET:-true}"
 run_wolfram="${INPUT_RUN_WOLFRAM:-false}"
 release_validation="${INPUT_RELEASE_VALIDATION:-false}"
+repository_publication="${INPUT_REPOSITORY_PUBLICATION:-false}"
 expected_tag="${INPUT_EXPECTED_TAG:-}"
 source_path="${INPUT_SOURCE_PATH:-.}"
 tooling_path="${INPUT_TOOLING_PATH:-.}"
 
-for boolean_name in run_paclet run_wolfram release_validation; do
+for boolean_name in run_paclet run_wolfram release_validation repository_publication; do
   boolean_value="${!boolean_name}"
   case "${boolean_value}" in
     true|false) ;;
@@ -20,8 +21,8 @@ for boolean_name in run_paclet run_wolfram release_validation; do
   esac
 done
 
-if [[ "${release_validation}" == "true" && -z "${expected_tag}" ]]; then
-  echo "expected_tag is required when release_validation is true." >&2
+if [[ ( "${release_validation}" == "true" || "${repository_publication}" == "true" ) && -z "${expected_tag}" ]]; then
+  echo "expected_tag is required in release validation and repository publication modes." >&2
   exit 2
 fi
 
@@ -30,12 +31,39 @@ if [[ "${release_validation}" == "true" && "${run_paclet}" != "true" ]]; then
   exit 2
 fi
 
-if [[ "${release_validation}" == "false" && -n "${expected_tag}" ]]; then
-  echo "expected_tag is only valid when release_validation is true." >&2
+if [[ "${repository_publication}" == "true" ]]; then
+  if [[ "${release_validation}" == "true" || "${run_paclet}" == "true" || "${run_wolfram}" == "true" ]]; then
+    echo "repository_publication is mutually exclusive with validation phases." >&2
+    exit 2
+  fi
+  if [[ ! "${expected_tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "repository_publication requires a stable vX.Y.Z expected_tag." >&2
+    exit 2
+  fi
+  if [[ "${EINSTOFF_RELEASE_PUBLISH:-}" != "true" ]]; then
+    echo "repository_publication requires EINSTOFF_RELEASE_PUBLISH=true." >&2
+    exit 2
+  fi
+  if [[ -z "${RESOURCE_PUBLISHER_TOKEN:-}" ]]; then
+    echo "repository_publication requires RESOURCE_PUBLISHER_TOKEN." >&2
+    exit 2
+  fi
+  if [[ ! "${EINSTOFF_RELEASE_SOURCE_SHA:-}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    echo "repository_publication requires a 40-character release source SHA." >&2
+    exit 2
+  fi
+  if [[ ! "${EINSTOFF_RELEASE_ARCHIVE_SHA256:-}" =~ ^[0-9a-fA-F]{64}$ ]]; then
+    echo "repository_publication requires a 64-character archive SHA-256." >&2
+    exit 2
+  fi
+fi
+
+if [[ "${release_validation}" == "false" && "${repository_publication}" == "false" && -n "${expected_tag}" ]]; then
+  echo "expected_tag is only valid in release validation or repository publication mode." >&2
   exit 2
 fi
 
-if [[ "${release_validation}" == "false" && "${run_paclet}" == "false" && "${run_wolfram}" == "false" ]]; then
+if [[ "${release_validation}" == "false" && "${repository_publication}" == "false" && "${run_paclet}" == "false" && "${run_wolfram}" == "false" ]]; then
   echo "At least one ordinary validation phase must be enabled." >&2
   exit 2
 fi
@@ -75,13 +103,54 @@ if [[ "${release_validation}" == "false" && "${run_wolfram}" == "true" ]]; then
   echo "::endgroup::"
 fi
 
-if [[ "${run_paclet}" == "true" ]]; then
+if [[ "${run_paclet}" == "true" || "${repository_publication}" == "true" ]]; then
   echo "::group::Installing pinned PacletCICD dependency..."
   wolframscript -script "${tooling_root}/scripts/install-paclet-cicd.wls"
   echo "::endgroup::"
 
   echo "::group::Checking and building paclet..."
   wolframscript -script "${tooling_root}/scripts/paclet-cicd.wls" ci
+  echo "::endgroup::"
+fi
+
+if [[ "${release_validation}" == "true" && "${expected_tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "::group::Checking the stable Paclet Repository submission target..."
+  wolframscript -script \
+    "${tooling_root}/scripts/paclet-cicd.wls" \
+    submission-check \
+    "${expected_tag}"
+  echo "::endgroup::"
+fi
+
+if [[ "${repository_publication}" == "true" ]]; then
+  echo "::group::Submitting stable paclet source to the Wolfram Paclet Repository..."
+  set +e
+  submission_output="$({
+    wolframscript -script \
+      "${tooling_root}/scripts/paclet-cicd.wls" \
+      submit \
+      "${expected_tag}"
+  } 2>&1)"
+  submission_status=$?
+  set -e
+
+  printf '%s\n' "${submission_output}"
+  if (( submission_status != 0 )); then
+    echo "::endgroup::"
+    exit "${submission_status}"
+  fi
+
+  submission_line="$(
+    printf '%s\n' "${submission_output}" |
+      awk '/^PACLET_SUBMISSION_RECORD=/{line=$0} END{print line}'
+  )"
+  if [[ -z "${submission_line}" ]]; then
+    echo "Paclet submission did not emit a sanitized record." >&2
+    echo "::endgroup::"
+    exit 1
+  fi
+  submission_record="${submission_line#PACLET_SUBMISSION_RECORD=}"
+  printf 'submission_record=%s\n' "${submission_record}" >> "${GITHUB_OUTPUT}"
   echo "::endgroup::"
 fi
 
