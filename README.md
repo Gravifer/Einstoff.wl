@@ -145,20 +145,19 @@ workflow in their fork.
 
 ## Releases and Publication
 
-GitHub Release publication is automated for signed version tags after a
-non-publishing dry run. Release validation builds the archive, runs the complete
-Wolfram and Python suites against it, produces a checksum, and verifies GitHub
-attestations. Einstoff is also distributed through the
+Signed stable version tags publish a validated, attested GitHub Release and then wait
+for explicit maintainer approval before submitting the same tagged source commit to the
 [Wolfram Paclet Repository](https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/),
-with a companion facade in the
+with provenance recorded in a release manifest. Prereleases remain GitHub-only, and
+manual dispatches remain non-publishing dry runs. Einstoff also has a companion facade
+in the
 [Wolfram Function Repository](https://resources.wolframcloud.com/FunctionRepository/resources/Einstoff/).
-Updates to those Wolfram repositories remain separately authorized and are never
-performed by ordinary CI or GitHub Release automation.
+Function Repository updates remain separately reviewed and manual.
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the CI selection policy, fork workflow,
-PacletCICD fallback installation, and detailed maintainer release sequence. GitHub is
-the only automated publication target; maintainers synchronize `main` and release
-tags to Codeberg explicitly.
+PacletCICD fallback installation, protected publication environment, token rotation,
+failure recovery, and detailed maintainer release sequence. Maintainers synchronize
+`main` and release tags to Codeberg explicitly.
 
 ## Status
 

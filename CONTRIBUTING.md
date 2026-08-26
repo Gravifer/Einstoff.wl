@@ -165,21 +165,26 @@ is a thin facade over that paclet. Their publication source notebooks live in
 `Gravifer__Einstoff/ResourceDefinition.nb` and
 `publishing/FunctionRepository/Einstoff.nb`, respectively.
 
-Publication remains deliberately separate from ordinary CI and GitHub Release
-publication. For a future update:
+Stable tagged releases use one staged GitHub workflow for both GitHub and the Paclet
+Repository. The GitHub Release is built, tested, attested, published, and verified
+first. A separate read-only job then verifies that immutable release and its manifest.
+Only after those jobs pass does the protected `wolfram-paclet-repository` environment
+ask a maintainer to approve the Wolfram deployment. Prerelease tags remain GitHub-only,
+and manual workflow dispatches remain non-publishing dry runs.
 
-1. Prepare and validate the paclet release using the release workflow below.
-2. Run `submission-check` against the source paclet and definition notebook.
-3. Invoke
-   [`SubmitPaclet`](https://resources.wolframcloud.com/PacletRepository/resources/Wolfram/PacletCICD/ref/SubmitPaclet.html)
-   only from a separately authorized task or authenticated Wolfram session, using a
-   [`RESOURCE_PUBLISHER_TOKEN`](https://resources.wolframcloud.com/PacletRepository/resources/Wolfram/PacletCICD/ref/envar/ResourcePublisherToken.html)
-   kept outside the repository and logs.
-4. Update the Function Repository notebook when its facade, documentation, examples,
-   compatibility statement, or linked paclet version changes; use its **Check**,
-   **Preview**, and submission controls in an authenticated Wolfram session.
-5. Verify the rendered Paclet and Function Repository pages after acceptance.
-6. Synchronize the merged `main` and release tag to Codeberg manually.
+PacletCICD's public
+[`SubmitPaclet`](https://resources.wolframcloud.com/PacletRepository/resources/Wolfram/PacletCICD/ref/SubmitPaclet.html)
+interface rebuilds from a definition notebook or source directory; it cannot submit
+the already attested GitHub archive. The release manifest therefore relates both
+channels by exact source commit, version, definition-notebook SHA-256, GitHub archive
+SHA-256, pinned PacletCICD version, workflow identity, and target resource. The two
+archives are not assumed to be byte-identical.
+
+Function Repository updates are still manual. Update
+`publishing/FunctionRepository/Einstoff.nb` when the facade, documentation, examples,
+compatibility statement, or linked paclet version changes, then use its **Check**,
+**Preview**, and submission controls in an authenticated Wolfram session. Never put a
+Function Repository publisher credential into the release workflow.
 
 Before a repository update, review Wolfram's current
 [`Creating Paclets`](https://resources.wolframcloud.com/PacletRepository/creating-paclets/)
@@ -190,9 +195,53 @@ instructions and [Paclet Repository guidelines](https://resources.wolframcloud.c
 Maintainers create signed annotated `v*` tags whose version matches
 `Gravifer__Einstoff/PacletInfo.wl` and whose commit is contained in `main`. The
 workflow structurally requires an annotated tag; signature creation remains a
-maintainer responsibility and is not cryptographically reverified in CI. The release
-workflow is intentionally non-submitting: it does not use a Paclet Repository
-publisher token.
+maintainer responsibility and is not cryptographically reverified in CI.
+
+### One-time GitHub environment setup
+
+Create a protected environment named `wolfram-paclet-repository` in the GitHub
+repository settings. Configure `Gravifer` as the required reviewer, permit
+self-approval for this single-maintainer repository, and restrict deployments to tags
+matching `v*`. Store `RESOURCE_PUBLISHER_TOKEN` as an **environment secret**, not a
+repository secret. Keep `WOLFRAMSCRIPT_ENTITLEMENTID` as the separately scoped Actions
+secret used by licensed validation.
+
+Create the CI publisher token from an authenticated Wolfram session with the pinned
+PacletCICD release loaded, using its documented
+[`CreatePublisherToken`](https://resources.wolframcloud.com/PacletRepository/resources/Wolfram/PacletCICD/ref/CreatePublisherToken.html)
+interface:
+
+```wl
+ciPublisherToken = CreatePublisherToken[
+  "Einstoff GitHub CD",
+  PublisherID -> "Gravifer",
+  ExpirationDate -> DatePlus[Now, {1, "Year"}],
+  "AllowedEndpoints" -> Automatic
+]
+```
+
+Before copying `ciPublisherToken["TokenString"]` into GitHub, inspect only its
+metadata:
+
+```wl
+AssociationMap[
+  ciPublisherToken[#] &,
+  {"Name", "PublisherID", "ExpirationDate", "AllowedEndpoints"}
+]
+```
+
+Require publisher `Gravifer`, a finite approximately one-year expiration, and a
+resolved endpoint list. Do not save a token whose endpoints resolve to `All` or
+`None`, whose publisher is wrong, or whose expiration is indefinite. The workstation
+publisher token remains separate and must not be replaced by the CI token.
+
+Rotate the CI token before it expires: create and inspect the replacement, update the
+environment secret, and keep the old token only until the next approved stable
+deployment proves the replacement. Then revoke the old `PublisherTokenObject` from an
+authenticated session with `DeleteObject[oldToken]`. Never print token strings in a
+log, workflow input, issue, or pull request.
+
+### Stable release sequence
 
 For a release candidate:
 
@@ -200,21 +249,44 @@ For a release candidate:
    `Unreleased` section.
 2. Run `scripts/validate-release.ps1 -Python -ExpectedTag vX.Y.Z`, then merge the
    release changes to `main`.
-3. Dispatch `release.yml` on `main` with `ref=main` and the expected tag. Trusted
+3. Dispatch `release.yml` on `main` with `ref=main` and the expected stable tag. Trusted
    release tooling from the workflow commit validates that separately checked-out
-   candidate. Confirm the dry-run archive and checksum artifacts; this event has only
-   read permission and cannot instantiate the publication job.
+   candidate, including the Paclet Repository submission target. Confirm the dry-run
+   archive, checksum, and manifest artifacts; this event has only read permission and
+   cannot instantiate either publication job.
 4. Create a signed annotated tag at the validated `main` commit and push it to
    GitHub. The tag event rebuilds and tests under read-only permissions, then passes
-   the validated bundle to a serialized publication job.
-5. Verify build provenance with `gh attestation verify` and the immutable release
-   attestation with `gh release verify`; the workflow performs both checks.
-6. Synchronize the updated `main` and tag to Codeberg manually.
+   the validated bundle to the serialized GitHub publication job.
+5. Confirm that the GitHub Release, checksum, manifest, build attestation, and
+   immutable-release verification succeeded. The Wolfram preflight must finish after
+   the GitHub publication.
+6. Review and approve the pending `wolfram-paclet-repository` deployment. This is the
+   only job that receives both the publisher token and entitlement, and those secrets
+   are exposed only to its guarded submission step.
+7. Wait for the public Paclet Repository page to report the expected version, then
+   perform a clean-install smoke test. Search indexing delay is not a workflow failure.
+8. Synchronize the updated `main` and tag to Codeberg manually.
 
 Python/ZMQ startup is probed before MUnit starts. Release validation makes one initial
 attempt plus at most three startup-only retries. Invalid interpreter/dependency setup
 and real test failures are never retried. Stable publication is globally serialized;
 an older stable version is never allowed to replace a newer release as `Latest`.
+
+### Partial failure recovery
+
+- A Wolfram outage, rejection, or unapproved deployment does not invalidate the
+  already verified GitHub Release. Address or retry only the Wolfram job.
+- Before rerunning a failed Wolfram job, confirm that the expected version is not
+  already public. The driver refuses an equal or newer public stable version.
+- If `SubmitPaclet` may have succeeded but its acknowledgement was lost, do **not**
+  rerun it. Inspect the public resource first and record the workflow result as a
+  false negative if Wolfram accepted the version.
+- Failure to upload the supplementary submission-record artifact does not invalidate
+  an acknowledged submission; its upload step is deliberately best-effort.
+- Do not add private ``ResourceSystemClient` `` calls, locale-dependent notebook scraping,
+  or generated-archive manipulation as recovery mechanisms. If public `SubmitPaclet`
+  is unreliable in hosted CI, return Paclet Repository submission to the manual
+  procedure until the public interface is dependable.
 
 ## Generated and Local Files
 
