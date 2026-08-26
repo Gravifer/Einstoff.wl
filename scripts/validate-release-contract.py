@@ -83,12 +83,21 @@ def check_contract() -> None:
     paclet_ci = load(".github/workflows/paclet-ci.yml")
     action = load(".github/actions/paclet-ci/action.yml")
     driver = load(".github/actions/paclet-ci/main.sh")
+    paclet_driver = load("scripts/paclet-cicd.wls")
     classifier = load("scripts/classify_ci_changes.py")
     runner = load("scripts/run-tests.wls")
     local_release = load("scripts/validate-release.ps1")
+    publication_action_test = load("scripts/test-paclet-publication-action.sh")
 
     validate = block(release, "  validate:\n", "  publish:\n")
-    publish = block(release, "  publish:\n")
+    publish = block(release, "  publish:\n", "  verify-wolfram:\n")
+    verify_wolfram = block(release, "  verify-wolfram:\n", "  publish-wolfram:\n")
+    publish_wolfram = block(release, "  publish-wolfram:\n")
+    submit_step = block(
+        publish_wolfram,
+        "      - name: Submit stable paclet source\n",
+        "      - name: Record acknowledged Wolfram submission\n",
+    )
     contract_job = block(paclet_ci, "  contract:\n", "  build:\n")
     python_job = block(paclet_ci, "  python-smoke:\n", "  build:\n")
     build_job = block(paclet_ci, "  build:\n")
@@ -102,6 +111,11 @@ def check_contract() -> None:
     forbid(validate, "contents: write", "read-only validation")
     forbid(validate, "id-token: write", "read-only validation")
     forbid(validate, "attestations: write", "read-only validation")
+    forbid(validate, "RESOURCE_PUBLISHER_TOKEN", "publisher-free dry run")
+    forbid(validate, 'repository_publication: "true"', "nonpublishing dry run")
+    require(validate, "release-manifest.json", "release manifest generation")
+    require(validate, "definitionNotebookSHA256", "definition notebook provenance")
+    require(validate, "githubArchiveSHA256", "GitHub archive provenance")
 
     require(publish, "if: github.event_name == 'push'", "tag-only publication")
     require(publish, "contents: write", "publication contents permission")
@@ -115,6 +129,38 @@ def check_contract() -> None:
     require(publish, "mark_latest=false", "version-aware latest policy")
     require(publish, "sort -V", "stable version comparison")
     require(publish, "arguments+=(--latest=false)", "older stable latest guard")
+    require(publish, '"${MANIFEST}"', "release manifest publication")
+
+    stable_gate = "if: github.event_name == 'push' && needs.validate.outputs.prerelease == 'false'"
+    require(verify_wolfram, stable_gate, "stable-only Wolfram preflight")
+    require(verify_wolfram, "- publish", "GitHub publication dependency")
+    require(verify_wolfram, "gh release verify", "Wolfram immutable release preflight")
+    require(verify_wolfram, "gh release verify-asset", "Wolfram immutable asset preflight")
+    require(verify_wolfram, "definitionNotebookSHA256", "manifest definition digest verification")
+    require(verify_wolfram, "githubArchiveSHA256", "manifest archive digest verification")
+    forbid(verify_wolfram, "RESOURCE_PUBLISHER_TOKEN", "secret-free Wolfram preflight")
+    forbid(verify_wolfram, "WOLFRAMSCRIPT_ENTITLEMENTID", "unlicensed Wolfram preflight")
+
+    require(publish_wolfram, stable_gate, "stable-only Wolfram publication")
+    require(publish_wolfram, "- verify-wolfram", "verified Wolfram publication dependency")
+    require(publish_wolfram, "name: wolfram-paclet-repository", "protected environment")
+    require(publish_wolfram, "group: wolfram-paclet-repository-publication", "global Wolfram lock")
+    require(publish_wolfram, "cancel-in-progress: false", "noncancelling Wolfram publication")
+    require(publish_wolfram, "contents: read", "read-only Wolfram job")
+    forbid(publish_wolfram, "contents: write", "least-privilege Wolfram job")
+    forbid(publish_wolfram, "id-token: write", "least-privilege Wolfram job")
+    forbid(publish_wolfram, "attestations: write", "least-privilege Wolfram job")
+    require(submit_step, 'repository_publication: "true"', "guarded publication mode")
+    require(submit_step, 'EINSTOFF_RELEASE_PUBLISH: "true"', "explicit publication guard")
+    require(submit_step, "RESOURCE_PUBLISHER_TOKEN", "publisher token")
+    require(submit_step, "WOLFRAMSCRIPT_ENTITLEMENTID", "submission entitlement")
+    if release.count("secrets.RESOURCE_PUBLISHER_TOKEN") != 1:
+        raise AssertionError("publisher secret must be referenced by exactly one release step")
+    forbid(
+        release.replace(submit_step, ""),
+        "RESOURCE_PUBLISHER_TOKEN",
+        "publisher token outside guarded submission step",
+    )
 
     require(release, 'staging="${RUNNER_TEMP}/', "runner-owned staging")
     require(release, 'built_archive="candidate/build/', "candidate build input")
@@ -125,6 +171,7 @@ def check_contract() -> None:
     forbid(contract_job, "WOLFRAMSCRIPT_ENTITLEMENTID", "unlicensed contract job")
     require(contract_job, "fetch-depth: 0", "exact change range checkout")
     require(contract_job, "python3 scripts/validate-release-contract.py", "contract checker")
+    require(contract_job, "bash scripts/test-paclet-publication-action.sh", "publication action checks")
     require(contract_job, "scripts/test-retry-python-tests.ps1", "PowerShell retry checker")
     require(contract_job, "scripts/test_ci_change_classifier.py", "classifier tests")
     require(contract_job, "scripts/classify_ci_changes.py", "change classifier")
@@ -145,12 +192,41 @@ def check_contract() -> None:
     require(action, 'run_wolfram:\n', "Wolfram action input")
     require(action, 'source_path:\n', "source-path action input")
     require(action, 'tooling_path:\n', "tooling-path action input")
+    require(action, 'repository_publication:\n', "publication action input")
+    require(action, 'submission_record:\n', "sanitized submission output")
     if action.count('default: "."') < 2:
         raise AssertionError("ordinary action paths must default to the workspace root")
     require(driver, 'source "${tooling_root}/scripts/retry-python-tests.sh"', "shell retry helper")
     require(driver, '"${tooling_root}/scripts/run-tests.wls" -q', "ordinary Wolfram suite")
-    require(driver, 'if [[ "${run_paclet}" == "true" ]]', "conditional Paclet phase")
+    require(
+        driver,
+        'if [[ "${run_paclet}" == "true" || "${repository_publication}" == "true" ]]',
+        "conditional Paclet phase",
+    )
+    require(driver, '"${repository_publication}" == "true"', "publication mode validation")
+    require(driver, '"${expected_tag}" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$', "stable tag guard")
+    require(driver, 'EINSTOFF_RELEASE_PUBLISH=true', "publication environment guard")
+    require(driver, 'awk \'/^PACLET_SUBMISSION_RECORD=/', "sanitized result extraction")
+    require(driver, 'submission_record=%s', "submission action output")
     require(local_release, "retry-python-tests.ps1", "PowerShell retry helper")
+
+    require(paclet_driver, 'Environment["RESOURCE_PUBLISHER_TOKEN"]', "publisher token input")
+    require(paclet_driver, 'PublisherID -> "Gravifer"', "fixed publisher identity")
+    require(paclet_driver, '"SetWorkflowValue" -> False', "workflow mutation disabled")
+    require(paclet_driver, 'Wolfram`PacletCICD`SubmitPaclet[', "public submission API")
+    require(paclet_driver, 'PacletFindRemote["Gravifer/Einstoff"]', "existing-version guard")
+    require(paclet_driver, '"PACLET_SUBMISSION_RECORD="', "sanitized record marker")
+    require(paclet_driver, '"SourceCommit"', "source provenance record")
+    require(paclet_driver, '"DefinitionNotebookSHA256"', "notebook provenance record")
+    require(paclet_driver, '"GitHubArchiveSHA256"', "archive provenance record")
+    forbid(paclet_driver, "PublisherTokenObject", "token-management round trip")
+    forbid(paclet_driver, "ResourceSystemClient`", "private resource APIs")
+
+    require(publication_action_test, "INPUT_EXPECTED_TAG=main", "malformed tag action test")
+    require(publication_action_test, "INPUT_EXPECTED_TAG=v1.2.3-alpha.1", "prerelease action test")
+    require(publication_action_test, "INPUT_RELEASE_VALIDATION=true", "incompatible mode action test")
+    require(publication_action_test, "FAKE_OMIT_RECORD=true", "missing record action test")
+    require(publication_action_test, "FAKE_SUBMIT_STATUS=23", "submission failure action test")
 
     require(classifier, 'if event_name == "workflow_dispatch":', "manual full validation")
     require(classifier, '"--no-renames"', "rename/delete-safe diff")
