@@ -450,7 +450,7 @@ url={https://openreview.net/forum?id=QqvQ3iAdpC}
 
 #### Wolfram Language Version
 
-* 14.0+
+* 15.0+
 
 <!-- 
 #### Operating System
