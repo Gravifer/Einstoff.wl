@@ -78,12 +78,11 @@ stableVersionParts[version_String] :=
   ];
 versionAtLeastQ[current_String, candidate_String] := Module[
   {currentParts = stableVersionParts[current], candidateParts = stableVersionParts[candidate]},
-  If[currentParts === $Failed || candidateParts === $Failed, False,
-    Which[
-      currentParts[[1]] != candidateParts[[1]], currentParts[[1]] > candidateParts[[1]],
-      currentParts[[2]] != candidateParts[[2]], currentParts[[2]] > candidateParts[[2]],
-      True, currentParts[[3]] >= candidateParts[[3]]
-    ]
+  Which[
+    currentParts === $Failed || candidateParts === $Failed, $Failed,
+    currentParts[[1]] != candidateParts[[1]], currentParts[[1]] > candidateParts[[1]],
+    currentParts[[2]] != candidateParts[[2]], currentParts[[2]] > candidateParts[[2]],
+    True, currentParts[[3]] >= candidateParts[[3]]
   ]
 ];
 
@@ -91,7 +90,8 @@ ClearAll[submitStablePaclet];
 submitStablePaclet[tag_String] := Module[
   {
     version, pacletInfoPath, pacletInfo, sourceVersion, tokenString,
-    remotePaclets, remoteVersions, sourceCommit, archiveDigest, definitionDigest,
+    remotePaclets, remoteVersions, versionComparisons,
+    sourceCommit, archiveDigest, definitionDigest,
     submission, submissionData, submissionName, record
   },
   If[Environment["EINSTOFF_RELEASE_PUBLISH"] =!= "true",
@@ -110,10 +110,13 @@ submitStablePaclet[tag_String] := Module[
   ];
 
   sourceCommit = Quiet @ Check[Environment["EINSTOFF_RELEASE_SOURCE_SHA"], ""];
-  archiveDigest = ToLowerCase @ Quiet @ Check[
+  If[! StringQ[sourceCommit], sourceCommit = ""];
+  archiveDigest = Quiet @ Check[
     Environment["EINSTOFF_RELEASE_ARCHIVE_SHA256"],
     ""
   ];
+  If[! StringQ[archiveDigest], archiveDigest = ""];
+  archiveDigest = ToLowerCase[archiveDigest];
   If[! StringMatchQ[sourceCommit, RegularExpression["^[0-9a-fA-F]{40}$"]],
     failPublication["release source commit is missing or malformed"]
   ];
@@ -134,7 +137,11 @@ submitStablePaclet[tag_String] := Module[
     Quiet @ Check[#1["Version"], Nothing] & /@ remotePaclets,
     Except[_String]
   ];
-  If[AnyTrue[remoteVersions, versionAtLeastQ[#1, version] &],
+  versionComparisons = versionAtLeastQ[#1, version] & /@ remoteVersions;
+  If[MemberQ[versionComparisons, $Failed],
+    failPublication["a public paclet version is not a supported X.Y.Z version"]
+  ];
+  If[MemberQ[versionComparisons, True],
     failPublication["an equal or newer stable paclet version is already public"]
   ];
 

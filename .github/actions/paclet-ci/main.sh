@@ -44,6 +44,18 @@ if [[ "${repository_publication}" == "true" ]]; then
     echo "repository_publication requires EINSTOFF_RELEASE_PUBLISH=true." >&2
     exit 2
   fi
+  if [[ -z "${RESOURCE_PUBLISHER_TOKEN:-}" ]]; then
+    echo "repository_publication requires RESOURCE_PUBLISHER_TOKEN." >&2
+    exit 2
+  fi
+  if [[ ! "${EINSTOFF_RELEASE_SOURCE_SHA:-}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    echo "repository_publication requires a 40-character release source SHA." >&2
+    exit 2
+  fi
+  if [[ ! "${EINSTOFF_RELEASE_ARCHIVE_SHA256:-}" =~ ^[0-9a-fA-F]{64}$ ]]; then
+    echo "repository_publication requires a 64-character archive SHA-256." >&2
+    exit 2
+  fi
 fi
 
 if [[ "${release_validation}" == "false" && "${repository_publication}" == "false" && -n "${expected_tag}" ]]; then

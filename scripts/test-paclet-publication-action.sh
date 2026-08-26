@@ -36,6 +36,9 @@ run_action() {
     INPUT_RELEASE_VALIDATION=false \
     INPUT_SOURCE_PATH=. \
     INPUT_TOOLING_PATH=. \
+    RESOURCE_PUBLISHER_TOKEN=test-token \
+    EINSTOFF_RELEASE_SOURCE_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+    EINSTOFF_RELEASE_ARCHIVE_SHA256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
     "$@" \
     bash "${root}/.github/actions/paclet-ci/main.sh" \
     > "${temp_root}/stdout" 2> "${temp_root}/stderr"
@@ -53,6 +56,9 @@ run_action 2 INPUT_EXPECTED_TAG=main EINSTOFF_RELEASE_PUBLISH=true
 run_action 2 INPUT_EXPECTED_TAG=v1.2.3-alpha.1 EINSTOFF_RELEASE_PUBLISH=true
 run_action 2 INPUT_EXPECTED_TAG=v1.2.3 INPUT_RELEASE_VALIDATION=true EINSTOFF_RELEASE_PUBLISH=true
 run_action 2 INPUT_EXPECTED_TAG=v1.2.3
+run_action 2 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true RESOURCE_PUBLISHER_TOKEN=
+run_action 2 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true EINSTOFF_RELEASE_SOURCE_SHA=invalid
+run_action 2 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true EINSTOFF_RELEASE_ARCHIVE_SHA256=invalid
 
 run_action 0 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true
 grep -Fq 'submission_record={"Name":"Gravifer/Einstoff","Version":"1.2.3","Status":"Submitted"}' \

@@ -206,6 +206,9 @@ def check_contract() -> None:
     require(driver, '"${repository_publication}" == "true"', "publication mode validation")
     require(driver, '"${expected_tag}" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$', "stable tag guard")
     require(driver, 'EINSTOFF_RELEASE_PUBLISH=true', "publication environment guard")
+    require(driver, 'requires RESOURCE_PUBLISHER_TOKEN', "publisher token guard")
+    require(driver, '^[0-9a-fA-F]{40}$', "source SHA guard")
+    require(driver, '^[0-9a-fA-F]{64}$', "archive SHA-256 guard")
     require(driver, 'awk \'/^PACLET_SUBMISSION_RECORD=/', "sanitized result extraction")
     require(driver, 'submission_record=%s', "submission action output")
     require(local_release, "retry-python-tests.ps1", "PowerShell retry helper")
@@ -219,12 +222,26 @@ def check_contract() -> None:
     require(paclet_driver, '"SourceCommit"', "source provenance record")
     require(paclet_driver, '"DefinitionNotebookSHA256"', "notebook provenance record")
     require(paclet_driver, '"GitHubArchiveSHA256"', "archive provenance record")
+    require(
+        paclet_driver,
+        'If[! StringQ[sourceCommit], sourceCommit = ""]',
+        "source provenance type guard",
+    )
+    require(
+        paclet_driver,
+        'If[! StringQ[archiveDigest], archiveDigest = ""]',
+        "archive provenance type guard",
+    )
+    require(paclet_driver, 'MemberQ[versionComparisons, $Failed]', "unknown public version guard")
     forbid(paclet_driver, "PublisherTokenObject", "token-management round trip")
     forbid(paclet_driver, "ResourceSystemClient`", "private resource APIs")
 
     require(publication_action_test, "INPUT_EXPECTED_TAG=main", "malformed tag action test")
     require(publication_action_test, "INPUT_EXPECTED_TAG=v1.2.3-alpha.1", "prerelease action test")
     require(publication_action_test, "INPUT_RELEASE_VALIDATION=true", "incompatible mode action test")
+    require(publication_action_test, "RESOURCE_PUBLISHER_TOKEN=", "missing publisher token action test")
+    require(publication_action_test, "EINSTOFF_RELEASE_SOURCE_SHA=invalid", "invalid source SHA action test")
+    require(publication_action_test, "EINSTOFF_RELEASE_ARCHIVE_SHA256=invalid", "invalid archive digest action test")
     require(publication_action_test, "FAKE_OMIT_RECORD=true", "missing record action test")
     require(publication_action_test, "FAKE_SUBMIT_STATUS=23", "submission failure action test")
 
