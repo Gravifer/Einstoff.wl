@@ -1,7 +1,9 @@
-# Einstoff Function Repository submission
+# Einstoff Function Repository publication
 
-`Einstoff.nb` is the submission notebook for a thin Wolfram Function Repository
-facade over the published `Gravifer/Einstoff` paclet. Its implementation is
+`Einstoff.nb` is the published definition notebook for a thin Wolfram Function
+Repository facade over the
+[`Gravifer/Einstoff` paclet](https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/).
+Its implementation is
 deliberately limited to operator selection through:
 
 ```wl
