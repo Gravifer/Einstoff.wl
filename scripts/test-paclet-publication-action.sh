@@ -7,6 +7,44 @@ temp_root="$(mktemp -d)"
 trap 'rm -rf "${temp_root}"' EXIT
 
 mkdir -p "${temp_root}/bin"
+cat > "${temp_root}/expected-manifest.json" <<'EOF'
+{
+  "mappingVersion": 1,
+  "probeOnly": false
+}
+EOF
+expected_manifest_digest="$(sha256sum "${temp_root}/expected-manifest.json" | cut -d ' ' -f 1)"
+
+cat > "${temp_root}/bin/uv" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+source_root=""
+output_root=""
+while (( $# )); do
+  case "$1" in
+    --source)
+      source_root="$2"
+      shift 2
+      ;;
+    --output)
+      output_root="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+[[ -n "${source_root}" && -n "${output_root}" ]]
+for entry in Gravifer__Einstoff tests .python-version pyproject.toml uv.lock README.md LICENSE; do
+  cp -R "${source_root}/${entry}" "${output_root}/${entry}"
+done
+cp "${FAKE_COMPATIBILITY_MANIFEST}" "${output_root}/spf-compatibility-manifest.json"
+EOF
+chmod +x "${temp_root}/bin/uv"
+
 cat > "${temp_root}/bin/wolframscript" <<'EOF'
 #!/bin/bash
 if [[ " $* " == *" submit "* ]]; then
@@ -39,6 +77,8 @@ run_action() {
     RESOURCE_PUBLISHER_TOKEN=test-token \
     EINSTOFF_RELEASE_SOURCE_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
     EINSTOFF_RELEASE_ARCHIVE_SHA256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+    EINSTOFF_RELEASE_SPF_MANIFEST_SHA256="${expected_manifest_digest}" \
+    FAKE_COMPATIBILITY_MANIFEST="${temp_root}/expected-manifest.json" \
     "$@" \
     bash "${root}/.github/actions/paclet-ci/main.sh" \
     > "${temp_root}/stdout" 2> "${temp_root}/stderr"
@@ -59,6 +99,10 @@ run_action 2 INPUT_EXPECTED_TAG=v1.2.3
 run_action 2 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true RESOURCE_PUBLISHER_TOKEN=
 run_action 2 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true EINSTOFF_RELEASE_SOURCE_SHA=invalid
 run_action 2 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true EINSTOFF_RELEASE_ARCHIVE_SHA256=invalid
+run_action 2 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true EINSTOFF_RELEASE_SPF_MANIFEST_SHA256=invalid
+run_action 2 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true EINSTOFF_RELEASE_SPF_MANIFEST_SHA256=
+run_action 1 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true \
+  EINSTOFF_RELEASE_SPF_MANIFEST_SHA256=0000000000000000000000000000000000000000000000000000000000000000
 
 run_action 0 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true
 grep -Fq 'submission_record={"Name":"Gravifer/Einstoff","Version":"1.2.3","Status":"Submitted"}' \

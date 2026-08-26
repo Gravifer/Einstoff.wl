@@ -66,6 +66,8 @@ def classify_path(raw_path: str) -> tuple[ValidationSelection, str]:
         "scripts/install-paclet-cicd.wls",
         "scripts/paclet-cicd-config.wl",
         "scripts/paclet-cicd.wls",
+        "scripts/prepare-legacy-spf.py",
+        "scripts/test_spf_compatibility.py",
         "scripts/validate-paclet-source.wls",
     }:
         return ALL, "paclet-build-infrastructure"

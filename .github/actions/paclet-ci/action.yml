@@ -34,6 +34,12 @@ inputs:
 outputs:
   submission_record:
     description: Sanitized JSON record returned after Paclet Repository submission
+  compatibility_manifest:
+    description: Compatibility manifest copied beside successful build outputs
+  compatibility_manifest_sha256:
+    description: SHA-256 of the deterministic compatibility manifest
+  compatibility_mapping_version:
+    description: Structured-package compatibility mapping version
 
 runs:
   using: docker
