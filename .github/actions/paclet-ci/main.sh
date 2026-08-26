@@ -101,6 +101,15 @@ if [[ "${run_paclet}" == "true" || "${repository_publication}" == "true" ]]; the
   echo "::endgroup::"
 fi
 
+if [[ "${release_validation}" == "true" && "${expected_tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "::group::Checking the stable Paclet Repository submission target..."
+  wolframscript -script \
+    "${tooling_root}/scripts/paclet-cicd.wls" \
+    submission-check \
+    "${expected_tag}"
+  echo "::endgroup::"
+fi
+
 if [[ "${repository_publication}" == "true" ]]; then
   echo "::group::Submitting stable paclet source to the Wolfram Paclet Repository..."
   set +e
