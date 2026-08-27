@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 import subprocess
 import textwrap
 
@@ -24,6 +25,10 @@ def require(text: str, fragment: str, label: str) -> None:
 def forbid(text: str, fragment: str, label: str) -> None:
     if fragment in text:
         raise AssertionError(f"{label}: forbidden {fragment!r}")
+
+
+def normalize_shell_continuations(text: str) -> str:
+    return re.sub(r"[ \t]*\\\r?\n[ \t]*", " ", text)
 
 
 def block(text: str, start: str, end: str | None = None) -> str:
@@ -83,6 +88,7 @@ def check_contract() -> None:
     paclet_ci = load(".github/workflows/paclet-ci.yml")
     action = load(".github/actions/paclet-ci/action.yml")
     driver = load(".github/actions/paclet-ci/main.sh")
+    normalized_driver = normalize_shell_continuations(driver)
     paclet_driver = load("scripts/paclet-cicd.wls")
     classifier = load("scripts/classify_ci_changes.py")
     runner = load("scripts/run-tests.wls")
@@ -116,6 +122,9 @@ def check_contract() -> None:
     require(validate, "release-manifest.json", "release manifest generation")
     require(validate, "definitionNotebookSHA256", "definition notebook provenance")
     require(validate, "githubArchiveSHA256", "GitHub archive provenance")
+    require(validate, "spfCompatibilityManifestSHA256", "SPF manifest provenance")
+    require(validate, "spfCompatibilityMappingVersion", "SPF mapping provenance")
+    require(validate, "spf-compatibility-manifest.json", "SPF manifest asset")
 
     require(publish, "if: github.event_name == 'push'", "tag-only publication")
     require(publish, "contents: write", "publication contents permission")
@@ -130,6 +139,7 @@ def check_contract() -> None:
     require(publish, "sort -V", "stable version comparison")
     require(publish, "arguments+=(--latest=false)", "older stable latest guard")
     require(publish, '"${MANIFEST}"', "release manifest publication")
+    require(publish, '"${COMPATIBILITY_MANIFEST}"', "SPF manifest publication")
 
     stable_gate = "if: github.event_name == 'push' && needs.validate.outputs.prerelease == 'false'"
     require(verify_wolfram, stable_gate, "stable-only Wolfram preflight")
@@ -138,6 +148,8 @@ def check_contract() -> None:
     require(verify_wolfram, "gh release verify-asset", "Wolfram immutable asset preflight")
     require(verify_wolfram, "definitionNotebookSHA256", "manifest definition digest verification")
     require(verify_wolfram, "githubArchiveSHA256", "manifest archive digest verification")
+    require(verify_wolfram, "spfCompatibilityManifestSHA256", "SPF digest verification")
+    require(verify_wolfram, "spfCompatibilityMappingVersion", "SPF mapping verification")
     forbid(verify_wolfram, "RESOURCE_PUBLISHER_TOKEN", "secret-free Wolfram preflight")
     forbid(verify_wolfram, "WOLFRAMSCRIPT_ENTITLEMENTID", "unlicensed Wolfram preflight")
 
@@ -154,6 +166,11 @@ def check_contract() -> None:
     require(submit_step, 'EINSTOFF_RELEASE_PUBLISH: "true"', "explicit publication guard")
     require(submit_step, "RESOURCE_PUBLISHER_TOKEN", "publisher token")
     require(submit_step, "WOLFRAMSCRIPT_ENTITLEMENTID", "submission entitlement")
+    require(
+        submit_step,
+        "EINSTOFF_RELEASE_SPF_MANIFEST_SHA256",
+        "validated SPF manifest digest",
+    )
     if release.count("secrets.RESOURCE_PUBLISHER_TOKEN") != 1:
         raise AssertionError("publisher secret must be referenced by exactly one release step")
     forbid(
@@ -175,6 +192,21 @@ def check_contract() -> None:
     require(contract_job, "scripts/test-retry-python-tests.ps1", "PowerShell retry checker")
     require(contract_job, "scripts/test_ci_change_classifier.py", "classifier tests")
     require(contract_job, "scripts/classify_ci_changes.py", "change classifier")
+    require(contract_job, "version: 0.11.26", "pinned compatibility uv")
+    require(
+        contract_job,
+        "uv run --no-project --managed-python",
+        "uv compatibility test execution",
+    )
+    require(
+        contract_job,
+        "scripts/test_spf_compatibility.py",
+        "SPF compatibility tests",
+    )
+    if contract_job.count("steps.classify.outputs.run_python_smoke == 'true'") != 2:
+        raise AssertionError(
+            "Python runtime changes must gate both compatibility setup and tests"
+        )
     forbid(python_job, "WOLFRAMSCRIPT_ENTITLEMENTID", "unlicensed Python smoke")
     require(python_job, "needs.contract.outputs.run_python_smoke == 'true'", "Python smoke gate")
     require(python_job, "version: 0.11.26", "pinned uv version")
@@ -194,6 +226,9 @@ def check_contract() -> None:
     require(action, 'tooling_path:\n', "tooling-path action input")
     require(action, 'repository_publication:\n', "publication action input")
     require(action, 'submission_record:\n', "sanitized submission output")
+    require(action, 'compatibility_manifest:\n', "SPF manifest action output")
+    require(action, 'compatibility_manifest_sha256:\n', "SPF digest action output")
+    require(action, 'compatibility_mapping_version:\n', "SPF mapping action output")
     if action.count('default: "."') < 2:
         raise AssertionError("ordinary action paths must default to the workspace root")
     require(driver, 'source "${tooling_root}/scripts/retry-python-tests.sh"', "shell retry helper")
@@ -207,11 +242,54 @@ def check_contract() -> None:
     require(driver, '"${expected_tag}" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$', "stable tag guard")
     require(driver, 'EINSTOFF_RELEASE_PUBLISH=true', "publication environment guard")
     require(driver, 'requires RESOURCE_PUBLISHER_TOKEN', "publisher token guard")
+    require(driver, "unset RESOURCE_PUBLISHER_TOKEN", "publisher token environment isolation")
+    require(
+        driver,
+        'RESOURCE_PUBLISHER_TOKEN="${publisher_token}" wolframscript',
+        "submit-only publisher token exposure",
+    )
+    if driver.count('printf \'%s\\n\' "${submission_output}"') != 1:
+        raise AssertionError(
+            "submission output must be consumed only by sanitized record extraction"
+        )
     require(driver, '^[0-9a-fA-F]{40}$', "source SHA guard")
     require(driver, '^[0-9a-fA-F]{64}$', "archive SHA-256 guard")
     require(driver, 'awk \'/^PACLET_SUBMISSION_RECORD=/', "sanitized result extraction")
     require(driver, 'submission_record=%s', "submission action output")
+    require(driver, 'uv run \\', "uv compatibility compiler")
+    require(driver, 'scripts/prepare-legacy-spf.py', "trusted SPF compiler")
+    require(driver, 'source_root="${compatibility_root}"', "staged semantic source")
+    require(driver, '"probeOnly": false', "probe-only production rejection")
+    require(
+        normalized_driver,
+        'printf \'compatibility_manifest=%s\\n\' "${published_manifest_workspace_path}"',
+        "runner-visible SPF manifest output",
+    )
+    forbid(
+        normalized_driver,
+        "printf 'compatibility_manifest=%s\\n' \"${published_manifest}\"",
+        "container-only SPF manifest output",
+    )
+    require(
+        driver,
+        "EINSTOFF_RELEASE_SPF_MANIFEST_SHA256",
+        "release SPF digest comparison",
+    )
     require(local_release, "retry-python-tests.ps1", "PowerShell retry helper")
+    require(local_release, "$IsWindows", "platform-specific local Python selection")
+    require(local_release, ".venv\\Scripts\\python.exe", "Windows local Python path")
+    require(local_release, ".venv/bin/python", "Unix local Python path")
+    require(local_release, "ConvertFrom-Json", "local SPF manifest parsing")
+    require(
+        local_release,
+        ".PSObject.Properties['probeOnly']",
+        "local probe-only marker validation",
+    )
+    require(
+        local_release,
+        "Production release staging requires manifest probeOnly to be false.",
+        "local probe-only staging rejection",
+    )
 
     require(paclet_driver, 'Environment["RESOURCE_PUBLISHER_TOKEN"]', "publisher token input")
     require(paclet_driver, 'PublisherID -> "Gravifer"', "fixed publisher identity")
@@ -238,6 +316,40 @@ def check_contract() -> None:
 
     require(publication_action_test, "INPUT_EXPECTED_TAG=main", "malformed tag action test")
     require(publication_action_test, "INPUT_EXPECTED_TAG=v1.2.3-alpha.1", "prerelease action test")
+    require(publication_action_test, '"mappingVersion": 5', "current SPF fixture version")
+    require(
+        publication_action_test,
+        '"sourceNormalization": "lf-v1"',
+        "SPF normalization provenance fixture",
+    )
+    require(
+        publication_action_test,
+        "Repository publication must not emit post-submission compatibility outputs.",
+        "post-submission output isolation",
+    )
+    require(
+        publication_action_test,
+        "Publisher token reached the compatibility subprocess.",
+        "compatibility subprocess token isolation",
+    )
+    require(
+        publication_action_test,
+        "Publisher token reached a pre-submission Wolfram subprocess.",
+        "pre-submission Wolfram token isolation",
+    )
+    require(
+        publication_action_test,
+        "Repository publication replayed unsanitized submission output.",
+        "raw submission output isolation",
+    )
+    require(
+        publication_action_test,
+        "EINSTOFF_RELEASE_SPF_MANIFEST_SHA256=invalid",
+        "malformed SPF digest action test",
+    )
+
+    require(classifier, '"scripts/prepare-legacy-spf.py"', "SPF compiler classification")
+    require(classifier, '"scripts/test_spf_compatibility.py"', "SPF test classification")
     require(publication_action_test, "INPUT_RELEASE_VALIDATION=true", "incompatible mode action test")
     require(publication_action_test, "RESOURCE_PUBLISHER_TOKEN=", "missing publisher token action test")
     require(publication_action_test, "EINSTOFF_RELEASE_SOURCE_SHA=invalid", "invalid source SHA action test")

@@ -66,9 +66,13 @@ def classify_path(raw_path: str) -> tuple[ValidationSelection, str]:
         "scripts/install-paclet-cicd.wls",
         "scripts/paclet-cicd-config.wl",
         "scripts/paclet-cicd.wls",
+        "scripts/prepare-legacy-spf.py",
+        "scripts/test_spf_compatibility.py",
         "scripts/validate-paclet-source.wls",
     }:
         return ALL, "paclet-build-infrastructure"
+    if path == ".gitattributes":
+        return ALL, "checkout-policy"
 
     if path.startswith("Gravifer__Einstoff/Kernel/"):
         return PACLET_WOLFRAM, "paclet-kernel"
@@ -106,7 +110,6 @@ def classify_path(raw_path: str) -> tuple[ValidationSelection, str]:
         "LICENSE",
         "cspell.json",
         ".editorconfig",
-        ".gitattributes",
         ".gitignore",
     }:
         return NONE, "documentation"

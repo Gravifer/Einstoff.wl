@@ -39,6 +39,8 @@ jobs:
       source_sha: ${{ steps.assets.outputs.source_sha }}
       archive_digest: ${{ steps.assets.outputs.archive_digest }}
       definition_digest: ${{ steps.assets.outputs.definition_digest }}
+      compatibility_digest: ${{ steps.paclet.outputs.compatibility_manifest_sha256 }}
+      compatibility_mapping_version: ${{ steps.paclet.outputs.compatibility_mapping_version }}
     steps:
       - name: Check out trusted release tooling
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -127,6 +129,7 @@ jobs:
           fi
 
       - name: Build and validate release archive
+        id: paclet
         uses: ./tooling/.github/actions/paclet-ci
         with:
           release_validation: "true"
@@ -148,6 +151,9 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
           PACLET_CICD_VERSION: "0.36.2"
           PACLET_REPOSITORY_RESOURCE: https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/
+          COMPATIBILITY_MANIFEST: ${{ steps.paclet.outputs.compatibility_manifest }}
+          COMPATIBILITY_DIGEST: ${{ steps.paclet.outputs.compatibility_manifest_sha256 }}
+          SPF_MAPPING_VERSION: ${{ steps.paclet.outputs.compatibility_mapping_version }}
         run: |
           set -euo pipefail
 
@@ -166,6 +172,17 @@ jobs:
           source_sha="$(git -C candidate rev-parse HEAD)"
           definition_notebook="candidate/Gravifer__Einstoff/ResourceDefinition.nb"
           definition_digest="$(sha256sum "${definition_notebook}" | cut -d ' ' -f 1)"
+          compatibility_asset="${staging}/spf-compatibility-manifest.json"
+          if [[ ! -f "${COMPATIBILITY_MANIFEST}" ]]; then
+            echo "Compatibility manifest was not produced: ${COMPATIBILITY_MANIFEST}" >&2
+            exit 1
+          fi
+          actual_compatibility_digest="$(sha256sum "${COMPATIBILITY_MANIFEST}" | cut -d ' ' -f 1)"
+          if [[ "${actual_compatibility_digest}" != "${COMPATIBILITY_DIGEST}" ]]; then
+            echo "Compatibility manifest digest changed after validation." >&2
+            exit 1
+          fi
+          cp "${COMPATIBILITY_MANIFEST}" "${compatibility_asset}"
           manifest="${staging}/release-manifest.json"
           export RELEASE_MANIFEST="${manifest}" SOURCE_SHA="${source_sha}"
           export ARCHIVE_DIGEST="${digest}" DEFINITION_DIGEST="${definition_digest}"
@@ -181,6 +198,8 @@ jobs:
               "sourceCommit": os.environ["SOURCE_SHA"],
               "definitionNotebookSHA256": os.environ["DEFINITION_DIGEST"],
               "githubArchiveSHA256": os.environ["ARCHIVE_DIGEST"],
+              "spfCompatibilityManifestSHA256": os.environ["COMPATIBILITY_DIGEST"],
+              "spfCompatibilityMappingVersion": int(os.environ["SPF_MAPPING_VERSION"]),
               "pacletCICDVersion": os.environ["PACLET_CICD_VERSION"],
               "workflow": os.environ["GITHUB_WORKFLOW_REF"],
               "pacletRepositoryResource": os.environ["PACLET_REPOSITORY_RESOURCE"],
@@ -217,6 +236,7 @@ jobs:
             ${{ steps.release.outputs.archive }}
             ${{ steps.release.outputs.checksum }}
             ${{ runner.temp }}/einstoff-release-${{ github.run_id }}/release-manifest.json
+            ${{ runner.temp }}/einstoff-release-${{ github.run_id }}/spf-compatibility-manifest.json
           if-no-files-found: error
 
       - name: Upload publication bundle
@@ -229,6 +249,7 @@ jobs:
             ${{ steps.release.outputs.checksum }}
             ${{ runner.temp }}/einstoff-release-${{ github.run_id }}/release-preamble.md
             ${{ runner.temp }}/einstoff-release-${{ github.run_id }}/release-manifest.json
+            ${{ runner.temp }}/einstoff-release-${{ github.run_id }}/spf-compatibility-manifest.json
           if-no-files-found: error
 
   publish:
@@ -278,7 +299,9 @@ jobs:
           checksum="release-assets/$(basename "${CHECKSUM_NAME}")"
           notes="release-assets/release-preamble.md"
           manifest="release-assets/release-manifest.json"
-          if [[ ! -f "${archive}" || ! -f "${checksum}" || ! -f "${notes}" || ! -f "${manifest}" ]]; then
+          compatibility_manifest="release-assets/spf-compatibility-manifest.json"
+          if [[ ! -f "${archive}" || ! -f "${checksum}" || ! -f "${notes}" ||
+                ! -f "${manifest}" || ! -f "${compatibility_manifest}" ]]; then
             echo "The validated publication bundle is incomplete." >&2
             exit 1
           fi
@@ -317,6 +340,7 @@ jobs:
           echo "checksum=${checksum}" >> "${GITHUB_OUTPUT}"
           echo "notes=${notes}" >> "${GITHUB_OUTPUT}"
           echo "manifest=${manifest}" >> "${GITHUB_OUTPUT}"
+          echo "compatibility_manifest=${compatibility_manifest}" >> "${GITHUB_OUTPUT}"
           echo "mark_latest=${mark_latest}" >> "${GITHUB_OUTPUT}"
 
       - name: Attest release archive
@@ -347,6 +371,7 @@ jobs:
           ARCHIVE: ${{ steps.policy.outputs.archive }}
           CHECKSUM: ${{ steps.policy.outputs.checksum }}
           MANIFEST: ${{ steps.policy.outputs.manifest }}
+          COMPATIBILITY_MANIFEST: ${{ steps.policy.outputs.compatibility_manifest }}
           NOTES: ${{ steps.policy.outputs.notes }}
         run: |
           set -euo pipefail
@@ -356,6 +381,7 @@ jobs:
             "${ARCHIVE}"
             "${CHECKSUM}"
             "${MANIFEST}"
+            "${COMPATIBILITY_MANIFEST}"
             --verify-tag
             --fail-on-no-commits
             --generate-notes
@@ -380,12 +406,14 @@ jobs:
           ARCHIVE: ${{ steps.policy.outputs.archive }}
           CHECKSUM: ${{ steps.policy.outputs.checksum }}
           MANIFEST: ${{ steps.policy.outputs.manifest }}
+          COMPATIBILITY_MANIFEST: ${{ steps.policy.outputs.compatibility_manifest }}
         run: |
           set -euo pipefail
           gh release verify "${RELEASE_TAG}"
           gh release verify-asset "${RELEASE_TAG}" "${ARCHIVE}"
           gh release verify-asset "${RELEASE_TAG}" "${CHECKSUM}"
           gh release verify-asset "${RELEASE_TAG}" "${MANIFEST}"
+          gh release verify-asset "${RELEASE_TAG}" "${COMPATIBILITY_MANIFEST}"
 
   verify-wolfram:
     name: Verify Wolfram publication candidate
@@ -424,6 +452,8 @@ jobs:
           SOURCE_SHA: ${{ needs.validate.outputs.source_sha }}
           ARCHIVE_DIGEST: ${{ needs.validate.outputs.archive_digest }}
           DEFINITION_DIGEST: ${{ needs.validate.outputs.definition_digest }}
+          COMPATIBILITY_DIGEST: ${{ needs.validate.outputs.compatibility_digest }}
+          SPF_MAPPING_VERSION: ${{ needs.validate.outputs.compatibility_mapping_version }}
         run: |
           set -euo pipefail
 
@@ -434,7 +464,8 @@ jobs:
           archive="release-assets/Gravifer__Einstoff-${RELEASE_TAG#v}.paclet"
           checksum="${archive}.sha256"
           manifest="release-assets/release-manifest.json"
-          for asset in "${archive}" "${checksum}" "${manifest}"; do
+          compatibility_manifest="release-assets/spf-compatibility-manifest.json"
+          for asset in "${archive}" "${checksum}" "${manifest}" "${compatibility_manifest}"; do
             [[ -f "${asset}" ]] || { echo "Missing release asset: ${asset}" >&2; exit 1; }
             gh release verify-asset "${RELEASE_TAG}" "${asset}"
           done
@@ -443,9 +474,11 @@ jobs:
           actual_source_sha="$(git -C candidate rev-parse HEAD)"
           actual_archive_digest="$(sha256sum "${archive}" | cut -d ' ' -f 1)"
           actual_definition_digest="$(sha256sum candidate/Gravifer__Einstoff/ResourceDefinition.nb | cut -d ' ' -f 1)"
+          actual_compatibility_digest="$(sha256sum "${compatibility_manifest}" | cut -d ' ' -f 1)"
           [[ "${actual_source_sha}" == "${SOURCE_SHA}" ]] || { echo "Validated source commit changed." >&2; exit 1; }
           [[ "${actual_archive_digest}" == "${ARCHIVE_DIGEST}" ]] || { echo "Release archive digest changed." >&2; exit 1; }
           [[ "${actual_definition_digest}" == "${DEFINITION_DIGEST}" ]] || { echo "Definition notebook digest changed." >&2; exit 1; }
+          [[ "${actual_compatibility_digest}" == "${COMPATIBILITY_DIGEST}" ]] || { echo "Compatibility manifest digest changed." >&2; exit 1; }
 
           export RELEASE_MANIFEST="${manifest}"
           python3 -c '
@@ -461,6 +494,8 @@ jobs:
               "sourceCommit": os.environ["SOURCE_SHA"],
               "definitionNotebookSHA256": os.environ["DEFINITION_DIGEST"],
               "githubArchiveSHA256": os.environ["ARCHIVE_DIGEST"],
+              "spfCompatibilityManifestSHA256": os.environ["COMPATIBILITY_DIGEST"],
+              "spfCompatibilityMappingVersion": int(os.environ["SPF_MAPPING_VERSION"]),
               "pacletCICDVersion": "0.36.2",
               "pacletRepositoryResource": "https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/",
           }
@@ -517,6 +552,7 @@ jobs:
           EINSTOFF_RELEASE_PUBLISH: "true"
           EINSTOFF_RELEASE_SOURCE_SHA: ${{ needs.validate.outputs.source_sha }}
           EINSTOFF_RELEASE_ARCHIVE_SHA256: ${{ needs.validate.outputs.archive_digest }}
+          EINSTOFF_RELEASE_SPF_MANIFEST_SHA256: ${{ needs.validate.outputs.compatibility_digest }}
           RESOURCE_PUBLISHER_TOKEN: ${{ secrets.RESOURCE_PUBLISHER_TOKEN }}
           WOLFRAMSCRIPT_ENTITLEMENTID: ${{ secrets.WOLFRAMSCRIPT_ENTITLEMENTID }}
           WLPR_PACLET_SITE: https://resources.wolframcloud.com/PacletRepository/pacletsite
