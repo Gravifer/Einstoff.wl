@@ -136,10 +136,14 @@ under the ignored `build/` directory. The build command does not repeat the chec
 `check` and `build` target `"Build"`. `submission-check` runs the stricter
 submission-target validation, but it never authenticates or calls `SubmitPaclet` and
 does not require `RESOURCE_PUBLISHER_TOKEN`.
-The licensed GitHub Paclet phase performs the same check and build in one job. It
-requires `WOLFRAMSCRIPT_ENTITLEMENTID`, but not a publisher token. The changed-file
-classifier avoids this phase when paclet artifacts cannot be affected; a manual
-dispatch intentionally runs it in full.
+These direct commands are useful canonical-source diagnostics. Artifact-producing
+local validation and every hosted build instead use the mechanical SPF compatibility
+stage documented in
+[`docs/StructuredPackageCompatibility.md`](docs/StructuredPackageCompatibility.md).
+The licensed GitHub Paclet phase performs its check and build from that one generated
+tree. It requires `WOLFRAMSCRIPT_ENTITLEMENTID`, but not a publisher token. The
+changed-file classifier avoids this phase when paclet artifacts cannot be affected;
+a manual dispatch intentionally runs it in full.
 
 PacletCICD currently emits two reviewed code-inspection hint families during these
 checks:
@@ -177,8 +181,9 @@ PacletCICD's public
 interface rebuilds from a definition notebook or source directory; it cannot submit
 the already attested GitHub archive. The release manifest therefore relates both
 channels by exact source commit, version, definition-notebook SHA-256, GitHub archive
-SHA-256, pinned PacletCICD version, workflow identity, and target resource. The two
-archives are not assumed to be byte-identical.
+SHA-256, structured-package compatibility manifest SHA-256 and mapping version,
+pinned PacletCICD version, workflow identity, and target resource. The two archives
+are not assumed to be byte-identical.
 
 Function Repository updates are still manual. Update
 `publishing/FunctionRepository/Einstoff.nb` when the facade, documentation, examples,
@@ -215,7 +220,7 @@ interface:
 ciPublisherToken = CreatePublisherToken[
   "Einstoff GitHub CD",
   PublisherID -> "Gravifer",
-  ExpirationDate -> DatePlus[Now, {1, "Year"}],
+  ExpirationDate -> DatePlus[Now, {5, "Year"}],
   "AllowedEndpoints" -> Automatic
 ]
 ```
@@ -230,7 +235,7 @@ AssociationMap[
 ]
 ```
 
-Require publisher `Gravifer`, a finite approximately one-year expiration, and a
+Require publisher `Gravifer`, a finite approximately five-year expiration, and a
 resolved endpoint list. Do not save a token whose endpoints resolve to `All` or
 `None`, whose publisher is wrong, or whose expiration is indefinite. The workstation
 publisher token remains separate and must not be replaced by the CI token.
@@ -247,8 +252,9 @@ For a release candidate:
 
 1. Update `PacletInfo.wl` and move the matching notes out of the changelog's
    `Unreleased` section.
-2. Run `scripts/validate-release.ps1 -Python -ExpectedTag vX.Y.Z`, then merge the
-   release changes to `main`.
+2. Run `scripts/validate-release.ps1 -Python -ExpectedTag vX.Y.Z`. This generates the
+   compatibility source, builds and tests its archive, and leaves the transformation
+   manifest beside the archive in `build/`. Then merge the release changes to `main`.
 3. Dispatch `release.yml` on `main` with `ref=main` and the expected stable tag. Trusted
    release tooling from the workflow commit validates that separately checked-out
    candidate, including the Paclet Repository submission target. Confirm the dry-run
