@@ -306,6 +306,17 @@ def check_contract() -> None:
 
     require(publication_action_test, "INPUT_EXPECTED_TAG=main", "malformed tag action test")
     require(publication_action_test, "INPUT_EXPECTED_TAG=v1.2.3-alpha.1", "prerelease action test")
+    require(publication_action_test, '"mappingVersion": 3', "current SPF fixture version")
+    require(
+        publication_action_test,
+        '"sourceNormalization": "lf-v1"',
+        "SPF normalization provenance fixture",
+    )
+    require(
+        publication_action_test,
+        "compatibility_mapping_version=3",
+        "SPF mapping output assertion",
+    )
     require(
         publication_action_test,
         "EINSTOFF_RELEASE_SPF_MANIFEST_SHA256=invalid",
