@@ -8,11 +8,12 @@ from collections import Counter
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 import sys
 
 
-MAPPING_VERSION = 1
+MAPPING_VERSION = 2
 MAPPINGS = {
     b"PackageInitialize": b"Package",
     b"PackageExported": b"PackageExport",
@@ -29,6 +30,10 @@ REQUIRED_ROOT_ENTRIES = (
     "LICENSE",
 )
 MANIFEST_NAME = "spf-compatibility-manifest.json"
+IDENTIFIER_PATTERN = re.compile(rb"[A-Za-z$][A-Za-z0-9$`]*")
+LOADER_PATTERN = re.compile(
+    rb'\s*PackageInitialize\s*\[\s*"([A-Za-z$][A-Za-z0-9$`]*`)"\s*\]\s*\Z'
+)
 
 
 class CompatibilityError(RuntimeError):
@@ -55,16 +60,85 @@ def identifier_end(data: bytes, start: int) -> int:
     return end
 
 
+def newline_for(data: bytes) -> bytes:
+    return b"\r\n" if b"\r\n" in data else b"\n"
+
+
+def directive_call(data: bytes, identifier_end_index: int, relative_path: str) -> tuple[int, bytes]:
+    cursor = identifier_end_index
+    while cursor < len(data) and data[cursor] in b" \t\r\n":
+        cursor += 1
+    if cursor >= len(data) or data[cursor] != ord("["):
+        raise CompatibilityError(f"{relative_path}: SPF directive is not followed by a call")
+
+    argument_start = cursor + 1
+    depth = 1
+    index = argument_start
+    comment_depth = 0
+    in_string = False
+    while index < len(data):
+        if in_string:
+            current = data[index]
+            index += 1
+            if current == ord("\\") and index < len(data):
+                index += 1
+            elif current == ord('"'):
+                in_string = False
+            continue
+        if comment_depth:
+            if data.startswith(b"(*", index):
+                comment_depth += 1
+                index += 2
+            elif data.startswith(b"*)", index):
+                comment_depth -= 1
+                index += 2
+            else:
+                index += 1
+            continue
+        if data.startswith(b"(*", index):
+            comment_depth = 1
+            index += 2
+            continue
+        if data[index] == ord('"'):
+            in_string = True
+            index += 1
+            continue
+        if data[index] == ord("["):
+            depth += 1
+        elif data[index] == ord("]"):
+            depth -= 1
+            if depth == 0:
+                return index + 1, data[argument_start:index]
+        index += 1
+    raise CompatibilityError(f"{relative_path}: unterminated SPF directive call")
+
+
+def list_symbols(argument: bytes, relative_path: str) -> list[bytes] | None:
+    stripped = argument.strip()
+    if not (stripped.startswith(b"{") and stripped.endswith(b"}")):
+        return None
+    body = stripped[1:-1].strip()
+    if not body:
+        raise CompatibilityError(f"{relative_path}: empty SPF declaration list")
+    symbols = [candidate.strip() for candidate in body.split(b",")]
+    if any(IDENTIFIER_PATTERN.fullmatch(symbol) is None for symbol in symbols):
+        raise CompatibilityError(
+            f"{relative_path}: legacy SPF lowering accepts only symbol names in declaration lists"
+        )
+    return symbols
+
+
 def lower_wl_source(
     data: bytes,
     relative_path: str,
     *,
     reject_legacy: bool = True,
-) -> tuple[bytes, Counter[str]]:
+) -> tuple[bytes, Counter[str], Counter[str]]:
     """Lower recognized SPF identifiers while preserving every unrelated byte."""
 
     output = bytearray()
     counts: Counter[str] = Counter()
+    emitted: Counter[str] = Counter()
     index = 0
     comment_depth = 0
     in_string = False
@@ -111,8 +185,23 @@ def lower_wl_source(
             identifier = data[index:end]
             replacement = MAPPINGS.get(identifier)
             if replacement is not None:
-                output.extend(replacement)
                 counts[identifier.decode("ascii")] += 1
+                if identifier in (b"PackageExported", b"PackageScoped"):
+                    call_end, argument = directive_call(data, end, relative_path)
+                    symbols = list_symbols(argument, relative_path)
+                    if symbols is not None:
+                        output.extend(
+                            newline_for(data).join(
+                                replacement + b"[" + symbol + b"]" for symbol in symbols
+                            )
+                        )
+                        emitted[replacement.decode("ascii")] += len(symbols)
+                        index = call_end
+                        continue
+                    emitted[replacement.decode("ascii")] += 1
+                elif identifier == b"PackageInitialize":
+                    emitted[replacement.decode("ascii")] += 1
+                output.extend(replacement)
             else:
                 if identifier in LEGACY_NAMES and reject_legacy:
                     raise CompatibilityError(
@@ -139,7 +228,7 @@ def lower_wl_source(
         raise CompatibilityError(f"{relative_path}: unterminated WL string")
     if comment_depth:
         raise CompatibilityError(f"{relative_path}: unterminated WL comment")
-    return bytes(output), counts
+    return bytes(output), counts, emitted
 
 
 def ensure_plain_tree(path: Path) -> None:
@@ -183,19 +272,48 @@ def prepare(source: Path, output: Path) -> dict[str, object]:
     if not source_files:
         raise CompatibilityError("no Kernel/*.wl files were found")
 
+    loader_matches: list[tuple[Path, bytes]] = []
+    for file_path in source_files:
+        data = file_path.read_bytes()
+        match = LOADER_PATTERN.fullmatch(data.removeprefix(b"\xef\xbb\xbf"))
+        if match is not None:
+            loader_matches.append((file_path, match.group(1)))
+    if len(loader_matches) != 1:
+        raise CompatibilityError(
+            "canonical source must contain exactly one standalone PackageInitialize loader"
+        )
+    loader_path, package_context = loader_matches[0]
+
     changed_files: dict[str, object] = {}
     total_counts: Counter[str] = Counter()
+    emitted_counts: Counter[str] = Counter()
     for file_path in source_files:
         relative = file_path.relative_to(output).as_posix()
         before = file_path.read_bytes()
-        after, counts = lower_wl_source(before, relative)
+        after, counts, emitted = lower_wl_source(before, relative)
+        if file_path != loader_path:
+            package_line = b'Package["' + package_context + b'"]' + newline_for(before)
+            if after.startswith(b"\xef\xbb\xbf"):
+                after = b"\xef\xbb\xbf" + package_line + after[3:]
+            else:
+                after = package_line + after
+            emitted["Package"] += 1
         if counts:
             file_path.write_bytes(after)
             total_counts.update(counts)
+            emitted_counts.update(emitted)
             changed_files[relative] = {
                 "beforeSHA256": sha256(before),
                 "afterSHA256": sha256(after),
                 "replacements": dict(sorted(counts.items())),
+            }
+        elif after != before:
+            file_path.write_bytes(after)
+            emitted_counts.update(emitted)
+            changed_files[relative] = {
+                "beforeSHA256": sha256(before),
+                "afterSHA256": sha256(after),
+                "replacements": {},
             }
 
     if total_counts["PackageInitialize"] != 1:
@@ -209,9 +327,13 @@ def prepare(source: Path, output: Path) -> dict[str, object]:
     for file_path in source_files:
         relative = file_path.relative_to(output).as_posix()
         lowered = file_path.read_bytes()
-        _, remaining = lower_wl_source(lowered, relative, reject_legacy=False)
+        _, remaining, _ = lower_wl_source(lowered, relative, reject_legacy=False)
         if remaining:
             raise CompatibilityError(f"{relative}: public SPF vocabulary remains after lowering")
+        payload = lowered.removeprefix(b"\xef\xbb\xbf")
+        expected_prefix = b'Package["' + package_context + b'"]'
+        if not payload.startswith(expected_prefix):
+            raise CompatibilityError(f"{relative}: generated fragment has no legacy Package directive")
 
     manifest: dict[str, object] = {
         "schemaVersion": 1,
@@ -224,6 +346,7 @@ def prepare(source: Path, output: Path) -> dict[str, object]:
             for source, target in MAPPINGS.items()
         },
         "replacementTotals": dict(sorted(total_counts.items())),
+        "emittedDirectiveTotals": dict(sorted(emitted_counts.items())),
         "changedFiles": changed_files,
     }
     manifest_path = output / MANIFEST_NAME

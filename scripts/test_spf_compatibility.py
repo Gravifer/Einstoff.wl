@@ -60,12 +60,17 @@ class CompatibilityTests(unittest.TestCase):
             lowered = (
                 output / "Gravifer__Einstoff" / "Kernel" / "Core.wl"
             ).read_bytes()
+            self.assertTrue(lowered.startswith(b'Package["Test`"]\r\n'))
             self.assertIn(b"(* PackageScoped[{commented}]", lowered)
             self.assertIn(b'"PackageInitialize[escaped\\\"text]"', lowered)
-            self.assertIn(b"PackageExport[{f}]\r\nPackageScope[{g}]\r\n", lowered)
+            self.assertIn(b"PackageExport[f]\r\nPackageScope[g]\r\n", lowered)
             self.assertEqual(
                 manifest["replacementTotals"],
                 {"PackageExported": 1, "PackageInitialize": 1, "PackageScoped": 1},
+            )
+            self.assertEqual(
+                manifest["emittedDirectiveTotals"],
+                {"Package": 2, "PackageExport": 1, "PackageScope": 1},
             )
             self.assertFalse(manifest["probeOnly"])
 
@@ -82,7 +87,7 @@ class CompatibilityTests(unittest.TestCase):
             second_manifest = (second / compat.MANIFEST_NAME).read_bytes()
             self.assertEqual(first_manifest, second_manifest)
             parsed = json.loads(first_manifest)
-            self.assertEqual(parsed["mappingVersion"], 1)
+            self.assertEqual(parsed["mappingVersion"], 2)
             self.assertNotIn(str(root), first_manifest.decode("utf-8"))
 
     def test_rejects_legacy_and_unknown_directives(self) -> None:
@@ -101,6 +106,7 @@ class CompatibilityTests(unittest.TestCase):
         cases = {
             "string": b'PackageExported[{f}]\nPackageScoped[{g}]\ns = "unterminated',
             "comment": b"PackageExported[{f}]\nPackageScoped[{g}]\n(* unterminated",
+            "declaration": b"PackageExported[{f[x]}]\nPackageScoped[{g}]\n",
         }
         for label, core in cases.items():
             with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
@@ -132,6 +138,21 @@ class CompatibilityTests(unittest.TestCase):
             manifest = compat.prepare(repository, output)
             self.assertEqual(manifest["replacementTotals"]["PackageInitialize"], 1)
             self.assertGreater(manifest["replacementTotals"]["PackageScoped"], 1)
+            kernel_files = sorted(
+                (output / "Gravifer__Einstoff" / "Kernel").rglob("*.wl")
+            )
+            self.assertEqual(
+                manifest["emittedDirectiveTotals"]["Package"],
+                len(kernel_files),
+            )
+            for kernel_file in kernel_files:
+                lowered = kernel_file.read_bytes().removeprefix(b"\xef\xbb\xbf")
+                self.assertTrue(
+                    lowered.startswith(b'Package["Gravifer`Einstoff`"]'),
+                    kernel_file,
+                )
+                self.assertNotIn(b"PackageExport[{", lowered)
+                self.assertNotIn(b"PackageScope[{", lowered)
             self.assertTrue(
                 (output / "Gravifer__Einstoff" / "ResourceDefinition.nb").is_file()
             )
