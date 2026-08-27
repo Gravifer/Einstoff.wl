@@ -18,7 +18,12 @@ SPEC.loader.exec_module(compat)
 
 
 class CompatibilityTests(unittest.TestCase):
-    def make_source(self, root: Path, core: bytes | None = None) -> Path:
+    def make_source(
+        self,
+        root: Path,
+        core: bytes | None = None,
+        loader: bytes = b'PackageInitialize["Test`"]\r\n',
+    ) -> Path:
         source = root / "source"
         kernel = source / "Gravifer__Einstoff" / "Kernel"
         kernel.mkdir(parents=True)
@@ -31,9 +36,7 @@ class CompatibilityTests(unittest.TestCase):
             "LICENSE": b"test\n",
         }.items():
             (source / name).write_bytes(contents)
-        (kernel / "Einstoff.wl").write_bytes(
-            b'PackageInitialize["Test`"]\r\n'
-        )
+        (kernel / "Einstoff.wl").write_bytes(loader)
         (kernel / "Core.wl").write_bytes(
             core
             if core is not None
@@ -90,6 +93,40 @@ class CompatibilityTests(unittest.TestCase):
             self.assertEqual(parsed["mappingVersion"], 2)
             self.assertNotIn(str(root), first_manifest.decode("utf-8"))
 
+    def test_scalar_declarations_are_validated_and_preserved(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self.make_source(
+                root,
+                b"PackageExported[f]\nPackageScoped[g]\n",
+            )
+            output = root / "output"
+            manifest = compat.prepare(source, output)
+            lowered = (
+                output / "Gravifer__Einstoff" / "Kernel" / "Core.wl"
+            ).read_bytes()
+
+            self.assertIn(b"PackageExport[f]\nPackageScope[g]\n", lowered)
+            self.assertEqual(
+                manifest["emittedDirectiveTotals"],
+                {"Package": 2, "PackageExport": 1, "PackageScope": 1},
+            )
+
+    def test_loader_allows_leading_whitespace(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self.make_source(
+                root,
+                loader=b' \r\n\tPackageInitialize["Test`"]\r\n',
+            )
+            output = root / "output"
+            compat.prepare(source, output)
+            lowered = (
+                output / "Gravifer__Einstoff" / "Kernel" / "Einstoff.wl"
+            ).read_bytes()
+
+            self.assertTrue(lowered.lstrip().startswith(b'Package["Test`"]'))
+
     def test_rejects_legacy_and_unknown_directives(self) -> None:
         cases = {
             "legacy": b"PackageExport[{f}]\nPackageScoped[{g}]\n",
@@ -106,7 +143,8 @@ class CompatibilityTests(unittest.TestCase):
         cases = {
             "string": b'PackageExported[{f}]\nPackageScoped[{g}]\ns = "unterminated',
             "comment": b"PackageExported[{f}]\nPackageScoped[{g}]\n(* unterminated",
-            "declaration": b"PackageExported[{f[x]}]\nPackageScoped[{g}]\n",
+            "list declaration": b"PackageExported[{f[x]}]\nPackageScoped[{g}]\n",
+            "scalar declaration": b"PackageExported[f[x]]\nPackageScoped[g]\n",
         }
         for label, core in cases.items():
             with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:

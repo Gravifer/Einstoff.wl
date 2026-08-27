@@ -198,6 +198,11 @@ def lower_wl_source(
                         emitted[replacement.decode("ascii")] += len(symbols)
                         index = call_end
                         continue
+                    if IDENTIFIER_PATTERN.fullmatch(argument.strip()) is None:
+                        raise CompatibilityError(
+                            f"{relative_path}: legacy SPF lowering accepts only "
+                            "symbol names in declarations"
+                        )
                     emitted[replacement.decode("ascii")] += 1
                 elif identifier == b"PackageInitialize":
                     emitted[replacement.decode("ascii")] += 1
@@ -330,7 +335,7 @@ def prepare(source: Path, output: Path) -> dict[str, object]:
         _, remaining, _ = lower_wl_source(lowered, relative, reject_legacy=False)
         if remaining:
             raise CompatibilityError(f"{relative}: public SPF vocabulary remains after lowering")
-        payload = lowered.removeprefix(b"\xef\xbb\xbf")
+        payload = lowered.removeprefix(b"\xef\xbb\xbf").lstrip(b" \t\r\n")
         expected_prefix = b'Package["' + package_context + b'"]'
         if not payload.startswith(expected_prefix):
             raise CompatibilityError(f"{relative}: generated fragment has no legacy Package directive")
