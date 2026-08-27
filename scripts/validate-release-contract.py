@@ -242,6 +242,16 @@ def check_contract() -> None:
     require(driver, '"probeOnly": false', "probe-only production rejection")
     require(
         driver,
+        'realpath --relative-to="${workspace_root}" "${published_manifest}"',
+        "runner-visible SPF manifest output",
+    )
+    forbid(
+        driver,
+        "printf 'compatibility_manifest=%s\\n' \"${published_manifest}\"",
+        "container-only SPF manifest output",
+    )
+    require(
+        driver,
         "EINSTOFF_RELEASE_SPF_MANIFEST_SHA256",
         "release SPF digest comparison",
     )

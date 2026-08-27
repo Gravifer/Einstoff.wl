@@ -154,7 +154,11 @@ publish_compatibility_outputs() {
   mkdir -p "${canonical_build}"
   published_manifest="${canonical_build}/spf-compatibility-manifest.json"
   cp "${compatibility_manifest}" "${published_manifest}"
-  printf 'compatibility_manifest=%s\n' "${published_manifest}" >> "${GITHUB_OUTPUT}"
+  published_manifest_workspace_path="$(
+    realpath --relative-to="${workspace_root}" "${published_manifest}"
+  )"
+  printf 'compatibility_manifest=%s\n' \
+    "${published_manifest_workspace_path}" >> "${GITHUB_OUTPUT}"
   printf 'compatibility_manifest_sha256=%s\n' \
     "${compatibility_manifest_sha256}" >> "${GITHUB_OUTPUT}"
   printf 'compatibility_mapping_version=%s\n' \
