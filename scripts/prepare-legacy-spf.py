@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import re
 import shutil
+import stat
 import sys
 
 
@@ -343,11 +344,19 @@ def lower_wl_source(
     return bytes(output), counts, emitted
 
 
+def linklike_path(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    attributes = getattr(path.lstat(), "st_file_attributes", 0)
+    reparse_point = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    return bool(reparse_point and attributes & reparse_point)
+
+
 def ensure_plain_tree(path: Path) -> None:
     pending = [path]
     while pending:
         candidate = pending.pop()
-        if candidate.is_symlink() or candidate.is_junction():
+        if linklike_path(candidate):
             raise CompatibilityError(
                 f"symbolic links and junctions are not accepted in staging input: {candidate}"
             )

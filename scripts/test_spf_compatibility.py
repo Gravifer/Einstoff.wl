@@ -7,6 +7,7 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -358,8 +359,13 @@ class CompatibilityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             candidate = Path(directory)
             with mock.patch.object(Path, "is_symlink", return_value=False), mock.patch.object(
-                Path, "is_junction", return_value=True
+                Path,
+                "lstat",
+                return_value=SimpleNamespace(st_file_attributes=0x400),
+            ), mock.patch.object(
+                compat.stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400, create=True
             ):
+                self.assertTrue(compat.linklike_path(candidate))
                 with self.assertRaisesRegex(compat.CompatibilityError, "junctions"):
                     compat.ensure_plain_tree(candidate)
 
