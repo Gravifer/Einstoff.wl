@@ -58,6 +58,21 @@ production dependency.
 [`scripts/prepare-legacy-spf.py`](../scripts/prepare-legacy-spf.py) is a provisional,
 dependency-free byte-oriented compiler. Run it through the repository's pinned
 `uv` and `.python-version`, not through an independently provisioned Python runtime.
+
+Its accepted declaration grammar is deliberately narrower than general Wolfram
+Language syntax. `PackageInitialize`, `PackageExported`, and `PackageScoped` must
+begin in column one, occur at top level, and occupy the complete physical expression;
+the declaration call may span lines, but its closing bracket must be followed only by
+horizontal whitespace and a line ending or end of file. Indented, comment-prefixed,
+chained, postfixed, nested, assigned, or otherwise ambiguous occurrences are rejected.
+Canonical Einstoff source follows this convention.
+
+This restriction is a trust boundary, not an attempt to specify Wolfram parsing. The
+compatibility layer stays small, fail-closed, and straightforward to audit while the
+Python route remains provisional. Einstoff intentionally does not reproduce the
+vendor's undocumented package scanner or build a replacement Wolfram parser; a future
+documented Wolfram migration facility should replace this compiler instead.
+
 It:
 
 - copies the paclet, tests, and locked Python-environment inputs into an empty

@@ -13,7 +13,7 @@ import shutil
 import sys
 
 
-MAPPING_VERSION = 3
+MAPPING_VERSION = 4
 SOURCE_NORMALIZATION = "lf-v1"
 MAPPINGS = {
     b"PackageInitialize": b"Package",
@@ -45,18 +45,25 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def symbol_byte(value: int) -> bool:
+def symbol_start_byte(value: int) -> bool:
     return (
         ord("A") <= value <= ord("Z")
         or ord("a") <= value <= ord("z")
+        or value == ord("$")
+    )
+
+
+def symbol_continue_byte(value: int) -> bool:
+    return (
+        symbol_start_byte(value)
         or ord("0") <= value <= ord("9")
-        or value in (ord("$"), ord("`"))
+        or value == ord("`")
     )
 
 
 def identifier_end(data: bytes, start: int) -> int:
     end = start
-    while end < len(data) and symbol_byte(data[end]):
+    while end < len(data) and symbol_continue_byte(data[end]):
         end += 1
     return end
 
@@ -65,13 +72,39 @@ def complete_ascii_identifier(data: bytes, start: int, end: int) -> bool:
     """Reject an ASCII suffix that may belong to a larger WL identifier."""
 
     def may_continue_identifier(value: int) -> bool:
-        return symbol_byte(value) or value >= 0x80 or value in b"\\_"
+        return (
+            symbol_start_byte(value)
+            or value == ord("`")
+            or value >= 0x80
+            or value in b"\\_"
+        )
 
-    if start and (
+    follows_bom = start == 3 and data.startswith(b"\xef\xbb\xbf")
+    if start and not follows_bom and (
         may_continue_identifier(data[start - 1]) or data[start - 1] == ord("]")
     ):
         return False
     return end >= len(data) or not may_continue_identifier(data[end])
+
+
+def starts_in_column_one(data: bytes, start: int) -> bool:
+    if start == 3 and data.startswith(b"\xef\xbb\xbf"):
+        return True
+    return start == 0 or data[start - 1] in b"\r\n"
+
+
+def call_occupies_expression(data: bytes, call_end: int) -> bool:
+    cursor = call_end
+    while cursor < len(data) and data[cursor] in b" \t":
+        cursor += 1
+    return cursor >= len(data) or data[cursor] in b"\r\n"
+
+
+def followed_by_call(data: bytes, identifier_end_index: int) -> bool:
+    cursor = identifier_end_index
+    while cursor < len(data) and data[cursor] in b" \t\r\n":
+        cursor += 1
+    return cursor < len(data) and data[cursor] == ord("[")
 
 
 def canonical_source_bytes(data: bytes) -> bytes:
@@ -159,7 +192,6 @@ def lower_wl_source(
     comment_depth = 0
     in_string = False
     delimiter_depth = 0
-    line_has_code = False
     top_level_boundary = True
     if data.startswith(b"\xef\xbb\xbf"):
         output.extend(b"\xef\xbb\xbf")
@@ -187,8 +219,6 @@ def lower_wl_source(
                 comment_depth -= 1
                 index += 2
             else:
-                if data[index] in b"\r\n":
-                    line_has_code = False
                 output.append(data[index])
                 index += 1
             continue
@@ -200,20 +230,19 @@ def lower_wl_source(
             continue
         if data[index] == ord('"'):
             output.append(data[index])
-            line_has_code = True
             if delimiter_depth == 0:
                 top_level_boundary = False
             in_string = True
             index += 1
             continue
 
-        if symbol_byte(data[index]):
+        if symbol_start_byte(data[index]):
             end = identifier_end(data, index)
             identifier = data[index:end]
             complete_identifier = complete_ascii_identifier(data, index, end)
             is_declaration = (
                 complete_identifier
-                and not line_has_code
+                and starts_in_column_one(data, index)
                 and delimiter_depth == 0
                 and top_level_boundary
             )
@@ -221,6 +250,11 @@ def lower_wl_source(
             if replacement is not None:
                 counts[identifier.decode("ascii")] += 1
                 call_end, argument = directive_call(data, end, relative_path)
+                if not call_occupies_expression(data, call_end):
+                    raise CompatibilityError(
+                        f"{relative_path}: SPF declarations must occupy a complete "
+                        "physical expression"
+                    )
                 if identifier in (b"PackageExported", b"PackageScoped"):
                     symbols = list_symbols(argument, relative_path)
                     if symbols is not None:
@@ -242,7 +276,6 @@ def lower_wl_source(
                     output.extend(replacement + data[end:call_end])
                     emitted[replacement.decode("ascii")] += 1
                 index = call_end
-                line_has_code = True
                 top_level_boundary = True
                 continue
             else:
@@ -257,20 +290,16 @@ def lower_wl_source(
                         f"{identifier.decode('ascii')}"
                     )
                 if (
-                    is_declaration
+                    reject_legacy
+                    and complete_identifier
                     and identifier.startswith(b"Package")
-                    and identifier not in LEGACY_NAMES
+                    and followed_by_call(data, end)
                 ):
-                    cursor = end
-                    while cursor < len(data) and data[cursor] in b" \t\r\n":
-                        cursor += 1
-                    if cursor < len(data) and data[cursor] == ord("["):
-                        raise CompatibilityError(
-                            f"{relative_path}: unsupported SPF directive "
-                            f"{identifier.decode('ascii', errors='replace')}"
-                        )
+                    raise CompatibilityError(
+                        f"{relative_path}: unsupported or ambiguous Package* call "
+                        f"{identifier.decode('ascii', errors='replace')}"
+                    )
                 output.extend(identifier)
-            line_has_code = True
             if delimiter_depth == 0:
                 top_level_boundary = False
             index = end
@@ -278,25 +307,18 @@ def lower_wl_source(
 
         current = data[index]
         output.append(current)
-        if current in b" \t\r\n":
-            if current in b"\r\n":
-                line_has_code = False
-        elif current in b"[({":
-            line_has_code = True
+        if current in b"[({":
             if delimiter_depth == 0:
                 top_level_boundary = False
             delimiter_depth += 1
         elif current in b"])}":
-            line_has_code = True
             if delimiter_depth:
                 delimiter_depth -= 1
             else:
                 top_level_boundary = False
         elif current == ord(";") and delimiter_depth == 0:
-            line_has_code = True
             top_level_boundary = True
-        else:
-            line_has_code = True
+        elif current not in b" \t\r\n":
             if delimiter_depth == 0:
                 top_level_boundary = False
         index += 1

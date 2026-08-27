@@ -92,7 +92,7 @@ class CompatibilityTests(unittest.TestCase):
             second_manifest = (second / compat.MANIFEST_NAME).read_bytes()
             self.assertEqual(first_manifest, second_manifest)
             parsed = json.loads(first_manifest)
-            self.assertEqual(parsed["mappingVersion"], 3)
+            self.assertEqual(parsed["mappingVersion"], 4)
             self.assertNotIn(str(root), first_manifest.decode("utf-8"))
 
     def test_lf_and_crlf_sources_produce_identical_staging(self) -> None:
@@ -143,12 +143,12 @@ class CompatibilityTests(unittest.TestCase):
             source = self.make_source(
                 root,
                 (
-                    "\N{GREEK SMALL LETTER ALPHA}PackageExported[{notExported}]\n"
-                    ";\n\\[Alpha]PackageScoped[{notScoped}];\n"
-                    "(* declaration note *) PackageExported[\n"
+                    "\N{GREEK SMALL LETTER ALPHA}PackageExported[{notExported}];\n"
+                    "\\[Alpha]PackageScoped[{notScoped}];\n"
+                    "PackageExported[\n"
                     "    {f}\n"
-                    "  ]\n"
-                    "(* declaration note *) PackageScoped[{g}]\n"
+                    "]\n"
+                    "PackageScoped[{g}]\n"
                 ).encode("utf-8"),
             )
             output = root / "output"
@@ -176,6 +176,18 @@ class CompatibilityTests(unittest.TestCase):
                 b"assigned = PackageExported[{notExported}];\n"
                 b"PackageExported[{f}]\nPackageScoped[{g}]\n"
             ),
+            "indented": (
+                b" PackageExported[{notExported}]\n"
+                b"PackageExported[{f}]\nPackageScoped[{g}]\n"
+            ),
+            "comment-prefixed": (
+                b"(* note *) PackageExported[{notExported}]\n"
+                b"PackageExported[{f}]\nPackageScoped[{g}]\n"
+            ),
+            "numeric coefficient": (
+                b"x = 2PackageExported[{notExported}];\n"
+                b"PackageExported[{f}]\nPackageScoped[{g}]\n"
+            ),
         }
         for label, core in cases.items():
             with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
@@ -187,12 +199,33 @@ class CompatibilityTests(unittest.TestCase):
                 ):
                     compat.prepare(source, root / "output")
 
-    def test_loader_allows_leading_whitespace(self) -> None:
+    def test_rejects_chained_or_postfixed_declarations(self) -> None:
+        cases = {
+            "chained call": (
+                b"PackageExported[{notExported}][x]\n"
+                b"PackageScoped[{g}]\n"
+            ),
+            "postfix": (
+                b"PackageExported[{notExported}] // Hold\n"
+                b"PackageScoped[{g}]\n"
+            ),
+        }
+        for label, core in cases.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source = self.make_source(root, core)
+                with self.assertRaisesRegex(
+                    compat.CompatibilityError,
+                    "SPF declarations must occupy a complete physical expression",
+                ):
+                    compat.prepare(source, root / "output")
+
+    def test_loader_allows_utf8_bom(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = self.make_source(
                 root,
-                loader=b' \r\n\tPackageInitialize["Test`"]\r\n',
+                loader=b'\xef\xbb\xbfPackageInitialize["Test`"]\r\n',
             )
             output = root / "output"
             compat.prepare(source, output)
@@ -200,12 +233,18 @@ class CompatibilityTests(unittest.TestCase):
                 output / "Gravifer__Einstoff" / "Kernel" / "Einstoff.wl"
             ).read_bytes()
 
-            self.assertTrue(lowered.lstrip().startswith(b'Package["Test`"]'))
+            self.assertTrue(
+                lowered.removeprefix(b"\xef\xbb\xbf").startswith(b'Package["Test`"]')
+            )
 
     def test_rejects_legacy_and_unknown_directives(self) -> None:
         cases = {
             "legacy": b"PackageExport[{f}]\nPackageScoped[{g}]\n",
             "unknown": b"PackageExported[{f}]\nPackageMystery[{g}]\nPackageScoped[{g}]\n",
+            "unknown after unterminated top-level expression": (
+                b"PackageExported[{f}]\nPackageScoped[{g}]\n"
+                b"foo[x_] := x\nPackageMystery[{h}]\n"
+            ),
         }
         for label, core in cases.items():
             with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
