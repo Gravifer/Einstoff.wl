@@ -220,7 +220,7 @@ interface:
 ciPublisherToken = CreatePublisherToken[
   "Einstoff GitHub CD",
   PublisherID -> "Gravifer",
-  ExpirationDate -> DatePlus[Now, {5, "Year"}],
+  ExpirationDate -> DatePlus[Now, {1, "Year"}],
   "AllowedEndpoints" -> Automatic
 ]
 ```
@@ -235,10 +235,14 @@ AssociationMap[
 ]
 ```
 
-Require publisher `Gravifer`, a finite approximately five-year expiration, and a
+Require publisher `Gravifer`, a finite approximately one-year expiration, and a
 resolved endpoint list. Do not save a token whose endpoints resolve to `All` or
 `None`, whose publisher is wrong, or whose expiration is indefinite. The workstation
 publisher token remains separate and must not be replaced by the CI token.
+
+One year is the recommended contributor and maintainer default. A longer-lived token
+is a deliberate repository-owner exception that requires an explicit risk decision;
+do not copy such a lifetime into another project merely to reduce rotation churn.
 
 Rotate the CI token before it expires: create and inspect the replacement, update the
 environment secret, and keep the old token only until the next approved stable
