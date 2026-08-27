@@ -11,6 +11,11 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
+# Keep the ordinary unlicensed compatibility entry point comprehensive without
+# changing the Paclet CI workflow itself (whose fail-closed classification would
+# intentionally trigger licensed validation).
+from test_historical_probe import HistoricalProbeTests  # noqa: F401
+
 
 SCRIPT = Path(__file__).with_name("prepare-legacy-spf.py")
 SPEC = importlib.util.spec_from_file_location("prepare_legacy_spf", SCRIPT)

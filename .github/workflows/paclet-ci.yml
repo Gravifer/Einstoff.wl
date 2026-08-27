@@ -80,8 +80,6 @@ jobs:
           python_version="$(tr -d '[:space:]' < .python-version)"
           uv run --no-project --managed-python --python "${python_version}" \
             python scripts/test_spf_compatibility.py
-          uv run --no-project --managed-python --python "${python_version}" \
-            python scripts/test_historical_probe.py
 
   python-smoke:
     name: Check locked Python environment (unlicensed)
