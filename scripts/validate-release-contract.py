@@ -262,6 +262,9 @@ def check_contract() -> None:
         "release SPF digest comparison",
     )
     require(local_release, "retry-python-tests.ps1", "PowerShell retry helper")
+    require(local_release, "$IsWindows", "platform-specific local Python selection")
+    require(local_release, ".venv\\Scripts\\python.exe", "Windows local Python path")
+    require(local_release, ".venv/bin/python", "Unix local Python path")
 
     require(paclet_driver, 'Environment["RESOURCE_PUBLISHER_TOKEN"]', "publisher token input")
     require(paclet_driver, 'PublisherID -> "Gravifer"', "fixed publisher identity")

@@ -83,7 +83,16 @@ try {
     try {
         $env:EINSTOFF_TEST_PACLET_ARCHIVE = $archive
         if ($Python -and -not $env:EINSTOFF_TEST_PYTHON) {
-            $env:EINSTOFF_TEST_PYTHON = Join-Path $root '.venv\Scripts\python.exe'
+            $venvPython = if ($IsWindows) {
+                Join-Path $root '.venv\Scripts\python.exe'
+            }
+            else {
+                Join-Path $root '.venv/bin/python'
+            }
+            if (-not (Test-Path -LiteralPath $venvPython -PathType Leaf)) {
+                throw "The locked Python environment has no interpreter at $venvPython."
+            }
+            $env:EINSTOFF_TEST_PYTHON = $venvPython
         }
         Invoke-WolframScript -Arguments @('-script', 'scripts/run-tests.wls', '-q')
         if ($Python) {
