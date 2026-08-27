@@ -68,7 +68,8 @@ It:
 - rewrites complete declaration identifiers outside WL strings and arbitrarily
   nested comments, expanding list-valued declarations into the scalar form accepted
   by the legacy scanner;
-- preserves filenames and every unrelated source byte;
+- preserves filenames and every unrelated source byte after canonical LF line-ending
+  normalization;
 - rejects legacy names in canonical source, unrecognized `Package*` directives,
   malformed strings or comments, symlinks, missing source roots, and a nonempty
   destination;
@@ -79,9 +80,10 @@ The manifest schema records the mapping version, source and target dialects, the
 production/probe marker, source replacement counts, emitted legacy directive counts,
 changed files, and each changed file's pre- and post-transformation SHA-256. It
 intentionally contains no absolute paths, timestamps, host details, or other
-nondeterministic data. Git pins canonical `Kernel/**/*.wl` checkout bytes to LF in
-`.gitattributes`, keeping those source hashes stable across developer and CI
-platforms.
+nondeterministic data. The compiler normalizes canonical `Kernel/**/*.wl` staging
+bytes to LF before hashing or rewriting, and Git also pins their checkout policy to LF
+in `.gitattributes`. Existing Windows clones therefore produce the same source hashes
+without requiring a forced checkout.
 
 The distinction is essential. The legacy `Package` format automatically scans and
 loads all marked fragments, including nested `.wl` files, but every fragment must

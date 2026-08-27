@@ -44,7 +44,7 @@ class CompatibilityTests(unittest.TestCase):
         )
         return source
 
-    def test_exact_lowering_preserves_comments_strings_and_line_endings(self) -> None:
+    def test_exact_lowering_preserves_comments_and_strings_and_normalizes_lines(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             core = (
@@ -58,15 +58,16 @@ class CompatibilityTests(unittest.TestCase):
 
             self.assertEqual(
                 (output / "Gravifer__Einstoff" / "Kernel" / "Einstoff.wl").read_bytes(),
-                b'Package["Test`"]\r\n',
+                b'Package["Test`"]\n',
             )
             lowered = (
                 output / "Gravifer__Einstoff" / "Kernel" / "Core.wl"
             ).read_bytes()
-            self.assertTrue(lowered.startswith(b'Package["Test`"]\r\n'))
+            self.assertTrue(lowered.startswith(b'Package["Test`"]\n'))
             self.assertIn(b"(* PackageScoped[{commented}]", lowered)
             self.assertIn(b'"PackageInitialize[escaped\\\"text]"', lowered)
-            self.assertIn(b"PackageExport[f]\r\nPackageScope[g]\r\n", lowered)
+            self.assertIn(b"PackageExport[f]\nPackageScope[g]\n", lowered)
+            self.assertNotIn(b"\r", lowered)
             self.assertEqual(
                 manifest["replacementTotals"],
                 {"PackageExported": 1, "PackageInitialize": 1, "PackageScoped": 1},
@@ -76,6 +77,7 @@ class CompatibilityTests(unittest.TestCase):
                 {"Package": 2, "PackageExport": 1, "PackageScope": 1},
             )
             self.assertFalse(manifest["probeOnly"])
+            self.assertEqual(manifest["sourceNormalization"], "lf-v1")
 
     def test_manifest_is_deterministic_and_contains_no_absolute_paths(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -90,8 +92,31 @@ class CompatibilityTests(unittest.TestCase):
             second_manifest = (second / compat.MANIFEST_NAME).read_bytes()
             self.assertEqual(first_manifest, second_manifest)
             parsed = json.loads(first_manifest)
-            self.assertEqual(parsed["mappingVersion"], 2)
+            self.assertEqual(parsed["mappingVersion"], 3)
             self.assertNotIn(str(root), first_manifest.decode("utf-8"))
+
+    def test_lf_and_crlf_sources_produce_identical_staging(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            lf_source = self.make_source(root / "lf", loader=b'PackageInitialize["Test`"]\n')
+            crlf_source = self.make_source(
+                root / "crlf",
+                core=b"PackageExported[{f}]\r\nPackageScoped[{g}]\r\n",
+                loader=b'PackageInitialize["Test`"]\r\n',
+            )
+            lf_output = root / "lf-output"
+            crlf_output = root / "crlf-output"
+            compat.prepare(lf_source, lf_output)
+            compat.prepare(crlf_source, crlf_output)
+
+            self.assertEqual(
+                (lf_output / compat.MANIFEST_NAME).read_bytes(),
+                (crlf_output / compat.MANIFEST_NAME).read_bytes(),
+            )
+            self.assertEqual(
+                (lf_output / "Gravifer__Einstoff" / "Kernel" / "Core.wl").read_bytes(),
+                (crlf_output / "Gravifer__Einstoff" / "Kernel" / "Core.wl").read_bytes(),
+            )
 
     def test_scalar_declarations_are_validated_and_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -112,19 +137,18 @@ class CompatibilityTests(unittest.TestCase):
                 {"Package": 2, "PackageExport": 1, "PackageScope": 1},
             )
 
-    def test_only_complete_line_head_directives_are_lowered(self) -> None:
+    def test_only_complete_standalone_top_level_directives_are_lowered(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = self.make_source(
                 root,
                 (
                     "\N{GREEK SMALL LETTER ALPHA}PackageExported[{notExported}]\n"
-                    "\\[Alpha]PackageScoped[{notScoped}]\n"
-                    "assigned = PackageExported[{alsoNotExported}]\n"
-                    "  PackageExported[\n"
+                    ";\n\\[Alpha]PackageScoped[{notScoped}];\n"
+                    "(* declaration note *) PackageExported[\n"
                     "    {f}\n"
                     "  ]\n"
-                    "\tPackageScoped[{g}]\n"
+                    "(* declaration note *) PackageScoped[{g}]\n"
                 ).encode("utf-8"),
             )
             output = root / "output"
@@ -135,13 +159,33 @@ class CompatibilityTests(unittest.TestCase):
 
             self.assertIn("\N{GREEK SMALL LETTER ALPHA}PackageExported".encode(), lowered)
             self.assertIn(b"\\[Alpha]PackageScoped", lowered)
-            self.assertIn(b"assigned = PackageExported", lowered)
             self.assertIn(b"PackageExport[f]", lowered)
             self.assertIn(b"PackageScope[g]", lowered)
             self.assertEqual(
                 manifest["replacementTotals"],
                 {"PackageExported": 1, "PackageInitialize": 1, "PackageScoped": 1},
             )
+
+    def test_rejects_directive_heads_outside_top_level_declarations(self) -> None:
+        cases = {
+            "nested held form": (
+                b"held = HoldComplete[\n  PackageExported[{notExported}]\n];\n"
+                b"PackageExported[{f}]\nPackageScoped[{g}]\n"
+            ),
+            "assignment": (
+                b"assigned = PackageExported[{notExported}];\n"
+                b"PackageExported[{f}]\nPackageScoped[{g}]\n"
+            ),
+        }
+        for label, core in cases.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source = self.make_source(root, core)
+                with self.assertRaisesRegex(
+                    compat.CompatibilityError,
+                    "SPF declarations must be standalone top-level expressions",
+                ):
+                    compat.prepare(source, root / "output")
 
     def test_loader_allows_leading_whitespace(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -13,7 +13,8 @@ import shutil
 import sys
 
 
-MAPPING_VERSION = 2
+MAPPING_VERSION = 3
+SOURCE_NORMALIZATION = "lf-v1"
 MAPPINGS = {
     b"PackageInitialize": b"Package",
     b"PackageExported": b"PackageExport",
@@ -60,18 +61,23 @@ def identifier_end(data: bytes, start: int) -> int:
     return end
 
 
-def first_significant_token_on_line(data: bytes, start: int) -> bool:
-    """Return whether start follows only indentation on its physical line."""
+def complete_ascii_identifier(data: bytes, start: int, end: int) -> bool:
+    """Reject an ASCII suffix that may belong to a larger WL identifier."""
 
-    line_start = max(data.rfind(b"\n", 0, start), data.rfind(b"\r", 0, start)) + 1
-    prefix = data[line_start:start]
-    if line_start == 0 and prefix.startswith(b"\xef\xbb\xbf"):
-        prefix = prefix[3:]
-    return not prefix.strip(b" \t")
+    def may_continue_identifier(value: int) -> bool:
+        return symbol_byte(value) or value >= 0x80 or value in b"\\_"
+
+    if start and (
+        may_continue_identifier(data[start - 1]) or data[start - 1] == ord("]")
+    ):
+        return False
+    return end >= len(data) or not may_continue_identifier(data[end])
 
 
-def newline_for(data: bytes) -> bytes:
-    return b"\r\n" if b"\r\n" in data else b"\n"
+def canonical_source_bytes(data: bytes) -> bytes:
+    """Normalize text-file line endings before hashing and transformation."""
+
+    return data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
 
 
 def directive_call(data: bytes, identifier_end_index: int, relative_path: str) -> tuple[int, bytes]:
@@ -144,7 +150,7 @@ def lower_wl_source(
     *,
     reject_legacy: bool = True,
 ) -> tuple[bytes, Counter[str], Counter[str]]:
-    """Lower recognized SPF identifiers while preserving every unrelated byte."""
+    """Lower recognized standalone top-level SPF declarations."""
 
     output = bytearray()
     counts: Counter[str] = Counter()
@@ -152,6 +158,12 @@ def lower_wl_source(
     index = 0
     comment_depth = 0
     in_string = False
+    delimiter_depth = 0
+    line_has_code = False
+    top_level_boundary = True
+    if data.startswith(b"\xef\xbb\xbf"):
+        output.extend(b"\xef\xbb\xbf")
+        index = 3
 
     while index < len(data):
         if in_string:
@@ -175,6 +187,8 @@ def lower_wl_source(
                 comment_depth -= 1
                 index += 2
             else:
+                if data[index] in b"\r\n":
+                    line_has_code = False
                 output.append(data[index])
                 index += 1
             continue
@@ -186,6 +200,9 @@ def lower_wl_source(
             continue
         if data[index] == ord('"'):
             output.append(data[index])
+            line_has_code = True
+            if delimiter_depth == 0:
+                top_level_boundary = False
             in_string = True
             index += 1
             continue
@@ -193,39 +210,54 @@ def lower_wl_source(
         if symbol_byte(data[index]):
             end = identifier_end(data, index)
             identifier = data[index:end]
-            is_line_head = first_significant_token_on_line(data, index)
-            replacement = MAPPINGS.get(identifier) if is_line_head else None
+            complete_identifier = complete_ascii_identifier(data, index, end)
+            is_declaration = (
+                complete_identifier
+                and not line_has_code
+                and delimiter_depth == 0
+                and top_level_boundary
+            )
+            replacement = MAPPINGS.get(identifier) if is_declaration else None
             if replacement is not None:
                 counts[identifier.decode("ascii")] += 1
+                call_end, argument = directive_call(data, end, relative_path)
                 if identifier in (b"PackageExported", b"PackageScoped"):
-                    call_end, argument = directive_call(data, end, relative_path)
                     symbols = list_symbols(argument, relative_path)
                     if symbols is not None:
                         output.extend(
-                            newline_for(data).join(
+                            b"\n".join(
                                 replacement + b"[" + symbol + b"]" for symbol in symbols
                             )
                         )
                         emitted[replacement.decode("ascii")] += len(symbols)
-                        index = call_end
-                        continue
-                    if IDENTIFIER_PATTERN.fullmatch(argument.strip()) is None:
+                    elif IDENTIFIER_PATTERN.fullmatch(argument.strip()) is None:
                         raise CompatibilityError(
                             f"{relative_path}: legacy SPF lowering accepts only "
                             "symbol names in declarations"
                         )
-                    emitted[replacement.decode("ascii")] += 1
+                    else:
+                        output.extend(replacement + data[end:call_end])
+                        emitted[replacement.decode("ascii")] += 1
                 elif identifier == b"PackageInitialize":
+                    output.extend(replacement + data[end:call_end])
                     emitted[replacement.decode("ascii")] += 1
-                output.extend(replacement)
+                index = call_end
+                line_has_code = True
+                top_level_boundary = True
+                continue
             else:
-                if is_line_head and identifier in LEGACY_NAMES and reject_legacy:
+                if complete_identifier and identifier in MAPPINGS:
+                    raise CompatibilityError(
+                        f"{relative_path}: SPF declarations must be standalone "
+                        "top-level expressions"
+                    )
+                if complete_identifier and identifier in LEGACY_NAMES and reject_legacy:
                     raise CompatibilityError(
                         f"{relative_path}: canonical source contains legacy SPF identifier "
                         f"{identifier.decode('ascii')}"
                     )
                 if (
-                    is_line_head
+                    is_declaration
                     and identifier.startswith(b"Package")
                     and identifier not in LEGACY_NAMES
                 ):
@@ -238,10 +270,35 @@ def lower_wl_source(
                             f"{identifier.decode('ascii', errors='replace')}"
                         )
                 output.extend(identifier)
+            line_has_code = True
+            if delimiter_depth == 0:
+                top_level_boundary = False
             index = end
             continue
 
-        output.append(data[index])
+        current = data[index]
+        output.append(current)
+        if current in b" \t\r\n":
+            if current in b"\r\n":
+                line_has_code = False
+        elif current in b"[({":
+            line_has_code = True
+            if delimiter_depth == 0:
+                top_level_boundary = False
+            delimiter_depth += 1
+        elif current in b"])}":
+            line_has_code = True
+            if delimiter_depth:
+                delimiter_depth -= 1
+            else:
+                top_level_boundary = False
+        elif current == ord(";") and delimiter_depth == 0:
+            line_has_code = True
+            top_level_boundary = True
+        else:
+            line_has_code = True
+            if delimiter_depth == 0:
+                top_level_boundary = False
         index += 1
 
     if in_string:
@@ -294,7 +351,7 @@ def prepare(source: Path, output: Path) -> dict[str, object]:
 
     loader_matches: list[tuple[Path, bytes]] = []
     for file_path in source_files:
-        data = file_path.read_bytes()
+        data = canonical_source_bytes(file_path.read_bytes())
         match = LOADER_PATTERN.fullmatch(data.removeprefix(b"\xef\xbb\xbf"))
         if match is not None:
             loader_matches.append((file_path, match.group(1)))
@@ -309,10 +366,10 @@ def prepare(source: Path, output: Path) -> dict[str, object]:
     emitted_counts: Counter[str] = Counter()
     for file_path in source_files:
         relative = file_path.relative_to(output).as_posix()
-        before = file_path.read_bytes()
+        before = canonical_source_bytes(file_path.read_bytes())
         after, counts, emitted = lower_wl_source(before, relative)
         if file_path != loader_path:
-            package_line = b'Package["' + package_context + b'"]' + newline_for(before)
+            package_line = b'Package["' + package_context + b'"]\n'
             if after.startswith(b"\xef\xbb\xbf"):
                 after = b"\xef\xbb\xbf" + package_line + after[3:]
             else:
@@ -358,6 +415,7 @@ def prepare(source: Path, output: Path) -> dict[str, object]:
     manifest: dict[str, object] = {
         "schemaVersion": 1,
         "mappingVersion": MAPPING_VERSION,
+        "sourceNormalization": SOURCE_NORMALIZATION,
         "sourceFlavor": "public-spf-v15",
         "targetFlavor": "legacy-spf",
         "probeOnly": False,
