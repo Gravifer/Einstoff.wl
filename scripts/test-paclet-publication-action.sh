@@ -9,7 +9,7 @@ trap 'rm -rf "${temp_root}"' EXIT
 mkdir -p "${temp_root}/bin"
 cat > "${temp_root}/expected-manifest.json" <<'EOF'
 {
-  "mappingVersion": 4,
+  "mappingVersion": 5,
   "sourceNormalization": "lf-v1",
   "probeOnly": false
 }
@@ -108,7 +108,7 @@ run_action 1 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true \
 run_action 0 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true
 grep -Fq 'submission_record={"Name":"Gravifer/Einstoff","Version":"1.2.3","Status":"Submitted"}' \
   "${temp_root}/github-output"
-grep -Fq 'compatibility_mapping_version=4' "${temp_root}/github-output"
+grep -Fq 'compatibility_mapping_version=5' "${temp_root}/github-output"
 published_manifest="$root/$(sed -n 's/^compatibility_manifest=//p' "${temp_root}/github-output")"
 cmp --silent "${temp_root}/expected-manifest.json" "${published_manifest}"
 grep -Fq '"sourceNormalization": "lf-v1"' "${published_manifest}"

@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 
 SCRIPT = Path(__file__).with_name("prepare-legacy-spf.py")
@@ -92,7 +93,7 @@ class CompatibilityTests(unittest.TestCase):
             second_manifest = (second / compat.MANIFEST_NAME).read_bytes()
             self.assertEqual(first_manifest, second_manifest)
             parsed = json.loads(first_manifest)
-            self.assertEqual(parsed["mappingVersion"], 4)
+            self.assertEqual(parsed["mappingVersion"], 5)
             self.assertNotIn(str(root), first_manifest.decode("utf-8"))
 
     def test_lf_and_crlf_sources_produce_identical_staging(self) -> None:
@@ -225,6 +226,31 @@ class CompatibilityTests(unittest.TestCase):
                 ):
                     compat.prepare(source, root / "output")
 
+    def test_rejects_package_bearing_declaration_symbols(self) -> None:
+        cases = {
+            "qualified public name": (
+                b"PackageExported[{f}]\n\n"
+                b"PackageScoped[{System`PackageExported}]\n"
+            ),
+            "qualified legacy name": (
+                b"PackageExported[{f}]\n\n"
+                b"PackageScoped[System`PackageExport]\n"
+            ),
+            "embedded name": (
+                b"PackageExported[{f}]\n\n"
+                b"PackageScoped[{myPackageHelper}]\n"
+            ),
+        }
+        for label, core in cases.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source = self.make_source(root, core)
+                with self.assertRaisesRegex(
+                    compat.CompatibilityError,
+                    "Package-bearing declaration symbol",
+                ):
+                    compat.prepare(source, root / "output")
+
     def test_rejects_chained_or_postfixed_declarations(self) -> None:
         cases = {
             "chained call": (
@@ -327,6 +353,15 @@ class CompatibilityTests(unittest.TestCase):
                 "source and output roots must not overlap",
             ):
                 compat.prepare(source, output)
+
+    def test_plain_tree_guard_checks_windows_junctions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory)
+            with mock.patch.object(Path, "is_symlink", return_value=False), mock.patch.object(
+                Path, "is_junction", return_value=True
+            ):
+                with self.assertRaisesRegex(compat.CompatibilityError, "junctions"):
+                    compat.ensure_plain_tree(candidate)
 
     def test_current_repository_prepares_successfully(self) -> None:
         repository = Path(__file__).resolve().parent.parent

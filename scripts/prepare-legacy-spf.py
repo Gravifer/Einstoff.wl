@@ -13,7 +13,7 @@ import shutil
 import sys
 
 
-MAPPING_VERSION = 4
+MAPPING_VERSION = 5
 SOURCE_NORMALIZATION = "lf-v1"
 MAPPINGS = {
     b"PackageInitialize": b"Package",
@@ -180,6 +180,19 @@ def list_symbols(argument: bytes, relative_path: str) -> list[bytes] | None:
     return symbols
 
 
+def reject_ambiguous_declaration_symbols(
+    symbols: list[bytes], relative_path: str, *, reject_legacy: bool
+) -> None:
+    if not reject_legacy:
+        return
+    for symbol in symbols:
+        if b"Package" in symbol:
+            raise CompatibilityError(
+                f"{relative_path}: unsupported or ambiguous Package-bearing "
+                f"declaration symbol {symbol.decode('ascii', errors='replace')}"
+            )
+
+
 def lower_wl_source(
     data: bytes,
     relative_path: str,
@@ -261,6 +274,9 @@ def lower_wl_source(
                 if identifier in (b"PackageExported", b"PackageScoped"):
                     symbols = list_symbols(argument, relative_path)
                     if symbols is not None:
+                        reject_ambiguous_declaration_symbols(
+                            symbols, relative_path, reject_legacy=reject_legacy
+                        )
                         output.extend(
                             b"\n".join(
                                 replacement + b"[" + symbol + b"]" for symbol in symbols
@@ -273,6 +289,9 @@ def lower_wl_source(
                             "symbol names in declarations"
                         )
                     else:
+                        reject_ambiguous_declaration_symbols(
+                            [argument.strip()], relative_path, reject_legacy=reject_legacy
+                        )
                         output.extend(replacement + data[end:call_end])
                         emitted[replacement.decode("ascii")] += 1
                 elif identifier == b"PackageInitialize":
@@ -325,9 +344,15 @@ def lower_wl_source(
 
 
 def ensure_plain_tree(path: Path) -> None:
-    for candidate in (path, *path.rglob("*")):
-        if candidate.is_symlink():
-            raise CompatibilityError(f"symbolic links are not accepted in staging input: {candidate}")
+    pending = [path]
+    while pending:
+        candidate = pending.pop()
+        if candidate.is_symlink() or candidate.is_junction():
+            raise CompatibilityError(
+                f"symbolic links and junctions are not accepted in staging input: {candidate}"
+            )
+        if candidate.is_dir():
+            pending.extend(candidate.iterdir())
 
 
 def copy_required_source(source: Path, output: Path) -> None:

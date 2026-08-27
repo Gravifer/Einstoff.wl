@@ -88,8 +88,8 @@ It:
 - preserves filenames and every unrelated source byte after canonical LF line-ending
   normalization;
 - rejects legacy names in canonical source, unrecognized `Package*` directives,
-  malformed strings or comments, symlinks, missing source roots, and a nonempty
-  destination;
+  malformed strings or comments, symbolic links or Windows directory junctions,
+  missing source roots, and a nonempty destination;
 - verifies that all expected public directives were found and none survived; and
 - writes deterministic `spf-compatibility-manifest.json` provenance.
 

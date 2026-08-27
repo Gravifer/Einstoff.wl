@@ -306,7 +306,7 @@ def check_contract() -> None:
 
     require(publication_action_test, "INPUT_EXPECTED_TAG=main", "malformed tag action test")
     require(publication_action_test, "INPUT_EXPECTED_TAG=v1.2.3-alpha.1", "prerelease action test")
-    require(publication_action_test, '"mappingVersion": 4', "current SPF fixture version")
+    require(publication_action_test, '"mappingVersion": 5', "current SPF fixture version")
     require(
         publication_action_test,
         '"sourceNormalization": "lf-v1"',
@@ -314,7 +314,7 @@ def check_contract() -> None:
     )
     require(
         publication_action_test,
-        "compatibility_mapping_version=4",
+        "compatibility_mapping_version=5",
         "SPF mapping output assertion",
     )
     require(
