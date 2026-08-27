@@ -108,10 +108,10 @@ run_action 1 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true \
 run_action 0 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true
 grep -Fq 'submission_record={"Name":"Gravifer/Einstoff","Version":"1.2.3","Status":"Submitted"}' \
   "${temp_root}/github-output"
-grep -Fq 'compatibility_mapping_version=5' "${temp_root}/github-output"
-published_manifest="$root/$(sed -n 's/^compatibility_manifest=//p' "${temp_root}/github-output")"
-cmp --silent "${temp_root}/expected-manifest.json" "${published_manifest}"
-grep -Fq '"sourceNormalization": "lf-v1"' "${published_manifest}"
+if grep -q '^compatibility_' "${temp_root}/github-output"; then
+  echo "Repository publication must not emit post-submission compatibility outputs." >&2
+  exit 1
+fi
 
 run_action 1 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true FAKE_OMIT_RECORD=true
 run_action 23 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true FAKE_SUBMIT_STATUS=23

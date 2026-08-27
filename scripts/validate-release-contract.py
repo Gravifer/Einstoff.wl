@@ -314,8 +314,8 @@ def check_contract() -> None:
     )
     require(
         publication_action_test,
-        "compatibility_mapping_version=5",
-        "SPF mapping output assertion",
+        "Repository publication must not emit post-submission compatibility outputs.",
+        "post-submission output isolation",
     )
     require(
         publication_action_test,
