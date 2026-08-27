@@ -11,9 +11,10 @@ PackageScoped
 
 That vocabulary is canonical. It is the form maintainers review and the only form
 that should be edited. To prepare for supporting older Wolfram engines without
-freezing the source on private names, every artifact-producing path uses a
-provisional compiler to create a temporary source tree with the corresponding
-long-standing package-format names.
+freezing the source on private names, maintainer release validation and every hosted
+build or publication path use a provisional compiler to create a temporary source
+tree with the corresponding long-standing package-format names. Direct invocations
+of the low-level build scripts remain canonical-source diagnostics.
 The transformation has two structural parts:
 
 ```text
@@ -56,8 +57,8 @@ production dependency.
 ## Transformer contract
 
 [`scripts/prepare-legacy-spf.py`](../scripts/prepare-legacy-spf.py) is a provisional,
-dependency-free byte-oriented compiler. Run it through the repository's pinned
-`uv` and `.python-version`, not through an independently provisioned Python runtime.
+dependency-free byte-oriented compiler. Run it with `uv` and the Python version
+pinned by `.python-version`; production CI additionally pins the `uv` binary itself.
 
 Its accepted declaration grammar is deliberately narrower than general Wolfram
 Language syntax. `PackageInitialize`, `PackageExported`, and `PackageScoped` must
