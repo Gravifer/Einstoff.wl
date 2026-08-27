@@ -283,8 +283,8 @@ def copy_required_source(source: Path, output: Path) -> None:
 def prepare(source: Path, output: Path) -> dict[str, object]:
     source = source.resolve()
     output = output.resolve()
-    if source == output:
-        raise CompatibilityError("source and output roots must differ")
+    if source == output or source in output.parents or output in source.parents:
+        raise CompatibilityError("source and output roots must not overlap")
 
     copy_required_source(source, output)
     kernel_root = output / "Gravifer__Einstoff" / "Kernel"

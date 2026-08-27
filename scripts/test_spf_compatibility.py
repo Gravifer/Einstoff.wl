@@ -200,6 +200,17 @@ class CompatibilityTests(unittest.TestCase):
             with self.assertRaises(compat.CompatibilityError):
                 compat.prepare(source, root / "output")
 
+    def test_rejects_output_nested_within_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self.make_source(root)
+            output = source / "compatibility-output"
+            with self.assertRaisesRegex(
+                compat.CompatibilityError,
+                "source and output roots must not overlap",
+            ):
+                compat.prepare(source, output)
+
     def test_current_repository_prepares_successfully(self) -> None:
         repository = Path(__file__).resolve().parent.parent
         with tempfile.TemporaryDirectory() as directory:
