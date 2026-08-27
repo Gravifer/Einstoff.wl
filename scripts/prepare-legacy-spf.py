@@ -60,6 +60,16 @@ def identifier_end(data: bytes, start: int) -> int:
     return end
 
 
+def first_significant_token_on_line(data: bytes, start: int) -> bool:
+    """Return whether start follows only indentation on its physical line."""
+
+    line_start = max(data.rfind(b"\n", 0, start), data.rfind(b"\r", 0, start)) + 1
+    prefix = data[line_start:start]
+    if line_start == 0 and prefix.startswith(b"\xef\xbb\xbf"):
+        prefix = prefix[3:]
+    return not prefix.strip(b" \t")
+
+
 def newline_for(data: bytes) -> bytes:
     return b"\r\n" if b"\r\n" in data else b"\n"
 
@@ -183,7 +193,8 @@ def lower_wl_source(
         if symbol_byte(data[index]):
             end = identifier_end(data, index)
             identifier = data[index:end]
-            replacement = MAPPINGS.get(identifier)
+            is_line_head = first_significant_token_on_line(data, index)
+            replacement = MAPPINGS.get(identifier) if is_line_head else None
             if replacement is not None:
                 counts[identifier.decode("ascii")] += 1
                 if identifier in (b"PackageExported", b"PackageScoped"):
@@ -208,12 +219,16 @@ def lower_wl_source(
                     emitted[replacement.decode("ascii")] += 1
                 output.extend(replacement)
             else:
-                if identifier in LEGACY_NAMES and reject_legacy:
+                if is_line_head and identifier in LEGACY_NAMES and reject_legacy:
                     raise CompatibilityError(
                         f"{relative_path}: canonical source contains legacy SPF identifier "
                         f"{identifier.decode('ascii')}"
                     )
-                if identifier.startswith(b"Package") and identifier not in LEGACY_NAMES:
+                if (
+                    is_line_head
+                    and identifier.startswith(b"Package")
+                    and identifier not in LEGACY_NAMES
+                ):
                     cursor = end
                     while cursor < len(data) and data[cursor] in b" \t\r\n":
                         cursor += 1

@@ -112,6 +112,37 @@ class CompatibilityTests(unittest.TestCase):
                 {"Package": 2, "PackageExport": 1, "PackageScope": 1},
             )
 
+    def test_only_complete_line_head_directives_are_lowered(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self.make_source(
+                root,
+                (
+                    "\N{GREEK SMALL LETTER ALPHA}PackageExported[{notExported}]\n"
+                    "\\[Alpha]PackageScoped[{notScoped}]\n"
+                    "assigned = PackageExported[{alsoNotExported}]\n"
+                    "  PackageExported[\n"
+                    "    {f}\n"
+                    "  ]\n"
+                    "\tPackageScoped[{g}]\n"
+                ).encode("utf-8"),
+            )
+            output = root / "output"
+            manifest = compat.prepare(source, output)
+            lowered = (
+                output / "Gravifer__Einstoff" / "Kernel" / "Core.wl"
+            ).read_bytes()
+
+            self.assertIn("\N{GREEK SMALL LETTER ALPHA}PackageExported".encode(), lowered)
+            self.assertIn(b"\\[Alpha]PackageScoped", lowered)
+            self.assertIn(b"assigned = PackageExported", lowered)
+            self.assertIn(b"PackageExport[f]", lowered)
+            self.assertIn(b"PackageScope[g]", lowered)
+            self.assertEqual(
+                manifest["replacementTotals"],
+                {"PackageExported": 1, "PackageInitialize": 1, "PackageScoped": 1},
+            )
+
     def test_loader_allows_leading_whitespace(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
