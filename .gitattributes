@@ -4,5 +4,9 @@ Gravifer__Einstoff/ResourceDefinition.nb -filter -whitespace
 publishing/FunctionRepository/Einstoff.nb -filter -whitespace -text
 publishing/WolframCommunity/*.nb -filter -whitespace -text
 
+# Compatibility provenance hashes canonical semantic source bytes. Keep those
+# checkout bytes identical across developer and CI platforms.
+Gravifer__Einstoff/Kernel/**/*.wl text eol=lf
+
 # Docker-action entrypoints must keep a Unix shebang when checked out on Windows.
 .github/actions/**/*.sh text eol=lf

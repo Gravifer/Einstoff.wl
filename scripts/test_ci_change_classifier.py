@@ -58,6 +58,7 @@ class ClassificationTests(unittest.TestCase):
         self.assert_selection("scripts/paclet-cicd.wls", classifier.ALL)
         self.assert_selection("scripts/prepare-legacy-spf.py", classifier.ALL)
         self.assert_selection("scripts/test_spf_compatibility.py", classifier.ALL)
+        self.assert_selection(".gitattributes", classifier.ALL)
 
     def test_python_inputs_only_request_the_free_smoke_check(self) -> None:
         for path in (

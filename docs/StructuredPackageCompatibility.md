@@ -79,7 +79,9 @@ The manifest schema records the mapping version, source and target dialects, the
 production/probe marker, source replacement counts, emitted legacy directive counts,
 changed files, and each changed file's pre- and post-transformation SHA-256. It
 intentionally contains no absolute paths, timestamps, host details, or other
-nondeterministic data.
+nondeterministic data. Git pins canonical `Kernel/**/*.wl` checkout bytes to LF in
+`.gitattributes`, keeping those source hashes stable across developer and CI
+platforms.
 
 The distinction is essential. The legacy `Package` format automatically scans and
 loads all marked fragments, including nested `.wl` files, but every fragment must
