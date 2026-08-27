@@ -63,9 +63,11 @@ Its accepted declaration grammar is deliberately narrower than general Wolfram
 Language syntax. `PackageInitialize`, `PackageExported`, and `PackageScoped` must
 begin in column one, occur at top level, and occupy the complete physical expression;
 the declaration call may span lines, but its closing bracket must be followed only by
-horizontal whitespace and a line ending or end of file. Indented, comment-prefixed,
-chained, postfixed, nested, assigned, or otherwise ambiguous occurrences are rejected.
-Canonical Einstoff source follows this convention.
+horizontal whitespace and then a blank physical line or end of file. Indented,
+comment-prefixed, chained, postfixed, nested, assigned, qualified, escaped, embedded,
+or otherwise ambiguous occurrences are rejected. Outside strings and comments, any
+other identifier containing `Package` is rejected wholesale. Canonical Einstoff source
+follows this convention.
 
 This restriction is a trust boundary, not an attempt to specify Wolfram parsing. The
 compatibility layer stays small, fail-closed, and straightforward to audit while the

@@ -97,14 +97,17 @@ def call_occupies_expression(data: bytes, call_end: int) -> bool:
     cursor = call_end
     while cursor < len(data) and data[cursor] in b" \t":
         cursor += 1
-    return cursor >= len(data) or data[cursor] in b"\r\n"
-
-
-def followed_by_call(data: bytes, identifier_end_index: int) -> bool:
-    cursor = identifier_end_index
-    while cursor < len(data) and data[cursor] in b" \t\r\n":
+    if cursor >= len(data):
+        return True
+    if data[cursor] not in b"\r\n":
+        return False
+    if data.startswith(b"\r\n", cursor):
+        cursor += 2
+    else:
         cursor += 1
-    return cursor < len(data) and data[cursor] == ord("[")
+    while cursor < len(data) and data[cursor] in b" \t":
+        cursor += 1
+    return cursor >= len(data) or data[cursor] in b"\r\n"
 
 
 def canonical_source_bytes(data: bytes) -> bytes:
@@ -284,19 +287,10 @@ def lower_wl_source(
                         f"{relative_path}: SPF declarations must be standalone "
                         "top-level expressions"
                     )
-                if complete_identifier and identifier in LEGACY_NAMES and reject_legacy:
+                if reject_legacy and b"Package" in identifier:
                     raise CompatibilityError(
-                        f"{relative_path}: canonical source contains legacy SPF identifier "
-                        f"{identifier.decode('ascii')}"
-                    )
-                if (
-                    reject_legacy
-                    and complete_identifier
-                    and identifier.startswith(b"Package")
-                    and followed_by_call(data, end)
-                ):
-                    raise CompatibilityError(
-                        f"{relative_path}: unsupported or ambiguous Package* call "
+                        f"{relative_path}: unsupported or ambiguous Package-bearing "
+                        "identifier "
                         f"{identifier.decode('ascii', errors='replace')}"
                     )
                 output.extend(identifier)

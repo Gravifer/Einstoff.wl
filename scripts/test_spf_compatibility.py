@@ -40,7 +40,7 @@ class CompatibilityTests(unittest.TestCase):
         (kernel / "Core.wl").write_bytes(
             core
             if core is not None
-            else b"PackageExported[{f}]\nPackageScoped[{g}]\n"
+            else b"PackageExported[{f}]\n\nPackageScoped[{g}]\n"
         )
         return source
 
@@ -50,7 +50,7 @@ class CompatibilityTests(unittest.TestCase):
             core = (
                 b'(* PackageScoped[{commented}] (* PackageExported[{nested}] *) *)\r\n'
                 b's = "PackageInitialize[escaped\\\"text]";\r\n'
-                b"PackageExported[{f}]\r\nPackageScoped[{g}]\r\n"
+                b"PackageExported[{f}]\r\n\r\nPackageScoped[{g}]\r\n"
             )
             source = self.make_source(root, core)
             output = root / "output"
@@ -66,7 +66,7 @@ class CompatibilityTests(unittest.TestCase):
             self.assertTrue(lowered.startswith(b'Package["Test`"]\n'))
             self.assertIn(b"(* PackageScoped[{commented}]", lowered)
             self.assertIn(b'"PackageInitialize[escaped\\\"text]"', lowered)
-            self.assertIn(b"PackageExport[f]\nPackageScope[g]\n", lowered)
+            self.assertIn(b"PackageExport[f]\n\nPackageScope[g]\n", lowered)
             self.assertNotIn(b"\r", lowered)
             self.assertEqual(
                 manifest["replacementTotals"],
@@ -101,7 +101,7 @@ class CompatibilityTests(unittest.TestCase):
             lf_source = self.make_source(root / "lf", loader=b'PackageInitialize["Test`"]\n')
             crlf_source = self.make_source(
                 root / "crlf",
-                core=b"PackageExported[{f}]\r\nPackageScoped[{g}]\r\n",
+                core=b"PackageExported[{f}]\r\n\r\nPackageScoped[{g}]\r\n",
                 loader=b'PackageInitialize["Test`"]\r\n',
             )
             lf_output = root / "lf-output"
@@ -123,7 +123,7 @@ class CompatibilityTests(unittest.TestCase):
             root = Path(directory)
             source = self.make_source(
                 root,
-                b"PackageExported[f]\nPackageScoped[g]\n",
+                b"PackageExported[f]\n\nPackageScoped[g]\n",
             )
             output = root / "output"
             manifest = compat.prepare(source, output)
@@ -131,7 +131,7 @@ class CompatibilityTests(unittest.TestCase):
                 output / "Gravifer__Einstoff" / "Kernel" / "Core.wl"
             ).read_bytes()
 
-            self.assertIn(b"PackageExport[f]\nPackageScope[g]\n", lowered)
+            self.assertIn(b"PackageExport[f]\n\nPackageScope[g]\n", lowered)
             self.assertEqual(
                 manifest["emittedDirectiveTotals"],
                 {"Package": 2, "PackageExport": 1, "PackageScope": 1},
@@ -143,11 +143,10 @@ class CompatibilityTests(unittest.TestCase):
             source = self.make_source(
                 root,
                 (
-                    "\N{GREEK SMALL LETTER ALPHA}PackageExported[{notExported}];\n"
-                    "\\[Alpha]PackageScoped[{notScoped}];\n"
                     "PackageExported[\n"
                     "    {f}\n"
                     "]\n"
+                    "\n"
                     "PackageScoped[{g}]\n"
                 ).encode("utf-8"),
             )
@@ -157,8 +156,6 @@ class CompatibilityTests(unittest.TestCase):
                 output / "Gravifer__Einstoff" / "Kernel" / "Core.wl"
             ).read_bytes()
 
-            self.assertIn("\N{GREEK SMALL LETTER ALPHA}PackageExported".encode(), lowered)
-            self.assertIn(b"\\[Alpha]PackageScoped", lowered)
             self.assertIn(b"PackageExport[f]", lowered)
             self.assertIn(b"PackageScope[g]", lowered)
             self.assertEqual(
@@ -199,6 +196,35 @@ class CompatibilityTests(unittest.TestCase):
                 ):
                     compat.prepare(source, root / "output")
 
+    def test_rejects_ambiguous_package_bearing_identifiers(self) -> None:
+        cases = {
+            "qualified": (
+                b"x = System`PackageExported[{notExported}];\n"
+                b"PackageExported[{f}]\nPackageScoped[{g}]\n"
+            ),
+            "named-character prefix": (
+                b"x = \\[Alpha]PackageExported[{notExported}];\n"
+                b"PackageExported[{f}]\nPackageScoped[{g}]\n"
+            ),
+            "named-character suffix": (
+                b"x = PackageExported\\[Times]notExported;\n"
+                b"PackageExported[{f}]\nPackageScoped[{g}]\n"
+            ),
+            "embedded ASCII spelling": (
+                b"x = myPackageExportedHelper;\n"
+                b"PackageExported[{f}]\nPackageScoped[{g}]\n"
+            ),
+        }
+        for label, core in cases.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source = self.make_source(root, core)
+                with self.assertRaisesRegex(
+                    compat.CompatibilityError,
+                    "unsupported or ambiguous Package-bearing identifier",
+                ):
+                    compat.prepare(source, root / "output")
+
     def test_rejects_chained_or_postfixed_declarations(self) -> None:
         cases = {
             "chained call": (
@@ -207,6 +233,14 @@ class CompatibilityTests(unittest.TestCase):
             ),
             "postfix": (
                 b"PackageExported[{notExported}] // Hold\n"
+                b"PackageScoped[{g}]\n"
+            ),
+            "cross-line chained call": (
+                b"PackageExported[{notExported}]\n[x]\n"
+                b"PackageScoped[{g}]\n"
+            ),
+            "cross-line postfix": (
+                b"PackageExported[{notExported}]\n// Hold\n"
                 b"PackageScoped[{g}]\n"
             ),
         }
