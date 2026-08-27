@@ -176,9 +176,47 @@ new manifest digest exactly matches release validation. PacletCICD therefore che
 builds, and submits from one generated source flavor even though its public
 `SubmitPaclet` API rebuilds the repository archive itself.
 
-The manifest's `probeOnly` field is `false` in production. A future historical-engine
-workflow may place a lower-version metadata overlay in an explicitly probe-only tree;
-all production validation and submission paths reject such a tree.
+The manifest's `probeOnly` field is `false` in production. The manual
+`historical-wolfram.yml` workflow creates a separate compatibility tree, overlays only
+`"WolframVersion" -> "13.0+"`, changes the marker to `true`, and records the
+pre- and post-overlay `PacletInfo.wl` hashes. All production validation and submission
+paths reject such a tree.
+
+## Historical-engine validation
+
+Historical testing is deliberately manual, paid, non-publishing, and independent of
+the declared minimum version. The workflow accepts a commit or branch that must
+resolve to an exact commit contained in `main`, plus the oldest requested gate:
+
+```text
+15.0 -> 15.0
+14.1 -> 15.0, 14.1
+13.2 -> 15.0, 14.1, 13.2
+13.0 -> 15.0, 14.1, 13.2, 13.0
+```
+
+The selected official Wolfram Engine images are fixed by their complete Linux/amd64
+manifest digests. One probe archive is built under Wolfram 15 and then installed and
+tested unchanged at every gate, sequentially, stopping at the first failure. The old
+engines run only `scripts/historical-engine-runner.wls`: it checks the actual engine
+version, installs the archive, requires the one-symbol public surface, runs
+representative operator smokes, and executes every non-Python `.wlt` test with an
+expected-count check. It does not invoke Resource Functions, Python cross-validation,
+PacletCICD, documentation generation, or publication.
+
+The workflow has `contents: read`, globally serializes runs, and exposes only
+`WOLFRAMSCRIPT_ENTITLEMENTID`, only to the build-and-test step. Image pulls, trusted
+tooling checkout, candidate verification, probe preparation, and artifact upload are
+unlicensed. A run uploads the probe archive, manifest, checksum, build log, and one
+JSON/log pair per attempted engine for 14 days. A missing JSON report together with a
+container failure identifies licensing or harness startup failure; a JSON
+`TestFailure` identifies package behavior or test-count failure.
+
+Commission the workflow progressively after merge: first dispatch through `15.0`,
+then `14.1`, `13.2`, and finally `13.0`. Passing probes are evidence for a later,
+single reviewed MSV change; they do not themselves alter source metadata or any
+published artifact. A genuine 13.0 package failure with a passing 13.2 gate supports
+`13.2+`; otherwise a complete pass supports `13.0+`.
 
 ## Removing the layer after pre-v15 support ends
 
@@ -205,8 +243,10 @@ change:
    `scripts/paclet-cicd.wls`, `scripts/run-tests.wls`, and
    `scripts/validate-paclet-source.wls` rather than deleting shared functionality
    blindly.
-7. Delete any historical-engine workflow, legacy runner, probe overlay, reports, and
-   their tests introduced by the later validation stage.
+7. Delete `.github/workflows/historical-wolfram.yml`,
+   `scripts/historical-engine-matrix.sh`, `scripts/historical-engine-runner.wls`,
+   `scripts/prepare-historical-probe.py`, `scripts/test_historical_probe.py`, and
+   their classifier and contract assertions.
 8. Remove `spf-compatibility-manifest.json`,
    `spfCompatibilityManifestSHA256`, `spfCompatibilityMappingVersion`, and
    `EINSTOFF_RELEASE_SPF_MANIFEST_SHA256` from artifacts, provenance, and recovery

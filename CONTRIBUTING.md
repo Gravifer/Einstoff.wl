@@ -85,6 +85,28 @@ credits:
 - Release validation remains the comprehensive hosted path: it builds the archive and
   runs both the Wolfram and Python suites against that artifact.
 
+### Historical Wolfram Engine validation
+
+Maintainers can manually dispatch `historical-wolfram.yml` to test a `main`-contained
+commit under the official Wolfram Engine 15.0, 14.1, 13.2, and 13.0 containers. This
+workflow is evidence for minimum-version decisions, not ordinary CI: it never runs on
+pushes or pull requests, publishes nothing, and requires an explicit paid-run
+confirmation. Its `through` input selects the oldest gate; all newer gates run first
+and the ladder stops at the first failure.
+
+The workflow mechanically generates a `probeOnly` legacy-SPF tree with a temporary
+`13.0+` metadata overlay, builds one archive under version 15, then installs and tests
+that exact archive sequentially under the selected engines. Production release and
+Paclet Repository paths reject the probe marker. Historical runs use the repository
+`WOLFRAMSCRIPT_ENTITLEMENTID` only while kernels execute and never receive the
+publisher token.
+
+Commission a new or materially changed harness progressively: run through `15.0`,
+then `14.1`, `13.2`, and `13.0`, inspecting the temporary reports after each dispatch.
+Do not rerun blindly after an unexplained licensing, container, or harness failure.
+The declared minimum remains `15.0+` until a separate reviewed change records the
+oldest genuinely passing engine.
+
 Jobs are skipped individually rather than filtering out the workflow. A skipped
 licensed job on a documentation-only change or fork pull request is expected, not a
 missing validation result. Unknown executable or build-related paths fail closed by
