@@ -42,6 +42,25 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "SPF compatibility staging failed with exit code $LASTEXITCODE."
     }
+    $compatibilityManifestPath = Join-Path $compatibilityRoot 'spf-compatibility-manifest.json'
+    if (-not (Test-Path -LiteralPath $compatibilityManifestPath -PathType Leaf)) {
+        throw 'SPF compatibility staging did not produce its manifest.'
+    }
+    try {
+        $compatibilityManifest = Get-Content -LiteralPath $compatibilityManifestPath -Raw |
+            ConvertFrom-Json
+    }
+    catch {
+        throw "SPF compatibility staging produced an invalid manifest: $($_.Exception.Message)"
+    }
+    $probeOnlyProperty = $compatibilityManifest.PSObject.Properties['probeOnly']
+    if (
+        $null -eq $probeOnlyProperty -or
+        $probeOnlyProperty.Value -isnot [bool] -or
+        $probeOnlyProperty.Value
+    ) {
+        throw 'Production release staging requires manifest probeOnly to be false.'
+    }
     $env:EINSTOFF_SOURCE_ROOT = $compatibilityRoot
 
     $sourceValidationArguments = @('-script', 'scripts/validate-paclet-source.wls')
@@ -72,7 +91,7 @@ try {
     $publishedArchive = Join-Path $publishedBuild (Split-Path -Leaf $archive)
     Copy-Item -LiteralPath $archive -Destination $publishedArchive -Force
     $manifestCopy = @{
-        LiteralPath = Join-Path $compatibilityRoot 'spf-compatibility-manifest.json'
+        LiteralPath = $compatibilityManifestPath
         Destination = Join-Path $publishedBuild 'spf-compatibility-manifest.json'
         Force = $true
     }

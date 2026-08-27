@@ -269,6 +269,17 @@ def check_contract() -> None:
     require(local_release, "$IsWindows", "platform-specific local Python selection")
     require(local_release, ".venv\\Scripts\\python.exe", "Windows local Python path")
     require(local_release, ".venv/bin/python", "Unix local Python path")
+    require(local_release, "ConvertFrom-Json", "local SPF manifest parsing")
+    require(
+        local_release,
+        ".PSObject.Properties['probeOnly']",
+        "local probe-only marker validation",
+    )
+    require(
+        local_release,
+        "Production release staging requires manifest probeOnly to be false.",
+        "local probe-only staging rejection",
+    )
 
     require(paclet_driver, 'Environment["RESOURCE_PUBLISHER_TOKEN"]', "publisher token input")
     require(paclet_driver, 'PublisherID -> "Gravifer"', "fixed publisher identity")
