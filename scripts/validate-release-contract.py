@@ -203,6 +203,10 @@ def check_contract() -> None:
         "scripts/test_spf_compatibility.py",
         "SPF compatibility tests",
     )
+    if contract_job.count("steps.classify.outputs.run_python_smoke == 'true'") != 2:
+        raise AssertionError(
+            "Python runtime changes must gate both compatibility setup and tests"
+        )
     forbid(python_job, "WOLFRAMSCRIPT_ENTITLEMENTID", "unlicensed Python smoke")
     require(python_job, "needs.contract.outputs.run_python_smoke == 'true'", "Python smoke gate")
     require(python_job, "version: 0.11.26", "pinned uv version")

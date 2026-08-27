@@ -59,7 +59,10 @@ jobs:
           --github-output "${GITHUB_OUTPUT}"
 
       - name: Install pinned uv for compatibility checks
-        if: steps.classify.outputs.run_paclet == 'true' || steps.classify.outputs.run_wolfram == 'true'
+        if: >-
+          steps.classify.outputs.run_paclet == 'true' ||
+          steps.classify.outputs.run_wolfram == 'true' ||
+          steps.classify.outputs.run_python_smoke == 'true'
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           version: 0.11.26
@@ -67,7 +70,10 @@ jobs:
           cache-dependency-glob: .python-version
 
       - name: Check structured-package compatibility compiler
-        if: steps.classify.outputs.run_paclet == 'true' || steps.classify.outputs.run_wolfram == 'true'
+        if: >-
+          steps.classify.outputs.run_paclet == 'true' ||
+          steps.classify.outputs.run_wolfram == 'true' ||
+          steps.classify.outputs.run_python_smoke == 'true'
         shell: bash
         run: |
           set -euo pipefail
