@@ -11,8 +11,9 @@ PackageScoped
 
 That vocabulary is canonical. It is the form maintainers review and the only form
 that should be edited. To prepare for supporting older Wolfram engines without
-freezing the source on private names, every artifact-producing path compiles a
-temporary source tree with the corresponding long-standing package-format names.
+freezing the source on private names, every artifact-producing path uses a
+provisional compiler to create a temporary source tree with the corresponding
+long-standing package-format names.
 The transformation has two structural parts:
 
 ```text
@@ -23,12 +24,39 @@ PackageScoped[{a, b, ...}]    -> one PackageScope declaration per symbol
 
 This compatibility build does not yet lower the paclet's declared
 `"WolframVersion" -> "15.0+"`. Historical-engine testing and any eventual minimum
-version change are separate, reviewed stages.
+version change are separate, reviewed stages. The Python implementation is
+provisional: it remains the production route while it is the smallest deterministic,
+unlicensed build dependency, but it may be replaced if Wolfram documents a supported
+native migration facility. Any replacement must preserve the same staging,
+validation, and provenance contracts.
+
+## Research basis
+
+The implementation was chosen after comparing the public Wolfram 15 format, the
+long-standing package scanner described by the community, Wolfram's parsing tools,
+and an in-the-wild migration. As of August 2026, this research found no documented
+Wolfram helper that emits the legacy format from canonical Wolfram 15 source:
+
+- [Using the Structured Package Format](https://reference.wolfram.com/language/tutorial/UsingTheStructuredPackageFormat.html)
+- [`PackageInitialize`](https://reference.wolfram.com/language/ref/PackageInitialize)
+- [Backwards compatibility of Structured Package Format](https://mathematica.stackexchange.com/questions/319834/backwards-compatibility-of-structured-package-format)
+- [Declaring Package with dependencies in multiple files](https://mathematica.stackexchange.com/questions/176434/declaring-package-with-dependencies-in-multiples-files)
+- [What to be aware when using new-style package?](https://mathematica.stackexchange.com/questions/184711/what-to-be-aware-when-using-new-style-package)
+- [What are package-context symbols for?](https://mathematica.stackexchange.com/questions/114956/what-are-package-context-symbols-for)
+- [WolframResearch/CodeParser](https://github.com/WolframResearch/codeparser)
+- [CodeParser documentation](https://reference.wolfram.com/language/CodeParser/guide/CodeParser.html)
+- [DiagrammaticComputation's SPF migration](https://github.com/WolframInstitute/DiagrammaticComputation/commit/d68236343b3788ed7e3c793f93c13e48ddfefe20)
+- [Wolfram Language 15 launch discussion](https://writings.stephenwolfram.com/2026/06/launching-version-15-of-wolfram-language-mathematica-built-in-useful-ai-lots-of-new-core-functionality/)
+
+The exact compatibility question is intentionally left to the existing Mathematica
+Stack Exchange discussion rather than duplicated. A future supported converter can
+supersede this provisional compiler; undocumented private APIs are not an acceptable
+production dependency.
 
 ## Transformer contract
 
-[`scripts/prepare-legacy-spf.py`](../scripts/prepare-legacy-spf.py) is a
-dependency-free byte-oriented transformer. Run it through the repository's pinned
+[`scripts/prepare-legacy-spf.py`](../scripts/prepare-legacy-spf.py) is a provisional,
+dependency-free byte-oriented compiler. Run it through the repository's pinned
 `uv` and `.python-version`, not through an independently provisioned Python runtime.
 It:
 

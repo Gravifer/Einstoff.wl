@@ -125,8 +125,9 @@ Add `-Python` to include the optional Python cross-validation suite. The release
 script writes only to the ignored `build/` directory and temporary extraction space;
 it does not install the candidate into the normal user paclet repository. Canonical
 source uses Wolfram Language 15's public structured-package vocabulary; release
-artifacts are built from a mechanically generated compatibility tree described in
-[`docs/StructuredPackageCompatibility.md`](docs/StructuredPackageCompatibility.md).
+artifacts are built through the provisional compatibility compiler described in
+[`docs/StructuredPackageCompatibility.md`](docs/StructuredPackageCompatibility.md),
+which generates a temporary legacy-format tree mechanically.
 
 To inspect the source paclet separately, install the checksum-verified PacletCICD
 version pinned by this repository, then check or build with the same tooling used by
