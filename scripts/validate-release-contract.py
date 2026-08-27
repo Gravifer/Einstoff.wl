@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 import subprocess
 import textwrap
 
@@ -24,6 +25,10 @@ def require(text: str, fragment: str, label: str) -> None:
 def forbid(text: str, fragment: str, label: str) -> None:
     if fragment in text:
         raise AssertionError(f"{label}: forbidden {fragment!r}")
+
+
+def normalize_shell_continuations(text: str) -> str:
+    return re.sub(r"[ \t]*\\\r?\n[ \t]*", " ", text)
 
 
 def block(text: str, start: str, end: str | None = None) -> str:
@@ -83,6 +88,7 @@ def check_contract() -> None:
     paclet_ci = load(".github/workflows/paclet-ci.yml")
     action = load(".github/actions/paclet-ci/action.yml")
     driver = load(".github/actions/paclet-ci/main.sh")
+    normalized_driver = normalize_shell_continuations(driver)
     paclet_driver = load("scripts/paclet-cicd.wls")
     classifier = load("scripts/classify_ci_changes.py")
     runner = load("scripts/run-tests.wls")
@@ -241,12 +247,12 @@ def check_contract() -> None:
     require(driver, 'source_root="${compatibility_root}"', "staged semantic source")
     require(driver, '"probeOnly": false', "probe-only production rejection")
     require(
-        driver,
-        'realpath --relative-to="${workspace_root}" "${published_manifest}"',
+        normalized_driver,
+        'printf \'compatibility_manifest=%s\\n\' "${published_manifest_workspace_path}"',
         "runner-visible SPF manifest output",
     )
     forbid(
-        driver,
+        normalized_driver,
         "printf 'compatibility_manifest=%s\\n' \"${published_manifest}\"",
         "container-only SPF manifest output",
     )
