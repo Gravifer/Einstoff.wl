@@ -242,6 +242,16 @@ def check_contract() -> None:
     require(driver, '"${expected_tag}" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$', "stable tag guard")
     require(driver, 'EINSTOFF_RELEASE_PUBLISH=true', "publication environment guard")
     require(driver, 'requires RESOURCE_PUBLISHER_TOKEN', "publisher token guard")
+    require(driver, "unset RESOURCE_PUBLISHER_TOKEN", "publisher token environment isolation")
+    require(
+        driver,
+        'RESOURCE_PUBLISHER_TOKEN="${publisher_token}" wolframscript',
+        "submit-only publisher token exposure",
+    )
+    if driver.count('printf \'%s\\n\' "${submission_output}"') != 1:
+        raise AssertionError(
+            "submission output must be consumed only by sanitized record extraction"
+        )
     require(driver, '^[0-9a-fA-F]{40}$', "source SHA guard")
     require(driver, '^[0-9a-fA-F]{64}$', "archive SHA-256 guard")
     require(driver, 'awk \'/^PACLET_SUBMISSION_RECORD=/', "sanitized result extraction")
@@ -316,6 +326,21 @@ def check_contract() -> None:
         publication_action_test,
         "Repository publication must not emit post-submission compatibility outputs.",
         "post-submission output isolation",
+    )
+    require(
+        publication_action_test,
+        "Publisher token reached the compatibility subprocess.",
+        "compatibility subprocess token isolation",
+    )
+    require(
+        publication_action_test,
+        "Publisher token reached a pre-submission Wolfram subprocess.",
+        "pre-submission Wolfram token isolation",
+    )
+    require(
+        publication_action_test,
+        "Repository publication replayed unsanitized submission output.",
+        "raw submission output isolation",
     )
     require(
         publication_action_test,

@@ -9,6 +9,7 @@ repository_publication="${INPUT_REPOSITORY_PUBLICATION:-false}"
 expected_tag="${INPUT_EXPECTED_TAG:-}"
 source_path="${INPUT_SOURCE_PATH:-.}"
 tooling_path="${INPUT_TOOLING_PATH:-.}"
+publisher_token=""
 
 for boolean_name in run_paclet run_wolfram release_validation repository_publication; do
   boolean_value="${!boolean_name}"
@@ -48,6 +49,8 @@ if [[ "${repository_publication}" == "true" ]]; then
     echo "repository_publication requires RESOURCE_PUBLISHER_TOKEN." >&2
     exit 2
   fi
+  publisher_token="${RESOURCE_PUBLISHER_TOKEN}"
+  unset RESOURCE_PUBLISHER_TOKEN
   if [[ ! "${EINSTOFF_RELEASE_SOURCE_SHA:-}" =~ ^[0-9a-fA-F]{40}$ ]]; then
     echo "repository_publication requires a 40-character release source SHA." >&2
     exit 2
@@ -202,16 +205,18 @@ if [[ "${repository_publication}" == "true" ]]; then
   echo "::group::Submitting stable paclet source to the Wolfram Paclet Repository..."
   set +e
   submission_output="$({
-    wolframscript -script \
+    RESOURCE_PUBLISHER_TOKEN="${publisher_token}" wolframscript -script \
       "${tooling_root}/scripts/paclet-cicd.wls" \
       submit \
       "${expected_tag}"
   } 2>&1)"
   submission_status=$?
   set -e
+  unset publisher_token
 
-  printf '%s\n' "${submission_output}"
   if (( submission_status != 0 )); then
+    unset submission_output
+    echo "Paclet submission command failed; inspect the public resource before retrying." >&2
     echo "::endgroup::"
     exit "${submission_status}"
   fi
@@ -220,6 +225,7 @@ if [[ "${repository_publication}" == "true" ]]; then
     printf '%s\n' "${submission_output}" |
       awk '/^PACLET_SUBMISSION_RECORD=/{line=$0} END{print line}'
   )"
+  unset submission_output
   if [[ -z "${submission_line}" ]]; then
     echo "Paclet submission did not emit a sanitized record." >&2
     echo "::endgroup::"

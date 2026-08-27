@@ -20,6 +20,11 @@ cat > "${temp_root}/bin/uv" <<'EOF'
 #!/bin/bash
 set -euo pipefail
 
+if [[ -n "${RESOURCE_PUBLISHER_TOKEN:-}" ]]; then
+  echo "Publisher token reached the compatibility subprocess." >&2
+  exit 91
+fi
+
 source_root=""
 output_root=""
 while (( $# )); do
@@ -49,12 +54,17 @@ chmod +x "${temp_root}/bin/uv"
 cat > "${temp_root}/bin/wolframscript" <<'EOF'
 #!/bin/bash
 if [[ " $* " == *" submit "* ]]; then
+  [[ "${RESOURCE_PUBLISHER_TOKEN:-}" == "test-token" ]] || exit 92
+  printf '%s\n' 'RAW_SUBMISSION_OUTPUT_MUST_NOT_ESCAPE'
   if [[ "${FAKE_SUBMIT_STATUS:-0}" != "0" ]]; then
     exit "${FAKE_SUBMIT_STATUS}"
   fi
   if [[ "${FAKE_OMIT_RECORD:-false}" != "true" ]]; then
     printf '%s\n' 'PACLET_SUBMISSION_RECORD={"Name":"Gravifer/Einstoff","Version":"1.2.3","Status":"Submitted"}'
   fi
+elif [[ -n "${RESOURCE_PUBLISHER_TOKEN:-}" ]]; then
+  echo "Publisher token reached a pre-submission Wolfram subprocess." >&2
+  exit 93
 fi
 EOF
 chmod +x "${temp_root}/bin/wolframscript"
@@ -108,6 +118,10 @@ run_action 1 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true \
 run_action 0 INPUT_EXPECTED_TAG=v1.2.3 EINSTOFF_RELEASE_PUBLISH=true
 grep -Fq 'submission_record={"Name":"Gravifer/Einstoff","Version":"1.2.3","Status":"Submitted"}' \
   "${temp_root}/github-output"
+if grep -Fq 'RAW_SUBMISSION_OUTPUT_MUST_NOT_ESCAPE' "${temp_root}/stdout"; then
+  echo "Repository publication replayed unsanitized submission output." >&2
+  exit 1
+fi
 if grep -q '^compatibility_' "${temp_root}/github-output"; then
   echo "Repository publication must not emit post-submission compatibility outputs." >&2
   exit 1
