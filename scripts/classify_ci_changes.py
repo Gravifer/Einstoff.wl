@@ -60,6 +60,13 @@ def classify_path(raw_path: str) -> tuple[ValidationSelection, str]:
     # inside the action or built paclet is still part of that shipped component.
     if path.startswith(".github/actions/paclet-ci/") or path == ".github/workflows/paclet-ci.yml":
         return ALL, "paclet-ci-infrastructure"
+    if path == ".github/workflows/historical-wolfram.yml" or path in {
+        "scripts/historical-engine-matrix.sh",
+        "scripts/historical-engine-runner.wls",
+        "scripts/prepare-historical-probe.py",
+        "scripts/test_historical_probe.py",
+    }:
+        return PYTHON_SMOKE, "historical-validation-infrastructure"
     if path in {
         "scripts/build-paclet.wls",
         "scripts/generate-paclet-docs.wls",

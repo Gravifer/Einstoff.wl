@@ -1,0 +1,112 @@
+name: Historical Wolfram Engine validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit or branch contained in main to validate
+        required: true
+        default: main
+        type: string
+      through:
+        description: Oldest Wolfram Engine gate to run
+        required: true
+        default: "15.0"
+        type: choice
+        options:
+          - "15.0"
+          - "14.1"
+          - "13.2"
+          - "13.0"
+      confirm_paid_run:
+        description: Confirm that this manual run may consume Wolfram Service Credits
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: historical-wolfram-engine-validation
+  cancel-in-progress: false
+
+jobs:
+  historical-validation:
+    name: Validate through Wolfram ${{ inputs.through }}
+    if: inputs.confirm_paid_run
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Check out trusted historical-validation tooling
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: tooling
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Check out candidate source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.ref }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require the exact candidate commit to belong to main
+        id: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C candidate fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
+          source_sha="$(git -C candidate rev-parse HEAD)"
+          git -C candidate merge-base --is-ancestor "${source_sha}" refs/remotes/origin/main
+          printf 'source_sha=%s\n' "${source_sha}" >> "${GITHUB_OUTPUT}"
+          printf 'Historical candidate: `%s`\n' "${source_sha}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Install pinned uv for probe preparation
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: 0.11.26
+          enable-cache: true
+          cache-dependency-glob: tooling/.python-version
+
+      - name: Prepare the non-publishable historical probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python_version="$(tr -d '[:space:]' < tooling/.python-version)"
+          uv run --no-project --managed-python --python "${python_version}" \
+            python tooling/scripts/test_historical_probe.py
+          uv run --no-project --managed-python --python "${python_version}" \
+            python tooling/scripts/prepare-historical-probe.py \
+            --source candidate \
+            --output probe
+
+      - name: Pull the selected digest-pinned Wolfram Engine images
+        shell: bash
+        run: bash tooling/scripts/historical-engine-matrix.sh pull "${{ inputs.through }}"
+
+      - name: Build and run the historical-engine ladder
+        shell: bash
+        env:
+          WOLFRAMSCRIPT_ENTITLEMENTID: ${{ secrets.WOLFRAMSCRIPT_ENTITLEMENTID }}
+        run: >-
+          bash tooling/scripts/historical-engine-matrix.sh run
+          "${{ inputs.through }}"
+          probe
+          tooling
+          reports
+
+      - name: Upload probe archive and per-engine reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: historical-wolfram-${{ steps.candidate.outputs.source_sha }}-${{ inputs.through }}
+          path: |
+            probe/build/*.paclet
+            probe/spf-compatibility-manifest.json
+            reports/**
+          if-no-files-found: warn
+          retention-days: 14
