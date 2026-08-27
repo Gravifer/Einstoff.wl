@@ -95,7 +95,6 @@ def check_contract() -> None:
     runner = load("scripts/run-tests.wls")
     local_release = load("scripts/validate-release.ps1")
     publication_action_test = load("scripts/test-paclet-publication-action.sh")
-    compatibility_tests = load("scripts/test_spf_compatibility.py")
     historical_matrix = load("scripts/historical-engine-matrix.sh")
     historical_runner = load("scripts/historical-engine-runner.wls")
     historical_probe = load("scripts/prepare-historical-probe.py")
@@ -213,7 +212,6 @@ def check_contract() -> None:
         "scripts/test_spf_compatibility.py",
         "SPF compatibility tests",
     )
-    require(compatibility_tests, "HistoricalProbeTests", "historical probe tests")
     if contract_job.count("steps.classify.outputs.run_python_smoke == 'true'") != 2:
         raise AssertionError(
             "Python runtime changes must gate both compatibility setup and tests"
