@@ -375,6 +375,67 @@ class CompatibilityTests(unittest.TestCase):
             ):
                 compat.prepare(source, root / "output")
 
+    def test_rejects_mixed_case_spf_extensions(self) -> None:
+        cases = {
+            "legacy": ("Legacy.M", "legacy .m fragments"),
+            "canonical": ("Extra.WL", "lowercase .wl suffix"),
+        }
+        for label, (filename, message) in cases.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source = self.make_source(root)
+                fragment = source / "Gravifer__Einstoff" / "Kernel" / filename
+                fragment.write_bytes(b'Package["Test`"]\n')
+
+                with self.assertRaisesRegex(compat.CompatibilityError, message):
+                    compat.prepare(source, root / "output")
+
+    def test_rejects_case_only_kernel_path_collisions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self.make_source(root)
+            kernel = source / "Gravifer__Einstoff" / "Kernel"
+            case_variant = kernel / "core.wl"
+            if case_variant.exists():
+                self.skipTest("the local filesystem is case-insensitive")
+            case_variant.write_bytes(b"PackageExported[{h}]\nPackageScoped[{i}]\n")
+
+            with self.assertRaisesRegex(
+                compat.CompatibilityError,
+                "paths collide on a portable filesystem",
+            ):
+                compat.prepare(source, root / "output")
+
+    def test_rejects_generated_target_collision_with_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self.make_source(root)
+            collision = source / "Gravifer__Einstoff" / "Kernel" / "Core.m"
+            collision.mkdir()
+
+            with self.assertRaisesRegex(
+                compat.CompatibilityError,
+                "collides with an existing Kernel entry",
+            ):
+                compat.prepare(source, root / "output")
+
+    def test_portable_path_keys_normalize_case_and_unicode(self) -> None:
+        root = Path("staging")
+        self.assertEqual(
+            compat.portable_path_key(root / "Kernel" / "CORE.m", root),
+            compat.portable_path_key(root / "kernel" / "core.M", root),
+        )
+        self.assertEqual(
+            compat.portable_path_key(
+                root / "Kernel" / "caf\N{LATIN SMALL LETTER E WITH ACUTE}.wl",
+                root,
+            ),
+            compat.portable_path_key(
+                root / "Kernel" / "cafe\N{COMBINING ACUTE ACCENT}.wl",
+                root,
+            ),
+        )
+
     def test_rejects_output_nested_within_source(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

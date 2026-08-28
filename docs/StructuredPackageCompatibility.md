@@ -96,7 +96,8 @@ It:
 - preserves relative directories, filename stems, and every unrelated source byte
   after canonical LF line-ending normalization;
 - rejects legacy names in canonical source, unrecognized `Package*` directives,
-  pre-existing canonical `Kernel/**/*.m` fragments, generated-path collisions,
+  pre-existing canonical `Kernel/**/*.m` fragments case-insensitively, mixed-case
+  SPF suffixes, portable case/Unicode-equivalent path collisions, generated-path collisions,
   malformed strings or comments, symbolic links or Windows directory junctions,
   missing source roots, and a nonempty destination;
 - verifies that all expected public directives were found and none survived; and

@@ -12,6 +12,7 @@ import re
 import shutil
 import stat
 import sys
+import unicodedata
 
 
 MAPPING_VERSION = 6
@@ -44,6 +45,13 @@ class CompatibilityError(RuntimeError):
 
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def portable_path_key(path: Path, root: Path) -> str:
+    """Return a deterministic key for paths that must coexist portably."""
+
+    relative = path.relative_to(root).as_posix()
+    return unicodedata.normalize("NFC", relative).casefold()
 
 
 def symbol_start_byte(value: int) -> bool:
@@ -395,14 +403,40 @@ def prepare(source: Path, output: Path) -> dict[str, object]:
 
     copy_required_source(source, output)
     kernel_root = output / "Gravifer__Einstoff" / "Kernel"
-    legacy_source_files = sorted(kernel_root.rglob("*.m"))
+    kernel_entries = sorted(kernel_root.rglob("*"))
+    portable_entries: dict[str, str] = {}
+    for entry in kernel_entries:
+        relative = entry.relative_to(output).as_posix()
+        key = portable_path_key(entry, output)
+        if key in portable_entries:
+            raise CompatibilityError(
+                "canonical Kernel paths collide on a portable filesystem: "
+                f"{portable_entries[key]} and {relative}"
+            )
+        portable_entries[key] = relative
+
+    kernel_files = [entry for entry in kernel_entries if entry.is_file()]
+    legacy_source_files = sorted(
+        path for path in kernel_files if path.suffix.casefold() == ".m"
+    )
     if legacy_source_files:
         relative = legacy_source_files[0].relative_to(output).as_posix()
         raise CompatibilityError(
             "canonical Kernel source must not contain legacy .m fragments: "
             f"{relative}"
         )
-    source_files = sorted(kernel_root.rglob("*.wl"))
+    noncanonical_wl_files = sorted(
+        path
+        for path in kernel_files
+        if path.suffix.casefold() == ".wl" and path.suffix != ".wl"
+    )
+    if noncanonical_wl_files:
+        relative = noncanonical_wl_files[0].relative_to(output).as_posix()
+        raise CompatibilityError(
+            "canonical Kernel SPF fragments must use the lowercase .wl suffix: "
+            f"{relative}"
+        )
+    source_files = sorted(path for path in kernel_files if path.suffix == ".wl")
     if not source_files:
         raise CompatibilityError("no Kernel/*.wl files were found")
 
@@ -424,11 +458,17 @@ def prepare(source: Path, output: Path) -> dict[str, object]:
         target_path = file_path if file_path == loader_path else file_path.with_suffix(".m")
         source_relative = file_path.relative_to(output).as_posix()
         target_relative = target_path.relative_to(output).as_posix()
-        target_key = target_relative.casefold()
+        target_key = portable_path_key(target_path, output)
         if target_key in target_paths:
             raise CompatibilityError(
                 "generated legacy fragment path collision between "
                 f"{target_paths[target_key]} and {source_relative}"
+            )
+        existing_relative = portable_entries.get(target_key)
+        if existing_relative is not None and target_path != file_path:
+            raise CompatibilityError(
+                "generated legacy fragment path collides with an existing Kernel entry: "
+                f"{target_relative} and {existing_relative}"
             )
         if target_path != file_path and target_path.exists():
             raise CompatibilityError(
