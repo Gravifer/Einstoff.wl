@@ -13,6 +13,7 @@ readonly IMAGE_13_0='wolframresearch/wolframengine@sha256:fabfe5bf05b9b1710ca781
 usage() {
   echo 'usage: historical-engine-matrix.sh list|pull THROUGH' >&2
   echo '       historical-engine-matrix.sh preflight THROUGH PROBE_ROOT REPORT_ROOT' >&2
+  echo '       historical-engine-matrix.sh diagnose-spf 14.1 TOOLING_ROOT REPORT_ROOT' >&2
   echo '       historical-engine-matrix.sh run THROUGH PROBE_ROOT TOOLING_ROOT REPORT_ROOT' >&2
   exit 64
 }
@@ -135,6 +136,61 @@ if [[ "${command_name}" == 'preflight' ]]; then
   done <<< "${versions}"
 
   echo "Historical container mounts through ${through} passed their unlicensed preflight."
+  exit 0
+fi
+
+if [[ "${command_name}" == 'diagnose-spf' ]]; then
+  [[ $# -eq 4 && "${through}" == '14.1' ]] || usage
+  [[ -n "${WOLFRAMSCRIPT_ENTITLEMENTID:-}" ]] || {
+    echo 'WOLFRAMSCRIPT_ENTITLEMENTID is required for the legacy-SPF diagnostic.' >&2
+    exit 2
+  }
+  tooling_root="$(realpath "$3")"
+  report_root="$(realpath -m "$4")"
+  mkdir -p "${report_root}"
+  diagnostic_output="${report_root}/container-legacy-spf-14.1"
+  diagnostic_report="${diagnostic_output}/report.json"
+  preserved_report="${report_root}/legacy-spf-14.1.json"
+  diagnostic_log="${report_root}/legacy-spf-14.1.log"
+  prepare_container_output "${diagnostic_output}"
+  rm -f "${diagnostic_report}" "${preserved_report}"
+
+  set +e
+  docker run --rm \
+    --env WOLFRAMSCRIPT_ENTITLEMENTID \
+    --volume "${tooling_root}:/tooling:ro" \
+    --volume "${diagnostic_output}:/reports" \
+    --workdir /tooling \
+    --entrypoint wolframscript \
+    "${IMAGE_14_1}" \
+    -script /tooling/scripts/diagnose-legacy-spf.wls \
+    /reports/report.json \
+    2>&1 | tee "${diagnostic_log}"
+  pipeline_status=("${PIPESTATUS[@]}")
+  set -e
+  diagnostic_status=${pipeline_status[0]}
+  tee_status=${pipeline_status[1]}
+
+  report_status=0
+  if [[ -L "${diagnostic_report}" ]]; then
+    echo 'The legacy-SPF diagnostic returned a symbolic-link report.' >&2
+    report_status=1
+  elif [[ -e "${diagnostic_report}" && ! -f "${diagnostic_report}" ]]; then
+    echo 'The legacy-SPF diagnostic returned a non-regular report.' >&2
+    report_status=1
+  elif [[ -f "${diagnostic_report}" ]] && ! cp -- "${diagnostic_report}" "${preserved_report}"; then
+    echo 'Could not preserve the legacy-SPF diagnostic report.' >&2
+    report_status=1
+  elif [[ ! -f "${diagnostic_report}" ]]; then
+    echo 'The legacy-SPF diagnostic did not return a report.' >&2
+    report_status=1
+  fi
+  rm -rf -- "${diagnostic_output}"
+
+  (( diagnostic_status == 0 )) || exit "${diagnostic_status}"
+  (( tee_status == 0 )) || exit "${tee_status}"
+  (( report_status == 0 )) || exit "${report_status}"
+  echo 'Legacy-SPF v14.1 diagnostic completed.'
   exit 0
 fi
 
