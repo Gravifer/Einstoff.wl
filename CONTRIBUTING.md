@@ -106,6 +106,12 @@ publisher token. The selected candidate package and tests execute inside those
 licensed kernels, so reviewed first-parent candidate code is explicitly inside the
 entitlement trust boundary and can observe the entitlement environment.
 
+After pulling the selected images, the workflow performs an unlicensed mount
+preflight using their configured users. It requires the generated probe source to be
+read-only and grants write access only to dedicated ephemeral build and per-engine
+report directories. Do not bypass a failed preflight by making the whole probe or
+trusted report root container-writable.
+
 Commission a new or materially changed harness progressively: run through `15.0`,
 then `14.1`, `13.2`, and `13.0`, inspecting the temporary reports after each dispatch.
 Do not rerun blindly after an unexplained licensing, container, or harness failure.

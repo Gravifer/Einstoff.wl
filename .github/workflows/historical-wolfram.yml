@@ -104,6 +104,21 @@ jobs:
           esac
           bash tooling/scripts/historical-engine-matrix.sh pull "${THROUGH}"
 
+      - name: Preflight historical container mounts (unlicensed)
+        shell: bash
+        env:
+          THROUGH: ${{ inputs.through }}
+        run: |
+          set -euo pipefail
+          case "${THROUGH}" in
+            15.0|14.1|13.2|13.0) ;;
+            *) echo "Unsupported historical-engine gate: ${THROUGH}" >&2; exit 64 ;;
+          esac
+          bash tooling/scripts/historical-engine-matrix.sh preflight \
+            "${THROUGH}" \
+            probe \
+            reports
+
       - name: Build and run the historical-engine ladder
         shell: bash
         env:

@@ -211,8 +211,12 @@ PacletCICD, documentation generation, or publication.
 
 The workflow has `contents: read`, globally serializes runs, and exposes only
 `WOLFRAMSCRIPT_ENTITLEMENTID`, only to the build-and-test step. Image pulls, trusted
-tooling checkout, candidate verification, probe preparation, and artifact upload are
-unlicensed. A run uploads the probe archive, manifest, checksum, build log, and one
+tooling checkout, candidate verification, probe preparation, container-mount
+preflighting, and artifact upload are unlicensed. Before any kernel starts, each
+selected image must prove that the probe source is read-only and that only its
+dedicated build or report output is writable. The general report directory, its logs,
+and its checksums are never container-writable. A run uploads the probe archive,
+manifest, checksum, build log, and one
 JSON/log pair per attempted engine for 14 days. A missing JSON report together with a
 container failure identifies licensing or harness startup failure. A zero exit status
 is insufficient: the host validates each JSON report's engine version, archive hash,
