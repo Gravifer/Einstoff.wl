@@ -12,6 +12,7 @@ readonly IMAGE_13_0='wolframresearch/wolframengine@sha256:fabfe5bf05b9b1710ca781
 
 usage() {
   echo 'usage: historical-engine-matrix.sh list|pull THROUGH' >&2
+  echo '       historical-engine-matrix.sh preflight THROUGH PROBE_ROOT REPORT_ROOT' >&2
   echo '       historical-engine-matrix.sh run THROUGH PROBE_ROOT TOOLING_ROOT REPORT_ROOT' >&2
   exit 64
 }
@@ -34,6 +35,12 @@ image_for() {
     13.0) printf '%s\n' "${IMAGE_13_0}" ;;
     *) echo "Unsupported historical-engine version: $1" >&2; return 64 ;;
   esac
+}
+
+prepare_container_output() {
+  local directory="$1"
+  install -d -m 0777 -- "${directory}"
+  chmod 0777 -- "${directory}"
 }
 
 command_name="${1:-}"
@@ -60,6 +67,64 @@ if [[ "${command_name}" == 'pull' ]]; then
   exit 0
 fi
 
+if [[ "${command_name}" == 'preflight' ]]; then
+  [[ $# -eq 4 ]] || usage
+  probe_root="$(realpath "$3")"
+  report_root="$(realpath -m "$4")"
+  build_root="${probe_root}/build"
+  prepare_container_output "${build_root}"
+  mkdir -p "${report_root}"
+
+  if ! docker run --rm \
+    --volume "${probe_root}:/probe:ro" \
+    --volume "${build_root}:/probe/build" \
+    --workdir /probe \
+    --entrypoint /bin/sh \
+    "${IMAGE_15_0}" \
+    -c 'set -eu
+      if : > /probe/.einstoff-unexpected-write 2>/dev/null; then
+        rm -f /probe/.einstoff-unexpected-write
+        echo "Historical probe source is unexpectedly writable." >&2
+        exit 1
+      fi
+      sentinel=/probe/build/.einstoff-write-probe
+      test -r /probe/spf-compatibility-manifest.json
+      test -w /probe/build
+      : > "${sentinel}"
+      rm -f "${sentinel}"'; then
+    echo 'The Wolfram 15 build mounts failed their unlicensed permission preflight.' >&2
+    exit 1
+  fi
+
+  while IFS= read -r version; do
+    image="$(image_for "${version}")"
+    gate_output="${report_root}/container-${version}"
+    prepare_container_output "${gate_output}"
+    if ! docker run --rm \
+      --volume "${probe_root}:/probe:ro" \
+      --volume "${gate_output}:/reports" \
+      --workdir /probe \
+      --entrypoint /bin/sh \
+      "${image}" \
+      -c 'set -eu
+        if : > /probe/.einstoff-unexpected-write 2>/dev/null; then
+          rm -f /probe/.einstoff-unexpected-write
+          echo "Historical probe source is unexpectedly writable." >&2
+          exit 1
+        fi
+        sentinel=/reports/.einstoff-write-probe
+        test -w /reports
+        : > "${sentinel}"
+        rm -f "${sentinel}"'; then
+      echo "The Wolfram ${version} report mount failed its unlicensed permission preflight." >&2
+      exit 1
+    fi
+  done <<< "${versions}"
+
+  echo "Historical container mounts through ${through} passed their unlicensed preflight."
+  exit 0
+fi
+
 [[ "${command_name}" == 'run' && $# -eq 5 ]] || usage
 [[ -n "${WOLFRAMSCRIPT_ENTITLEMENTID:-}" ]] || {
   echo 'WOLFRAMSCRIPT_ENTITLEMENTID is required for historical-engine execution.' >&2
@@ -69,6 +134,7 @@ fi
 probe_root="$(realpath "$3")"
 tooling_root="$(realpath "$4")"
 report_root="$(realpath -m "$5")"
+build_root="${probe_root}/build"
 manifest="${probe_root}/spf-compatibility-manifest.json"
 [[ -f "${manifest}" ]] || { echo 'Historical probe manifest is missing.' >&2; exit 2; }
 python3 -c \
@@ -78,12 +144,14 @@ python3 -c \
   exit 2
 }
 mkdir -p "${report_root}"
+prepare_container_output "${build_root}"
 
 build_log="${report_root}/build-15.0.log"
 if ! docker run --rm \
   --env WOLFRAMSCRIPT_ENTITLEMENTID \
   --env EINSTOFF_SOURCE_ROOT=/probe \
-  --volume "${probe_root}:/probe" \
+  --volume "${probe_root}:/probe:ro" \
+  --volume "${build_root}:/probe/build" \
   --volume "${tooling_root}:/tooling:ro" \
   --workdir /probe \
   --entrypoint wolframscript \
@@ -115,6 +183,10 @@ while IFS= read -r version; do
   image="$(image_for "${version}")"
   log="${report_root}/wolfram-${version}.log"
   report="${report_root}/wolfram-${version}.json"
+  gate_output="${report_root}/container-${version}"
+  container_report="${gate_output}/report.json"
+  prepare_container_output "${gate_output}"
+  rm -f "${container_report}"
   rm -f "${report}"
   echo "Running historical-engine gate ${version}..."
   set +e
@@ -122,20 +194,32 @@ while IFS= read -r version; do
     --env WOLFRAMSCRIPT_ENTITLEMENTID \
     --volume "${probe_root}:/probe:ro" \
     --volume "${tooling_root}:/tooling:ro" \
-    --volume "${report_root}:/reports" \
+    --volume "${gate_output}:/reports" \
     --workdir /probe \
     --entrypoint wolframscript \
     "${image}" \
     -script /tooling/scripts/historical-engine-runner.wls \
     "/probe/build/${archive_name}" \
     /probe/tests \
-    "/reports/wolfram-${version}.json" \
+    /reports/report.json \
     "${version}" \
     2>&1 | tee "${log}"
   pipeline_status=("${PIPESTATUS[@]}")
   set -e
   gate_status=${pipeline_status[0]}
   tee_status=${pipeline_status[1]}
+  report_copy_status=0
+  if [[ -L "${container_report}" ]]; then
+    echo "Historical-engine gate ${version} returned a symbolic-link report." >&2
+    report_copy_status=1
+  elif [[ -e "${container_report}" && ! -f "${container_report}" ]]; then
+    echo "Historical-engine gate ${version} returned a non-regular report." >&2
+    report_copy_status=1
+  elif [[ -f "${container_report}" ]] && ! cp -- "${container_report}" "${report}"; then
+    echo "Could not preserve the historical-engine ${version} report." >&2
+    report_copy_status=1
+  fi
+  rm -rf -- "${gate_output}"
   if (( gate_status != 0 )); then
     echo "Historical-engine gate ${version} failed; later gates were not started." >&2
     exit "${gate_status}"
@@ -143,6 +227,9 @@ while IFS= read -r version; do
   if (( tee_status != 0 )); then
     echo "Could not preserve the historical-engine ${version} log." >&2
     exit "${tee_status}"
+  fi
+  if (( report_copy_status != 0 )); then
+    exit "${report_copy_status}"
   fi
   if ! python3 "${tooling_root}/scripts/validate-historical-report.py" \
     --report "${report}" \

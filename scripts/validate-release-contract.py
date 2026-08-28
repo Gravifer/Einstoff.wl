@@ -103,7 +103,7 @@ def check_historical_matrix_input_policy() -> None:
             "historical matrix must list the requested valid ladder exactly"
         )
 
-    for command in ("list", "pull"):
+    for command in ("list", "pull", "preflight"):
         rejected = subprocess.run(
             [bash, helper.as_posix(), command, '15.0"; exit 0; #'],
             cwd=ROOT,
@@ -115,6 +115,16 @@ def check_historical_matrix_input_policy() -> None:
             raise AssertionError(
                 f"historical matrix {command} must reject unsupported gates with 64"
             )
+
+    rejected_preflight = subprocess.run(
+        [bash, helper.as_posix(), "preflight", "15.0"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if rejected_preflight.returncode != 64:
+        raise AssertionError("historical matrix preflight must require both roots")
 
     rejected_run = subprocess.run(
         [bash, helper.as_posix(), "run", "invalid", "probe", "tooling", "reports"],
@@ -159,6 +169,11 @@ def check_contract() -> None:
     contract_job = block(paclet_ci, "  contract:\n", "  build:\n")
     python_job = block(paclet_ci, "  python-smoke:\n", "  build:\n")
     build_job = block(paclet_ci, "  build:\n")
+    historical_preflight = block(
+        historical,
+        "      - name: Preflight historical container mounts (unlicensed)\n",
+        "      - name: Build and run the historical-engine ladder\n",
+    )
     historical_run = block(
         historical,
         "      - name: Build and run the historical-engine ladder\n",
@@ -376,11 +391,21 @@ def check_contract() -> None:
     require(historical, "test_historical_probe.py", "probe compiler tests")
     require(historical, "test_historical_report.py", "historical report tests")
     require(historical, "historical-engine-matrix.sh pull", "secret-free image pull")
+    require(
+        historical_preflight,
+        "historical-engine-matrix.sh preflight",
+        "unlicensed historical mount preflight",
+    )
+    forbid(
+        historical_preflight,
+        "WOLFRAMSCRIPT_ENTITLEMENTID",
+        "entitlement-free historical mount preflight",
+    )
     require(historical, "THROUGH: ${{ inputs.through }}", "environment-only gate input")
-    if historical.count("THROUGH: ${{ inputs.through }}") != 2:
-        raise AssertionError("both historical matrix steps must receive the gate via env")
-    if historical.count('case "${THROUGH}" in') != 2:
-        raise AssertionError("both historical matrix steps must allowlist the gate")
+    if historical.count("THROUGH: ${{ inputs.through }}") != 3:
+        raise AssertionError("all historical matrix steps must receive the gate via env")
+    if historical.count('case "${THROUGH}" in') != 3:
+        raise AssertionError("all historical matrix steps must allowlist the gate")
     forbid(
         historical,
         'historical-engine-matrix.sh pull "${{ inputs.through }}"',
@@ -432,6 +457,51 @@ def check_contract() -> None:
     forbid(historical_matrix, "grep -Eq", "lexical probe manifest validation")
     require(historical_matrix, "${#archives[@]} != 1", "single probe archive guard")
     require(historical_matrix, "archive_list", "checked archive discovery output")
+    require(
+        historical_matrix,
+        '--volume "${probe_root}:/probe:ro"',
+        "read-only historical probe mount",
+    )
+    forbid(
+        historical_matrix,
+        '--volume "${probe_root}:/probe"',
+        "container-writable historical probe root",
+    )
+    require(
+        historical_matrix,
+        "install -d -m 0777",
+        "container-UID-independent output preparation",
+    )
+    require(
+        historical_matrix,
+        '--volume "${build_root}:/probe/build"',
+        "isolated historical build output",
+    )
+    require(
+        historical_matrix,
+        '--volume "${gate_output}:/reports"',
+        "isolated historical report output",
+    )
+    forbid(
+        historical_matrix,
+        '--volume "${report_root}:/reports"',
+        "container-writable trusted report root",
+    )
+    require(
+        historical_matrix,
+        '[[ -L "${container_report}" ]]',
+        "symbolic-link historical report rejection",
+    )
+    require(
+        historical_matrix,
+        "/probe/.einstoff-unexpected-write",
+        "read-only probe mount preflight",
+    )
+    require(
+        historical_matrix,
+        "/reports/.einstoff-write-probe",
+        "writable report mount preflight",
+    )
     require(historical_matrix, "--env WOLFRAMSCRIPT_ENTITLEMENTID", "nonliteral entitlement handoff")
     require(historical_matrix, "later gates were not started", "stop-on-first-failure policy")
     require(historical_matrix, "gate_status=${pipeline_status[0]}", "historical exit classification")
