@@ -89,22 +89,22 @@ credits:
 
 Maintainers can manually dispatch `historical-wolfram.yml` to test a first-parent
 `main` snapshot under the official Wolfram Engine 15.0, 14.1, 13.2, and 13.0
-containers. This workflow is evidence for minimum-version decisions, not ordinary CI:
+containers. This workflow records minimum-version evidence and guards the established
+compatibility floor; it is not ordinary CI:
 it never runs on pushes or pull requests and publishes nothing. Full engine validation
 requires an explicit paid-run confirmation. With that confirmation left false,
 maintainers may dispatch the workflow from a review branch to run only the
-entitlement-free image and mount preflight. A workflow change may be commissioned
-before merge by setting both paid confirmations on its review branch. That exceptional
-path is restricted to the repository owner and the v15 gate; it exists to prove the
-complete build, archive, runner, and report sequence before the workflow change is
-reviewed. Ordinary paid historical matrices remain restricted to `main`. The separately
-selected candidate must still be an exact first-parent snapshot of `main`, excluding
+entitlement-free image and mount preflight. A workflow or compatibility-build change
+may be commissioned before merge by setting both paid confirmations on its review
+branch. That exceptional path is restricted to the repository owner and places the
+exact review-branch workflow tooling inside the entitlement trust boundary. The
+separately selected candidate must still be an exact first-parent snapshot of `main`, excluding
 intermediate commits retained inside merged branch histories. Its `through` input
 selects the oldest gate; all newer gates run first and the ladder stops at the first
 failure.
 
-The workflow mechanically generates a `probeOnly` legacy-SPF tree with a temporary
-`13.0+` metadata overlay, builds one archive under version 15, then installs and tests
+The workflow mechanically generates a `probeOnly` legacy-SPF tree while retaining the
+canonical `13.0+` metadata, builds one archive under version 15, then installs and tests
 that exact archive sequentially under the selected engines. Production release and
 Paclet Repository paths reject the probe marker. Historical runs use the repository
 `WOLFRAMSCRIPT_ENTITLEMENTID` only while kernels execute and never receive the
@@ -119,11 +119,12 @@ mount and per-engine report directories. Do not nest writable output beneath the
 read-only probe or bypass a failed preflight by making the whole probe or trusted
 report root container-writable.
 
-Commission a new or materially changed harness progressively: run through `15.0`,
-then `14.1`, `13.2`, and `13.0`, inspecting the temporary reports after each dispatch.
-Do not rerun blindly after an unexplained licensing, container, or harness failure.
-The declared minimum remains `15.0+` until a separate reviewed change records the
-oldest genuinely passing engine.
+After unlicensed and human review, select the oldest intended gate once; the workflow
+runs all newer gates first and stops at the first failure. Do not rerun blindly after
+an unexplained licensing, container, or harness failure. Run
+[`33157241265`](https://github.com/Gravifer/Einstoff.wl/actions/runs/33157241265)
+proved the generated archive on every gate through 13.0, establishing the declared
+`13.0+` minimum.
 
 Jobs are skipped individually rather than filtering out the workflow. A skipped
 licensed job on a documentation-only change or fork pull request is expected, not a
@@ -290,9 +291,22 @@ deployment proves the replacement. Then revoke the old `PublisherTokenObject` fr
 authenticated session with `DeleteObject[oldToken]`. Never print token strings in a
 log, workflow input, issue, or pull request.
 
+### Prerelease sequence
+
+1. Update `PacletInfo.wl` and move the matching notes out of the changelog's
+   `Unreleased` section.
+2. Run `scripts/validate-release.ps1 -Python -ExpectedTag vX.Y.Z-prerelease`, review
+   the archive and compatibility manifest, then merge the release changes to `main`.
+3. Dispatch `release.yml` on `main` with the exact candidate and expected prerelease
+   tag. Confirm that the dry run uploads the archive, checksum and manifest without
+   creating a release or Wolfram submission.
+4. Create and push a signed annotated tag at the validated `main` commit.
+5. Verify the GitHub prerelease, checksum, manifest, build attestation and immutable
+   release. Prerelease tags never instantiate the Paclet Repository publication job.
+
 ### Stable release sequence
 
-For a release candidate:
+For a stable release:
 
 1. Update `PacletInfo.wl` and move the matching notes out of the changelog's
    `Unreleased` section.
@@ -315,7 +329,6 @@ For a release candidate:
    are exposed only to its guarded submission step.
 7. Wait for the public Paclet Repository page to report the expected version, then
    perform a clean-install smoke test. Search indexing delay is not a workflow failure.
-8. Synchronize the updated `main` and tag to Codeberg manually.
 
 Python/ZMQ startup is probed before MUnit starts. Release validation makes one initial
 attempt plus at most three startup-only retries. Invalid interpreter/dependency setup

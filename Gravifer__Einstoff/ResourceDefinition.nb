@@ -1413,7 +1413,7 @@ GitHub), you can provide the URL here.", "MoreInfoText"], Background ->
   "Source Control Repository", "SourceControlURL", "TemplateCellGroup"},
  CellID->553474780,ExpressionUUID->"866a5845-02a7-e24d-95a7-0fd091820447"],
 
-Cell["https://codeberg.org/Gravifer/Einstoff.wl", \
+Cell["https://github.com/Gravifer/Einstoff.wl", \
 "Text",ExpressionUUID->"c79b568a-513d-fe4f-b471-1303173f19d2"]
 }, Open  ]],
 
@@ -2096,7 +2096,7 @@ Cell[TextData[{
    "Wolfram Language Version"},
  CellID->389299396,ExpressionUUID->"2b8ea535-251a-3d46-8326-f624d5dd1c95"],
 
-Cell["15.0+", "Text",ExpressionUUID->"ec6ec565-5cf0-a245-9474-d986e915535e"]
+Cell["13.0+", "Text",ExpressionUUID->"ec6ec565-5cf0-a245-9474-d986e915535e"]
 }, Open  ]],
 
 Cell[CellGroupData[{

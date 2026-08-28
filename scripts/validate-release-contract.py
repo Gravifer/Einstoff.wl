@@ -566,11 +566,10 @@ def check_contract() -> None:
         "trusted historical completion validation",
     )
 
-    require(historical_probe, 'CANONICAL_VERSION = "15.0+"', "canonical probe MSV")
-    require(historical_probe, 'PROBE_VERSION = "13.0+"', "historical probe MSV")
-    require(historical_probe, 'manifest["probeOnly"] = True', "probe-only manifest overlay")
-    require(historical_probe, "pacletInfoBeforeSHA256", "probe input provenance")
-    require(historical_probe, "pacletInfoAfterSHA256", "probe output provenance")
+    require(historical_probe, 'REQUIRED_VERSION = "13.0+"', "historical probe MSV")
+    require(historical_probe, 'manifest["probeOnly"] = True', "probe-only manifest marker")
+    require(historical_probe, 'manifest["probeMetadata"]', "probe metadata")
+    require(historical_probe, "pacletInfoSHA256", "probe source provenance")
 
     require(
         paclet_builder,

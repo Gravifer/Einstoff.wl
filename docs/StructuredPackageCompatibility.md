@@ -24,9 +24,9 @@ PackageExported[{a, b, ...}]  -> one PackageExport declaration per symbol
 PackageScoped[{a, b, ...}]    -> one PackageScope declaration per symbol
 ```
 
-This compatibility build does not yet lower the paclet's declared
-`"WolframVersion" -> "15.0+"`. Historical-engine testing and any eventual minimum
-version change are separate, reviewed stages. The Python implementation is
+The canonical paclet now declares `"WolframVersion" -> "13.0+"`; the compatibility
+build lowers only the structured-package source vocabulary and does not rewrite that
+metadata. The Python implementation is
 provisional: it remains the production route while it is the smallest deterministic,
 unlicensed build dependency, but it may be replaced if Wolfram documents a supported
 native migration facility. Any replacement must preserve the same staging,
@@ -193,10 +193,10 @@ builds, and submits from one generated source flavor even though its public
 `SubmitPaclet` API rebuilds the repository archive itself.
 
 The manifest's `probeOnly` field is `false` in production. The manual
-`historical-wolfram.yml` workflow creates a separate compatibility tree, overlays only
-`"WolframVersion" -> "13.0+"`, changes the marker to `true`, and records the
-pre- and post-overlay `PacletInfo.wl` hashes. All production validation and submission
-paths reject such a tree.
+`historical-wolfram.yml` workflow creates a separate compatibility tree, validates and
+retains the canonical `"WolframVersion" -> "13.0+"` declaration, changes the marker to
+`true`, and records the unchanged `PacletInfo.wl` hash. All production validation and
+submission paths reject such a tree.
 
 ## Historical-engine validation
 
@@ -249,10 +249,11 @@ public surface, smoke count, and complete passing test counts before advancing. 
 Select the oldest intended gate once the workflow and compatibility build have passed
 unlicensed review. The workflow runs every gate in order and stops at the first failure,
 so selecting `13.0` exercises `15.0`, `14.1`, `13.2`, and `13.0` without repeated paid
-dispatches. Passing probes are evidence for a later, single reviewed MSV change; they do
-not themselves alter source metadata or any published artifact. A genuine 13.0 package
-failure with a passing 13.2 gate supports `13.2+`; otherwise a complete pass supports
-`13.0+`.
+dispatches. [Historical run 33157241265](https://github.com/Gravifer/Einstoff.wl/actions/runs/33157241265)
+validated one generated archive unchanged on all four engines. Every gate exposed only
+`Einstoff`, passed nine representative smoke tests, and passed all 558 Wolfram tests.
+That evidence establishes the current `13.0+` floor; future compatibility-sensitive
+changes should rerun the ladder before making a new release.
 
 ## Removing the layer after pre-v15 support ends
 

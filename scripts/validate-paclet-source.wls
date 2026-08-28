@@ -42,6 +42,22 @@ taggedCellContents[nb_Notebook, tag_String] := Cases[
 ];
 taggedCellContents[_, _] := {};
 
+cellHasTemplateGroupNameQ[cell_Cell, name_String] := Cases[
+  List @@ cell,
+  (TaggingRules -> rules_) /; MemberQ[
+    Flatten @ {rules},
+    "TemplateGroupName" -> name
+  ],
+  {1}
+] =!= {};
+templateGroupFirstContents[nb_Notebook, name_String] := Cases[
+  nb,
+  Cell[CellGroupData[{header_Cell, value_Cell, ___}, ___], ___] /;
+    cellHasTemplateGroupNameQ[header, name] :> First[List @@ value],
+  Infinity
+];
+templateGroupFirstContents[_, _] := {};
+
 check[
   "definition notebook expression",
   MatchQ[definitionNotebook, _Notebook],
@@ -50,6 +66,11 @@ check[
 
 definitionNames = taggedCellContents[definitionNotebook, "Name"];
 definitionDescriptions = taggedCellContents[definitionNotebook, "Description"];
+definitionSourceURLs = templateGroupFirstContents[
+  definitionNotebook,
+  "SourceControlURL"
+];
+projectURL = "https://github.com/Gravifer/Einstoff.wl";
 
 check[
   "publisher paclet discovery",
@@ -77,10 +98,11 @@ If[Length[paclets] == 1,
       <|"ExpectedTag" -> expectedTag, "PacletVersion" -> version|>
     ]
   ];
-  check["minimum Wolfram version", paclet["WolframVersion"] === "15.0+", paclet["WolframVersion"]];
+  check["minimum Wolfram version", paclet["WolframVersion"] === "13.0+", paclet["WolframVersion"]];
   check["publisher ID", paclet["PublisherID"] === "Gravifer", paclet["PublisherID"]];
   check["primary context", paclet["PrimaryContext"] === "Gravifer`Einstoff`", paclet["PrimaryContext"]];
   check["license", paclet["License"] === "GPL-3.0-or-later", paclet["License"]];
+  check["project URL", paclet["URL"] === projectURL, paclet["URL"]];
   check[
     "definition notebook name",
     definitionNames === {paclet["Name"]},
@@ -93,6 +115,11 @@ If[Length[paclets] == 1,
       "DefinitionNotebook" -> definitionDescriptions,
       "PacletInfo" -> paclet["Description"]
     |>
+  ];
+  check[
+    "definition notebook source URL",
+    definitionSourceURLs === {projectURL},
+    definitionSourceURLs
   ];
   description = paclet["Description"];
   check[

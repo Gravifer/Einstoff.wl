@@ -118,7 +118,7 @@ For release validation, regenerate the native documentation, validate the source
 paclet, build an archive, and rerun the suite against the extracted artifact:
 
 ```powershell
-pwsh -NoProfile -File scripts/validate-release.ps1 -ExpectedTag v0.2.0
+pwsh -NoProfile -File scripts/validate-release.ps1 -ExpectedTag v0.2.1-beta.1
 ```
 
 Add `-Python` to include the optional Python cross-validation suite. The release
@@ -127,7 +127,8 @@ it does not install the candidate into the normal user paclet repository. Canoni
 source uses Wolfram Language 15's public structured-package vocabulary; release
 artifacts are built through the provisional compatibility compiler described in
 [`docs/StructuredPackageCompatibility.md`](docs/StructuredPackageCompatibility.md),
-which generates a temporary legacy-format tree mechanically.
+which generates a temporary legacy-format tree mechanically for Wolfram Language
+13.0 and later.
 
 To inspect the source paclet separately, install the checksum-verified PacletCICD
 version pinned by this repository, then check or build with the same tooling used by
@@ -161,7 +162,8 @@ Function Repository updates remain separately reviewed and manual.
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the CI selection policy, fork workflow,
 PacletCICD fallback installation, protected publication environment, token rotation,
 failure recovery, and detailed maintainer release sequence. Maintainers synchronize
-`main` and release tags to Codeberg explicitly.
+release state through GitHub; the former Codeberg mirror is no longer maintained as
+a synchronized publication target.
 
 ## Status
 
@@ -169,7 +171,9 @@ failure recovery, and detailed maintainer release sequence. Maintainers synchron
 and [`ResourceFunction["Einstoff"]` 1.0.0](https://resources.wolframcloud.com/FunctionRepository/resources/Einstoff/)
 are published. The paclet remains experimental and pre-1.0: the public API is usable,
 while the supported notation and diagnostics may continue to evolve with user
-feedback.
+feedback. The GitHub-only
+[`0.2.1-beta.1`](https://github.com/Gravifer/Einstoff.wl/releases/tag/v0.2.1-beta.1)
+prerelease lowers the paclet requirement to Wolfram Language 13.0 for broader testing.
 
 ## License
 

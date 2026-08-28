@@ -17,10 +17,8 @@ assert SPEC is not None and SPEC.loader is not None
 compat = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(compat)
 
-CANONICAL_VERSION = "15.0+"
-PROBE_VERSION = "13.0+"
-CANONICAL_FIELD = b'"WolframVersion" -> "15.0+"'
-PROBE_FIELD = b'"WolframVersion" -> "13.0+"'
+REQUIRED_VERSION = "13.0+"
+REQUIRED_FIELD = b'"WolframVersion" -> "13.0+"'
 
 
 def sha256(data: bytes) -> str:
@@ -36,19 +34,15 @@ def prepare_probe(source: Path, output: Path) -> dict[str, object]:
 
     paclet_info = output.resolve() / "Gravifer__Einstoff" / "PacletInfo.wl"
     before = paclet_info.read_bytes()
-    if before.count(CANONICAL_FIELD) != 1 or PROBE_FIELD in before:
+    if before.count(REQUIRED_FIELD) != 1:
         raise compat.CompatibilityError(
-            "historical probe requires exactly one canonical 15.0+ WolframVersion field"
+            "historical probe requires exactly one canonical 13.0+ WolframVersion field"
         )
-    after = before.replace(CANONICAL_FIELD, PROBE_FIELD)
-    paclet_info.write_bytes(after)
 
     manifest["probeOnly"] = True
-    manifest["probeOverlay"] = {
-        "canonicalWolframVersion": CANONICAL_VERSION,
-        "probeWolframVersion": PROBE_VERSION,
-        "pacletInfoBeforeSHA256": sha256(before),
-        "pacletInfoAfterSHA256": sha256(after),
+    manifest["probeMetadata"] = {
+        "wolframVersion": REQUIRED_VERSION,
+        "pacletInfoSHA256": sha256(before),
     }
     manifest_path = output.resolve() / compat.MANIFEST_NAME
     manifest_path.write_text(
@@ -74,11 +68,10 @@ def main(arguments: list[str] | None = None) -> int:
         print(f"Historical probe staging failed: {error}", file=sys.stderr)
         return 1
 
-    overlay = manifest["probeOverlay"]
+    metadata = manifest["probeMetadata"]
     print(
         "Prepared historical-engine probe: "
-        f"WolframVersion {overlay['canonicalWolframVersion']} -> "
-        f"{overlay['probeWolframVersion']}"
+        f"WolframVersion {metadata['wolframVersion']} (unchanged)"
     )
     print(
         "HISTORICAL_PROBE_MANIFEST="
