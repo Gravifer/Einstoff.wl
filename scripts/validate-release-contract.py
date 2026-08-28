@@ -138,7 +138,6 @@ def check_historical_matrix_input_policy() -> None:
             "historical matrix run must reject an invalid gate before other checks"
         )
 
-
 def check_contract() -> None:
     release = load(".github/workflows/release.yml")
     paclet_ci = load(".github/workflows/paclet-ci.yml")
@@ -397,11 +396,6 @@ def check_contract() -> None:
     )
     require(
         historical,
-        "Branch commissioning is restricted to the v15 diagnostic gate.",
-        "v15-only branch commissioning",
-    )
-    require(
-        historical,
         "Branch commissioning requires a branch workflow ref.",
         "branch-only commissioning",
     )
@@ -435,9 +429,9 @@ def check_contract() -> None:
         "entitlement-free historical mount preflight",
     )
     require(historical, "THROUGH: ${{ inputs.through }}", "environment-only gate input")
-    if historical.count("THROUGH: ${{ inputs.through }}") != 4:
+    if historical.count("THROUGH: ${{ inputs.through }}") != 3:
         raise AssertionError(
-            "the commissioning policy and all matrix steps must receive the gate via env"
+            "all historical matrix steps must receive the gate via env"
         )
     if historical.count('case "${THROUGH}" in') != 3:
         raise AssertionError("all historical matrix steps must allowlist the gate")
@@ -464,8 +458,8 @@ def check_contract() -> None:
     )
     require(
         historical_run,
-        "inputs.through == '15.0' && startsWith(github.ref, 'refs/heads/')",
-        "v15 branch-ref execution guard",
+        "startsWith(github.ref, 'refs/heads/')",
+        "branch-ref execution guard",
     )
     require(historical_run, "WOLFRAMSCRIPT_ENTITLEMENTID", "historical entitlement")
     if historical.count("secrets.WOLFRAMSCRIPT_ENTITLEMENTID") != 1:
@@ -674,7 +668,7 @@ def check_contract() -> None:
 
     require(publication_action_test, "INPUT_EXPECTED_TAG=main", "malformed tag action test")
     require(publication_action_test, "INPUT_EXPECTED_TAG=v1.2.3-alpha.1", "prerelease action test")
-    require(publication_action_test, '"mappingVersion": 5', "current SPF fixture version")
+    require(publication_action_test, '"mappingVersion": 6', "current SPF fixture version")
     require(
         publication_action_test,
         '"sourceNormalization": "lf-v1"',

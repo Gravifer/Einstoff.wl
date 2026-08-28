@@ -24,7 +24,7 @@ on:
         default: false
         type: boolean
       confirm_branch_commissioning:
-        description: Owner-only paid v15 commissioning from a review branch
+        description: Owner-only paid commissioning from a review branch
         required: true
         default: false
         type: boolean
@@ -49,7 +49,6 @@ jobs:
           CONFIRM_BRANCH_COMMISSIONING: ${{ inputs.confirm_branch_commissioning }}
           CONFIRM_PAID_RUN: ${{ inputs.confirm_paid_run }}
           REPOSITORY_OWNER: ${{ github.repository_owner }}
-          THROUGH: ${{ inputs.through }}
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
           WORKFLOW_REF: ${{ github.ref }}
         run: |
@@ -78,10 +77,6 @@ jobs:
           fi
           if [[ "${ACTOR}" != "${REPOSITORY_OWNER}" || "${TRIGGERING_ACTOR}" != "${REPOSITORY_OWNER}" ]]; then
             echo 'Only the repository owner may commission a paid branch run.' >&2
-            exit 64
-          fi
-          if [[ "${THROUGH}" != '15.0' ]]; then
-            echo 'Branch commissioning is restricted to the v15 diagnostic gate.' >&2
             exit 64
           fi
 
@@ -167,7 +162,7 @@ jobs:
             reports
 
       - name: Build and run the historical-engine ladder
-        if: ${{ inputs.confirm_paid_run && (github.ref == 'refs/heads/main' || (inputs.confirm_branch_commissioning && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner && inputs.through == '15.0' && startsWith(github.ref, 'refs/heads/'))) }}
+        if: ${{ inputs.confirm_paid_run && (github.ref == 'refs/heads/main' || (inputs.confirm_branch_commissioning && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner && startsWith(github.ref, 'refs/heads/'))) }}
         shell: bash
         env:
           THROUGH: ${{ inputs.through }}

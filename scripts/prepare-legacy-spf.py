@@ -12,9 +12,10 @@ import re
 import shutil
 import stat
 import sys
+import unicodedata
 
 
-MAPPING_VERSION = 5
+MAPPING_VERSION = 6
 SOURCE_NORMALIZATION = "lf-v1"
 MAPPINGS = {
     b"PackageInitialize": b"Package",
@@ -44,6 +45,13 @@ class CompatibilityError(RuntimeError):
 
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def portable_path_key(path: Path, root: Path) -> str:
+    """Return a deterministic key for paths that must coexist portably."""
+
+    relative = path.relative_to(root).as_posix()
+    return unicodedata.normalize("NFC", relative).casefold()
 
 
 def symbol_start_byte(value: int) -> bool:
@@ -395,7 +403,40 @@ def prepare(source: Path, output: Path) -> dict[str, object]:
 
     copy_required_source(source, output)
     kernel_root = output / "Gravifer__Einstoff" / "Kernel"
-    source_files = sorted(kernel_root.rglob("*.wl"))
+    kernel_entries = sorted(kernel_root.rglob("*"))
+    portable_entries: dict[str, str] = {}
+    for entry in kernel_entries:
+        relative = entry.relative_to(output).as_posix()
+        key = portable_path_key(entry, output)
+        if key in portable_entries:
+            raise CompatibilityError(
+                "canonical Kernel paths collide on a portable filesystem: "
+                f"{portable_entries[key]} and {relative}"
+            )
+        portable_entries[key] = relative
+
+    kernel_files = [entry for entry in kernel_entries if entry.is_file()]
+    legacy_source_files = sorted(
+        path for path in kernel_files if path.suffix.casefold() == ".m"
+    )
+    if legacy_source_files:
+        relative = legacy_source_files[0].relative_to(output).as_posix()
+        raise CompatibilityError(
+            "canonical Kernel source must not contain legacy .m fragments: "
+            f"{relative}"
+        )
+    noncanonical_wl_files = sorted(
+        path
+        for path in kernel_files
+        if path.suffix.casefold() == ".wl" and path.suffix != ".wl"
+    )
+    if noncanonical_wl_files:
+        relative = noncanonical_wl_files[0].relative_to(output).as_posix()
+        raise CompatibilityError(
+            "canonical Kernel SPF fragments must use the lowercase .wl suffix: "
+            f"{relative}"
+        )
+    source_files = sorted(path for path in kernel_files if path.suffix == ".wl")
     if not source_files:
         raise CompatibilityError("no Kernel/*.wl files were found")
 
@@ -411,13 +452,40 @@ def prepare(source: Path, output: Path) -> dict[str, object]:
         )
     loader_path, package_context = loader_matches[0]
 
+    planned_files: list[tuple[Path, Path]] = []
+    target_paths: dict[str, str] = {}
+    for file_path in source_files:
+        target_path = file_path if file_path == loader_path else file_path.with_suffix(".m")
+        source_relative = file_path.relative_to(output).as_posix()
+        target_relative = target_path.relative_to(output).as_posix()
+        target_key = portable_path_key(target_path, output)
+        if target_key in target_paths:
+            raise CompatibilityError(
+                "generated legacy fragment path collision between "
+                f"{target_paths[target_key]} and {source_relative}"
+            )
+        existing_relative = portable_entries.get(target_key)
+        if existing_relative is not None and target_path != file_path:
+            raise CompatibilityError(
+                "generated legacy fragment path collides with an existing Kernel entry: "
+                f"{target_relative} and {existing_relative}"
+            )
+        if target_path != file_path and target_path.exists():
+            raise CompatibilityError(
+                f"generated legacy fragment path already exists: {target_relative}"
+            )
+        target_paths[target_key] = source_relative
+        planned_files.append((file_path, target_path))
+
     changed_files: dict[str, object] = {}
+    generated_files: list[tuple[str, str, Path]] = []
     total_counts: Counter[str] = Counter()
     emitted_counts: Counter[str] = Counter()
-    for file_path in source_files:
-        relative = file_path.relative_to(output).as_posix()
+    for file_path, target_path in planned_files:
+        source_relative = file_path.relative_to(output).as_posix()
+        target_relative = target_path.relative_to(output).as_posix()
         before = canonical_source_bytes(file_path.read_bytes())
-        after, counts, emitted = lower_wl_source(before, relative)
+        after, counts, emitted = lower_wl_source(before, source_relative)
         if file_path != loader_path:
             package_line = b'Package["' + package_context + b'"]\n'
             if after.startswith(b"\xef\xbb\xbf"):
@@ -425,23 +493,20 @@ def prepare(source: Path, output: Path) -> dict[str, object]:
             else:
                 after = package_line + after
             emitted["Package"] += 1
-        if counts:
-            file_path.write_bytes(after)
+        if counts or after != before or target_path != file_path:
+            target_path.write_bytes(after)
+            if target_path != file_path:
+                file_path.unlink()
             total_counts.update(counts)
             emitted_counts.update(emitted)
-            changed_files[relative] = {
+            changed_files[source_relative] = {
+                "sourcePath": source_relative,
+                "targetPath": target_relative,
                 "beforeSHA256": sha256(before),
                 "afterSHA256": sha256(after),
                 "replacements": dict(sorted(counts.items())),
             }
-        elif after != before:
-            file_path.write_bytes(after)
-            emitted_counts.update(emitted)
-            changed_files[relative] = {
-                "beforeSHA256": sha256(before),
-                "afterSHA256": sha256(after),
-                "replacements": {},
-            }
+        generated_files.append((source_relative, target_relative, target_path))
 
     if total_counts["PackageInitialize"] != 1:
         raise CompatibilityError(
@@ -451,19 +516,39 @@ def prepare(source: Path, output: Path) -> dict[str, object]:
         if total_counts[required] < 1:
             raise CompatibilityError(f"canonical source contains no {required} directive")
 
-    for file_path in source_files:
-        relative = file_path.relative_to(output).as_posix()
-        lowered = file_path.read_bytes()
-        _, remaining, _ = lower_wl_source(lowered, relative, reject_legacy=False)
+    for source_relative, target_relative, target_path in generated_files:
+        lowered = target_path.read_bytes()
+        _, remaining, _ = lower_wl_source(
+            lowered, target_relative, reject_legacy=False
+        )
         if remaining:
-            raise CompatibilityError(f"{relative}: public SPF vocabulary remains after lowering")
+            raise CompatibilityError(
+                f"{target_relative}: public SPF vocabulary remains after lowering"
+            )
         payload = lowered.removeprefix(b"\xef\xbb\xbf").lstrip(b" \t\r\n")
         expected_prefix = b'Package["' + package_context + b'"]'
         if not payload.startswith(expected_prefix):
-            raise CompatibilityError(f"{relative}: generated fragment has no legacy Package directive")
+            raise CompatibilityError(
+                f"{target_relative}: generated fragment has no legacy Package directive"
+            )
+
+    remaining_wl_files = sorted(kernel_root.rglob("*.wl"))
+    if remaining_wl_files != [loader_path]:
+        unexpected = ", ".join(
+            path.relative_to(output).as_posix() for path in remaining_wl_files
+        )
+        raise CompatibilityError(
+            "generated legacy tree must retain only the .wl entry fragment"
+            + (f": {unexpected}" if unexpected else "")
+        )
+    generated_m_files = sorted(kernel_root.rglob("*.m"))
+    if len(generated_m_files) != len(source_files) - 1:
+        raise CompatibilityError(
+            "generated legacy tree has an incomplete .m implementation-fragment set"
+        )
 
     manifest: dict[str, object] = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "mappingVersion": MAPPING_VERSION,
         "sourceNormalization": SOURCE_NORMALIZATION,
         "sourceFlavor": "public-spf-v15",

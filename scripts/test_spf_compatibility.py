@@ -63,8 +63,14 @@ class CompatibilityTests(unittest.TestCase):
                 b'Package["Test`"]\n',
             )
             lowered = (
-                output / "Gravifer__Einstoff" / "Kernel" / "Core.wl"
+                output / "Gravifer__Einstoff" / "Kernel" / "Core.m"
             ).read_bytes()
+            self.assertFalse(
+                (output / "Gravifer__Einstoff" / "Kernel" / "Core.wl").exists()
+            )
+            self.assertTrue(
+                (source / "Gravifer__Einstoff" / "Kernel" / "Core.wl").is_file()
+            )
             self.assertTrue(lowered.startswith(b'Package["Test`"]\n'))
             self.assertIn(b"(* PackageScoped[{commented}]", lowered)
             self.assertIn(b'"PackageInitialize[escaped\\\"text]"', lowered)
@@ -79,7 +85,19 @@ class CompatibilityTests(unittest.TestCase):
                 {"Package": 2, "PackageExport": 1, "PackageScope": 1},
             )
             self.assertFalse(manifest["probeOnly"])
+            self.assertEqual(manifest["schemaVersion"], 2)
             self.assertEqual(manifest["sourceNormalization"], "lf-v1")
+            core_record = manifest["changedFiles"][
+                "Gravifer__Einstoff/Kernel/Core.wl"
+            ]
+            self.assertEqual(
+                core_record["sourcePath"],
+                "Gravifer__Einstoff/Kernel/Core.wl",
+            )
+            self.assertEqual(
+                core_record["targetPath"],
+                "Gravifer__Einstoff/Kernel/Core.m",
+            )
 
     def test_manifest_is_deterministic_and_contains_no_absolute_paths(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -94,7 +112,7 @@ class CompatibilityTests(unittest.TestCase):
             second_manifest = (second / compat.MANIFEST_NAME).read_bytes()
             self.assertEqual(first_manifest, second_manifest)
             parsed = json.loads(first_manifest)
-            self.assertEqual(parsed["mappingVersion"], 5)
+            self.assertEqual(parsed["mappingVersion"], 6)
             self.assertNotIn(str(root), first_manifest.decode("utf-8"))
 
     def test_lf_and_crlf_sources_produce_identical_staging(self) -> None:
@@ -116,8 +134,8 @@ class CompatibilityTests(unittest.TestCase):
                 (crlf_output / compat.MANIFEST_NAME).read_bytes(),
             )
             self.assertEqual(
-                (lf_output / "Gravifer__Einstoff" / "Kernel" / "Core.wl").read_bytes(),
-                (crlf_output / "Gravifer__Einstoff" / "Kernel" / "Core.wl").read_bytes(),
+                (lf_output / "Gravifer__Einstoff" / "Kernel" / "Core.m").read_bytes(),
+                (crlf_output / "Gravifer__Einstoff" / "Kernel" / "Core.m").read_bytes(),
             )
 
     def test_scalar_declarations_are_validated_and_preserved(self) -> None:
@@ -130,7 +148,7 @@ class CompatibilityTests(unittest.TestCase):
             output = root / "output"
             manifest = compat.prepare(source, output)
             lowered = (
-                output / "Gravifer__Einstoff" / "Kernel" / "Core.wl"
+                output / "Gravifer__Einstoff" / "Kernel" / "Core.m"
             ).read_bytes()
 
             self.assertIn(b"PackageExport[f]\n\nPackageScope[g]\n", lowered)
@@ -155,7 +173,7 @@ class CompatibilityTests(unittest.TestCase):
             output = root / "output"
             manifest = compat.prepare(source, output)
             lowered = (
-                output / "Gravifer__Einstoff" / "Kernel" / "Core.wl"
+                output / "Gravifer__Einstoff" / "Kernel" / "Core.m"
             ).read_bytes()
 
             self.assertIn(b"PackageExport[f]", lowered)
@@ -344,6 +362,80 @@ class CompatibilityTests(unittest.TestCase):
             with self.assertRaises(compat.CompatibilityError):
                 compat.prepare(source, root / "output")
 
+    def test_rejects_preexisting_legacy_kernel_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self.make_source(root)
+            legacy = source / "Gravifer__Einstoff" / "Kernel" / "Core.m"
+            legacy.write_bytes(b'Package["Test`"]\n')
+
+            with self.assertRaisesRegex(
+                compat.CompatibilityError,
+                "canonical Kernel source must not contain legacy .m fragments",
+            ):
+                compat.prepare(source, root / "output")
+
+    def test_rejects_mixed_case_spf_extensions(self) -> None:
+        cases = {
+            "legacy": ("Legacy.M", "legacy .m fragments"),
+            "canonical": ("Extra.WL", "lowercase .wl suffix"),
+        }
+        for label, (filename, message) in cases.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source = self.make_source(root)
+                fragment = source / "Gravifer__Einstoff" / "Kernel" / filename
+                fragment.write_bytes(b'Package["Test`"]\n')
+
+                with self.assertRaisesRegex(compat.CompatibilityError, message):
+                    compat.prepare(source, root / "output")
+
+    def test_rejects_case_only_kernel_path_collisions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self.make_source(root)
+            kernel = source / "Gravifer__Einstoff" / "Kernel"
+            case_variant = kernel / "core.wl"
+            if case_variant.exists():
+                self.skipTest("the local filesystem is case-insensitive")
+            case_variant.write_bytes(b"PackageExported[{h}]\nPackageScoped[{i}]\n")
+
+            with self.assertRaisesRegex(
+                compat.CompatibilityError,
+                "paths collide on a portable filesystem",
+            ):
+                compat.prepare(source, root / "output")
+
+    def test_rejects_generated_target_collision_with_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self.make_source(root)
+            collision = source / "Gravifer__Einstoff" / "Kernel" / "Core.m"
+            collision.mkdir()
+
+            with self.assertRaisesRegex(
+                compat.CompatibilityError,
+                "collides with an existing Kernel entry",
+            ):
+                compat.prepare(source, root / "output")
+
+    def test_portable_path_keys_normalize_case_and_unicode(self) -> None:
+        root = Path("staging")
+        self.assertEqual(
+            compat.portable_path_key(root / "Kernel" / "CORE.m", root),
+            compat.portable_path_key(root / "kernel" / "core.M", root),
+        )
+        self.assertEqual(
+            compat.portable_path_key(
+                root / "Kernel" / "caf\N{LATIN SMALL LETTER E WITH ACUTE}.wl",
+                root,
+            ),
+            compat.portable_path_key(
+                root / "Kernel" / "cafe\N{COMBINING ACUTE ACCENT}.wl",
+                root,
+            ),
+        )
+
     def test_rejects_output_nested_within_source(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -376,14 +468,22 @@ class CompatibilityTests(unittest.TestCase):
             manifest = compat.prepare(repository, output)
             self.assertEqual(manifest["replacementTotals"]["PackageInitialize"], 1)
             self.assertGreater(manifest["replacementTotals"]["PackageScoped"], 1)
-            kernel_files = sorted(
+            kernel_wl_files = sorted(
                 (output / "Gravifer__Einstoff" / "Kernel").rglob("*.wl")
             )
+            kernel_m_files = sorted(
+                (output / "Gravifer__Einstoff" / "Kernel").rglob("*.m")
+            )
+            self.assertEqual(
+                [path.name for path in kernel_wl_files],
+                ["Einstoff.wl"],
+            )
+            self.assertGreater(len(kernel_m_files), 1)
             self.assertEqual(
                 manifest["emittedDirectiveTotals"]["Package"],
-                len(kernel_files),
+                len(kernel_wl_files) + len(kernel_m_files),
             )
-            for kernel_file in kernel_files:
+            for kernel_file in kernel_wl_files + kernel_m_files:
                 lowered = kernel_file.read_bytes().removeprefix(b"\xef\xbb\xbf")
                 self.assertTrue(
                     lowered.startswith(b'Package["Gravifer`Einstoff`"]'),
@@ -391,6 +491,13 @@ class CompatibilityTests(unittest.TestCase):
                 )
                 self.assertNotIn(b"PackageExport[{", lowered)
                 self.assertNotIn(b"PackageScope[{", lowered)
+            for source_path, record in manifest["changedFiles"].items():
+                self.assertEqual(record["sourcePath"], source_path)
+                if source_path.endswith("/Einstoff.wl"):
+                    self.assertEqual(record["targetPath"], source_path)
+                else:
+                    self.assertTrue(record["targetPath"].endswith(".m"))
+                    self.assertFalse(record["targetPath"].endswith(".wl"))
             self.assertTrue(
                 (output / "Gravifer__Einstoff" / "ResourceDefinition.nb").is_file()
             )
