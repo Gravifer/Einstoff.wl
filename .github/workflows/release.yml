@@ -409,11 +409,30 @@ jobs:
           COMPATIBILITY_MANIFEST: ${{ steps.policy.outputs.compatibility_manifest }}
         run: |
           set -euo pipefail
-          gh release verify "${RELEASE_TAG}"
-          gh release verify-asset "${RELEASE_TAG}" "${ARCHIVE}"
-          gh release verify-asset "${RELEASE_TAG}" "${CHECKSUM}"
-          gh release verify-asset "${RELEASE_TAG}" "${MANIFEST}"
-          gh release verify-asset "${RELEASE_TAG}" "${COMPATIBILITY_MANIFEST}"
+
+          verify_release_attestation_with_retry() {
+            local attempt status delay
+            for attempt in 1 2 3 4 5 6; do
+              if "$@"; then
+                return 0
+              else
+                status=$?
+              fi
+              if (( attempt == 6 )); then
+                echo "Release attestation verification failed after ${attempt} attempts: $*" >&2
+                return "${status}"
+              fi
+              delay=$((attempt * 2))
+              echo "Release attestation not yet verifiable (attempt ${attempt}/6); retrying in ${delay}s." >&2
+              sleep "${delay}"
+            done
+          }
+
+          verify_release_attestation_with_retry gh release verify "${RELEASE_TAG}"
+          verify_release_attestation_with_retry gh release verify-asset "${RELEASE_TAG}" "${ARCHIVE}"
+          verify_release_attestation_with_retry gh release verify-asset "${RELEASE_TAG}" "${CHECKSUM}"
+          verify_release_attestation_with_retry gh release verify-asset "${RELEASE_TAG}" "${MANIFEST}"
+          verify_release_attestation_with_retry gh release verify-asset "${RELEASE_TAG}" "${COMPATIBILITY_MANIFEST}"
 
   verify-wolfram:
     name: Verify Wolfram publication candidate
@@ -457,9 +476,27 @@ jobs:
         run: |
           set -euo pipefail
 
+          verify_release_attestation_with_retry() {
+            local attempt status delay
+            for attempt in 1 2 3 4 5 6; do
+              if "$@"; then
+                return 0
+              else
+                status=$?
+              fi
+              if (( attempt == 6 )); then
+                echo "Release attestation verification failed after ${attempt} attempts: $*" >&2
+                return "${status}"
+              fi
+              delay=$((attempt * 2))
+              echo "Release attestation not yet verifiable (attempt ${attempt}/6); retrying in ${delay}s." >&2
+              sleep "${delay}"
+            done
+          }
+
           mkdir release-assets
           gh release download "${RELEASE_TAG}" --dir release-assets
-          gh release verify "${RELEASE_TAG}"
+          verify_release_attestation_with_retry gh release verify "${RELEASE_TAG}"
 
           archive="release-assets/Gravifer__Einstoff-${RELEASE_TAG#v}.paclet"
           checksum="${archive}.sha256"
@@ -467,7 +504,7 @@ jobs:
           compatibility_manifest="release-assets/spf-compatibility-manifest.json"
           for asset in "${archive}" "${checksum}" "${manifest}" "${compatibility_manifest}"; do
             [[ -f "${asset}" ]] || { echo "Missing release asset: ${asset}" >&2; exit 1; }
-            gh release verify-asset "${RELEASE_TAG}" "${asset}"
+            verify_release_attestation_with_retry gh release verify-asset "${RELEASE_TAG}" "${asset}"
           done
           (cd release-assets && sha256sum --check "$(basename "${checksum}")")
 

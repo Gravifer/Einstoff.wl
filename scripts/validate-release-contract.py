@@ -37,6 +37,36 @@ def block(text: str, start: str, end: str | None = None) -> str:
     return text[start_index:end_index]
 
 
+def require_bounded_release_verification(text: str, label: str) -> None:
+    require(
+        text,
+        "verify_release_attestation_with_retry()",
+        f"{label} retry helper",
+    )
+    require(
+        text,
+        "for attempt in 1 2 3 4 5 6; do",
+        f"{label} bounded retry count",
+    )
+    require(
+        text,
+        'sleep "${delay}"',
+        f"{label} retry backoff",
+    )
+    require(
+        text,
+        'verify_release_attestation_with_retry gh release verify "${RELEASE_TAG}"',
+        f"{label} release verification retry",
+    )
+    for line in text.splitlines():
+        stripped = line.strip()
+        if re.match(r"^gh release verify(?:-asset)?(?:\s|$)", stripped):
+            raise AssertionError(
+                f"{label}: release attestation verification bypasses bounded retry: "
+                f"{stripped}"
+            )
+
+
 def check_retry_policy() -> None:
     helper = ROOT / "scripts" / "retry-python-tests.sh"
     bash = os.environ.get("EINSTOFF_TEST_BASH", "bash")
@@ -206,8 +236,12 @@ def check_contract() -> None:
     require(publish, "group: github-release-publication", "global publication lock")
     require(publish, "GH_REPO: ${{ github.repository }}", "checkout-free repository context")
     require(publish, "gh attestation verify", "build provenance verification")
-    require(publish, "gh release verify", "immutable release verification")
-    require(publish, "gh release verify-asset", "immutable asset verification")
+    require_bounded_release_verification(publish, "immutable publication")
+    require(
+        publish,
+        'verify_release_attestation_with_retry gh release verify-asset',
+        "immutable asset verification retry",
+    )
     require(publish, "mark_latest=false", "version-aware latest policy")
     require(publish, "sort -V", "stable version comparison")
     require(publish, "arguments+=(--latest=false)", "older stable latest guard")
@@ -217,8 +251,12 @@ def check_contract() -> None:
     stable_gate = "if: github.event_name == 'push' && needs.validate.outputs.prerelease == 'false'"
     require(verify_wolfram, stable_gate, "stable-only Wolfram preflight")
     require(verify_wolfram, "- publish", "GitHub publication dependency")
-    require(verify_wolfram, "gh release verify", "Wolfram immutable release preflight")
-    require(verify_wolfram, "gh release verify-asset", "Wolfram immutable asset preflight")
+    require_bounded_release_verification(verify_wolfram, "Wolfram immutable preflight")
+    require(
+        verify_wolfram,
+        'verify_release_attestation_with_retry gh release verify-asset',
+        "Wolfram immutable asset preflight retry",
+    )
     require(verify_wolfram, "definitionNotebookSHA256", "manifest definition digest verification")
     require(verify_wolfram, "githubArchiveSHA256", "manifest archive digest verification")
     require(verify_wolfram, "spfCompatibilityManifestSHA256", "SPF digest verification")

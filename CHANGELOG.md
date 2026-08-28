@@ -6,6 +6,11 @@ This project is pre-release, so interfaces may still change before `1.0.0`.
 
 ## Unreleased
 
+### Fixed
+
+- Wait for GitHub's automatically generated immutable-release attestation to
+  propagate before failing release and asset verification.
+
 ## 0.2.1-beta.1 - 2026-08-28
 
 ### Added
