@@ -90,12 +90,15 @@ credits:
 Maintainers can manually dispatch `historical-wolfram.yml` to test a first-parent
 `main` snapshot under the official Wolfram Engine 15.0, 14.1, 13.2, and 13.0
 containers. This workflow is evidence for minimum-version decisions, not ordinary CI:
-it never runs on pushes or pull requests, publishes nothing, and requires an explicit
-paid-run confirmation. The workflow itself must be dispatched from `main`; its
-separately selected candidate must be an exact first-parent snapshot of `main`,
-excluding intermediate commits retained inside merged branch histories. Its `through`
-input selects the oldest gate; all newer gates run first and the ladder stops at the
-first failure.
+it never runs on pushes or pull requests and publishes nothing. Full engine validation
+requires an explicit paid-run confirmation. With that confirmation left false,
+maintainers may dispatch the workflow from a review branch to run only the
+entitlement-free image and mount preflight. Paid build and test execution remains
+restricted to `main`. The separately
+selected candidate must be an exact first-parent snapshot of `main`, excluding
+intermediate commits retained inside merged branch histories. Its `through` input
+selects the oldest gate; all newer gates run first and the ladder stops at the first
+failure.
 
 The workflow mechanically generates a `probeOnly` legacy-SPF tree with a temporary
 `13.0+` metadata overlay, builds one archive under version 15, then installs and tests
@@ -108,9 +111,10 @@ entitlement trust boundary and can observe the entitlement environment.
 
 After pulling the selected images, the workflow performs an unlicensed mount
 preflight using their configured users. It requires the generated probe source to be
-read-only and grants write access only to dedicated ephemeral build and per-engine
-report directories. Do not bypass a failed preflight by making the whole probe or
-trusted report root container-writable.
+read-only and grants write access only to an independent ephemeral `/output` build
+mount and per-engine report directories. Do not nest writable output beneath the
+read-only probe or bypass a failed preflight by making the whole probe or trusted
+report root container-writable.
 
 Commission a new or materially changed harness progressively: run through `15.0`,
 then `14.1`, `13.2`, and `13.0`, inspecting the temporary reports after each dispatch.

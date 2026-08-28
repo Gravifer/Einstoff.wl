@@ -19,7 +19,7 @@ on:
           - "13.2"
           - "13.0"
       confirm_paid_run:
-        description: Confirm that this manual run may consume Wolfram Service Credits
+        description: Confirm paid build/tests; leave false for unlicensed preflight only
         required: true
         default: false
         type: boolean
@@ -33,8 +33,8 @@ concurrency:
 
 jobs:
   historical-validation:
-    name: Validate through Wolfram ${{ inputs.through }}
-    if: github.ref == 'refs/heads/main' && inputs.confirm_paid_run
+    name: Preflight or validate through Wolfram ${{ inputs.through }}
+    if: ${{ !inputs.confirm_paid_run || github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
@@ -120,6 +120,7 @@ jobs:
             reports
 
       - name: Build and run the historical-engine ladder
+        if: github.ref == 'refs/heads/main' && inputs.confirm_paid_run
         shell: bash
         env:
           THROUGH: ${{ inputs.through }}

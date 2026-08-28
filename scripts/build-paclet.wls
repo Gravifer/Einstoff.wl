@@ -10,8 +10,12 @@ root = If[StringQ[configuredRoot] && configuredRoot =!= "",
   ExpandFileName[configuredRoot],
   ParentDirectory[scriptDir]
 ];
+configuredBuildRoot = Quiet @ Check[Environment["EINSTOFF_BUILD_ROOT"], ""];
 pacletDir = FileNameJoin[{root, "Gravifer__Einstoff"}];
-buildDir = FileNameJoin[{root, "build"}];
+buildDir = If[StringQ[configuredBuildRoot] && configuredBuildRoot =!= "",
+  ExpandFileName[configuredBuildRoot],
+  FileNameJoin[{root, "build"}]
+];
 stagingDir = FileNameJoin[{
   buildDir,
   "staging-" <> StringReplace[CreateUUID[], "-" -> ""]

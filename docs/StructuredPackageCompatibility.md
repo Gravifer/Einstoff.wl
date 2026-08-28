@@ -184,14 +184,17 @@ paths reject such a tree.
 
 ## Historical-engine validation
 
-Historical testing is deliberately manual, paid, non-publishing, and independent of
-the declared minimum version. The workflow must be dispatched from `main`, so the
-reviewed workflow and tooling control the entitlement-bearing job. It accepts a
-separate candidate commit or branch that must resolve to an exact first-parent
-snapshot of `main`; intermediate commits retained inside merged branch histories are
-rejected. The candidate package and tests execute inside licensed kernels and are
-therefore also explicitly inside the entitlement trust boundary. The remaining input
-selects the oldest requested gate:
+Historical validation is deliberately manual, non-publishing, and independent of the
+declared minimum version. Image and mount preflighting is unlicensed; engine builds
+and tests are paid. A branch dispatch with paid confirmation left false runs only the
+preflight and never receives the entitlement. Paid builds and tests require a `main`
+dispatch, so only reviewed workflow and tooling can control an entitlement-bearing
+job. Both modes accept a separate candidate commit or
+branch that must resolve to an exact first-parent snapshot of `main`; intermediate
+commits retained inside merged branch histories are rejected. The candidate package
+and tests execute inside licensed kernels and are therefore also explicitly inside
+the entitlement trust boundary. The remaining input selects the oldest requested
+gate:
 
 ```text
 15.0 -> 15.0
@@ -214,8 +217,9 @@ The workflow has `contents: read`, globally serializes runs, and exposes only
 tooling checkout, candidate verification, probe preparation, container-mount
 preflighting, and artifact upload are unlicensed. Before any kernel starts, each
 selected image must prove that the probe source is read-only and that only its
-dedicated build or report output is writable. The general report directory, its logs,
-and its checksums are never container-writable. A run uploads the probe archive,
+dedicated `/output` build mount or report output is writable. Build output is not
+nested beneath the read-only probe mount. The general report directory, its logs, and
+its checksums are never container-writable. A run uploads the probe archive,
 manifest, checksum, build log, and one
 JSON/log pair per attempted engine for 14 days. A missing JSON report together with a
 container failure identifies licensing or harness startup failure. A zero exit status

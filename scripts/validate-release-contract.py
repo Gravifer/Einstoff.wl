@@ -147,6 +147,7 @@ def check_contract() -> None:
     driver = load(".github/actions/paclet-ci/main.sh")
     normalized_driver = normalize_shell_continuations(driver)
     paclet_driver = load("scripts/paclet-cicd.wls")
+    paclet_builder = load("scripts/build-paclet.wls")
     classifier = load("scripts/classify_ci_changes.py")
     runner = load("scripts/run-tests.wls")
     local_release = load("scripts/validate-release.ps1")
@@ -369,8 +370,8 @@ def check_contract() -> None:
     require(historical, "confirm_paid_run:", "explicit paid-run confirmation")
     require(
         historical,
-        "if: github.ref == 'refs/heads/main' && inputs.confirm_paid_run",
-        "main-only paid-run job guard",
+        "if: ${{ !inputs.confirm_paid_run || github.ref == 'refs/heads/main' }}",
+        "branch-safe unlicensed historical preflight guard",
     )
     require(historical, "permissions:\n  contents: read", "read-only historical workflow")
     forbid(historical, "contents: write", "no historical write permission")
@@ -417,6 +418,11 @@ def check_contract() -> None:
         "raw gate interpolation in licensed execution",
     )
     require(historical_run, "historical-engine-matrix.sh run", "sequential historical runner")
+    require(
+        historical_run,
+        "if: github.ref == 'refs/heads/main' && inputs.confirm_paid_run",
+        "main-only paid historical execution guard",
+    )
     require(historical_run, "WOLFRAMSCRIPT_ENTITLEMENTID", "historical entitlement")
     if historical.count("secrets.WOLFRAMSCRIPT_ENTITLEMENTID") != 1:
         raise AssertionError("historical entitlement must be referenced by exactly one step")
@@ -474,8 +480,13 @@ def check_contract() -> None:
     )
     require(
         historical_matrix,
-        '--volume "${build_root}:/probe/build"',
+        '--volume "${build_root}:/output"',
         "isolated historical build output",
+    )
+    forbid(
+        historical_matrix,
+        '--volume "${build_root}:/probe/build"',
+        "nested historical build output",
     )
     require(
         historical_matrix,
@@ -502,6 +513,11 @@ def check_contract() -> None:
         "/reports/.einstoff-write-probe",
         "writable report mount preflight",
     )
+    require(
+        historical_matrix,
+        "EINSTOFF_BUILD_ROOT=/output",
+        "independent historical build root",
+    )
     require(historical_matrix, "--env WOLFRAMSCRIPT_ENTITLEMENTID", "nonliteral entitlement handoff")
     require(historical_matrix, "later gates were not started", "stop-on-first-failure policy")
     require(historical_matrix, "gate_status=${pipeline_status[0]}", "historical exit classification")
@@ -517,6 +533,12 @@ def check_contract() -> None:
     require(historical_probe, 'manifest["probeOnly"] = True', "probe-only manifest overlay")
     require(historical_probe, "pacletInfoBeforeSHA256", "probe input provenance")
     require(historical_probe, "pacletInfoAfterSHA256", "probe output provenance")
+
+    require(
+        paclet_builder,
+        'Environment["EINSTOFF_BUILD_ROOT"]',
+        "private external paclet build root",
+    )
 
     require(historical_runner, "PacletInstall[archive]", "historical archive installation")
     require(historical_runner, 'Names["Gravifer`Einstoff`*"]', "historical public-surface check")

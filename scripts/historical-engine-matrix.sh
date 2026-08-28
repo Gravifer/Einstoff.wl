@@ -77,20 +77,28 @@ if [[ "${command_name}" == 'preflight' ]]; then
 
   if ! docker run --rm \
     --volume "${probe_root}:/probe:ro" \
-    --volume "${build_root}:/probe/build" \
+    --volume "${build_root}:/output" \
     --workdir /probe \
     --entrypoint /bin/sh \
     "${IMAGE_15_0}" \
     -c 'set -eu
-      if : > /probe/.einstoff-unexpected-write 2>/dev/null; then
+      if touch /probe/.einstoff-unexpected-write >/dev/null 2>&1; then
         rm -f /probe/.einstoff-unexpected-write
         echo "Historical probe source is unexpectedly writable." >&2
         exit 1
       fi
-      sentinel=/probe/build/.einstoff-write-probe
-      test -r /probe/spf-compatibility-manifest.json
-      test -w /probe/build
-      : > "${sentinel}"
+      if ! test -r /probe/spf-compatibility-manifest.json; then
+        echo "Historical probe manifest is not readable." >&2
+        exit 1
+      fi
+      if ! test -w /output; then
+        echo "Historical build output is not writable by the image user." >&2
+        id >&2
+        ls -ld /probe /output >&2
+        exit 1
+      fi
+      sentinel=/output/.einstoff-write-probe
+      touch "${sentinel}"
       rm -f "${sentinel}"'; then
     echo 'The Wolfram 15 build mounts failed their unlicensed permission preflight.' >&2
     exit 1
@@ -107,14 +115,19 @@ if [[ "${command_name}" == 'preflight' ]]; then
       --entrypoint /bin/sh \
       "${image}" \
       -c 'set -eu
-        if : > /probe/.einstoff-unexpected-write 2>/dev/null; then
+        if touch /probe/.einstoff-unexpected-write >/dev/null 2>&1; then
           rm -f /probe/.einstoff-unexpected-write
           echo "Historical probe source is unexpectedly writable." >&2
           exit 1
         fi
+        if ! test -w /reports; then
+          echo "Historical report output is not writable by the image user." >&2
+          id >&2
+          ls -ld /probe /reports >&2
+          exit 1
+        fi
         sentinel=/reports/.einstoff-write-probe
-        test -w /reports
-        : > "${sentinel}"
+        touch "${sentinel}"
         rm -f "${sentinel}"'; then
       echo "The Wolfram ${version} report mount failed its unlicensed permission preflight." >&2
       exit 1
@@ -150,8 +163,9 @@ build_log="${report_root}/build-15.0.log"
 if ! docker run --rm \
   --env WOLFRAMSCRIPT_ENTITLEMENTID \
   --env EINSTOFF_SOURCE_ROOT=/probe \
+  --env EINSTOFF_BUILD_ROOT=/output \
   --volume "${probe_root}:/probe:ro" \
-  --volume "${build_root}:/probe/build" \
+  --volume "${build_root}:/output" \
   --volume "${tooling_root}:/tooling:ro" \
   --workdir /probe \
   --entrypoint wolframscript \
