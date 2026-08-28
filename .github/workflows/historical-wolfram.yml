@@ -34,7 +34,7 @@ concurrency:
 jobs:
   historical-validation:
     name: Validate through Wolfram ${{ inputs.through }}
-    if: inputs.confirm_paid_run
+    if: github.ref == 'refs/heads/main' && inputs.confirm_paid_run
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
@@ -63,7 +63,7 @@ jobs:
           source_sha="$(git -C candidate rev-parse HEAD)"
           git -C candidate merge-base --is-ancestor "${source_sha}" refs/remotes/origin/main
           printf 'source_sha=%s\n' "${source_sha}" >> "${GITHUB_OUTPUT}"
-          printf 'Historical candidate: `%s`\n' "${source_sha}" >> "${GITHUB_STEP_SUMMARY}"
+          printf "Historical candidate: \`%s\`\n" "${source_sha}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Install pinned uv for probe preparation
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
@@ -86,18 +86,32 @@ jobs:
 
       - name: Pull the selected digest-pinned Wolfram Engine images
         shell: bash
-        run: bash tooling/scripts/historical-engine-matrix.sh pull "${{ inputs.through }}"
+        env:
+          THROUGH: ${{ inputs.through }}
+        run: |
+          set -euo pipefail
+          case "${THROUGH}" in
+            15.0|14.1|13.2|13.0) ;;
+            *) echo "Unsupported historical-engine gate: ${THROUGH}" >&2; exit 64 ;;
+          esac
+          bash tooling/scripts/historical-engine-matrix.sh pull "${THROUGH}"
 
       - name: Build and run the historical-engine ladder
         shell: bash
         env:
+          THROUGH: ${{ inputs.through }}
           WOLFRAMSCRIPT_ENTITLEMENTID: ${{ secrets.WOLFRAMSCRIPT_ENTITLEMENTID }}
-        run: >-
-          bash tooling/scripts/historical-engine-matrix.sh run
-          "${{ inputs.through }}"
-          probe
-          tooling
-          reports
+        run: |
+          set -euo pipefail
+          case "${THROUGH}" in
+            15.0|14.1|13.2|13.0) ;;
+            *) echo "Unsupported historical-engine gate: ${THROUGH}" >&2; exit 64 ;;
+          esac
+          bash tooling/scripts/historical-engine-matrix.sh run \
+            "${THROUGH}" \
+            probe \
+            tooling \
+            reports
 
       - name: Upload probe archive and per-engine reports
         if: always()

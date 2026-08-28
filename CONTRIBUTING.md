@@ -91,8 +91,10 @@ Maintainers can manually dispatch `historical-wolfram.yml` to test a `main`-cont
 commit under the official Wolfram Engine 15.0, 14.1, 13.2, and 13.0 containers. This
 workflow is evidence for minimum-version decisions, not ordinary CI: it never runs on
 pushes or pull requests, publishes nothing, and requires an explicit paid-run
-confirmation. Its `through` input selects the oldest gate; all newer gates run first
-and the ladder stops at the first failure.
+confirmation. The workflow itself must be dispatched from `main`; its separately
+selected candidate may be any exact commit contained in `main`. Its `through` input
+selects the oldest gate; all newer gates run first and the ladder stops at the first
+failure.
 
 The workflow mechanically generates a `probeOnly` legacy-SPF tree with a temporary
 `13.0+` metadata overlay, builds one archive under version 15, then installs and tests

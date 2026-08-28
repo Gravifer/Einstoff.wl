@@ -39,12 +39,16 @@ image_for() {
 command_name="${1:-}"
 through="${2:-}"
 [[ -n "${command_name}" && -n "${through}" ]] || usage
+if ! versions="$(versions_through "${through}")"; then
+  exit 64
+fi
+readonly versions
 
 if [[ "${command_name}" == 'list' ]]; then
   [[ $# -eq 2 ]] || usage
   while IFS= read -r version; do
     printf '%s %s\n' "${version}" "$(image_for "${version}")"
-  done < <(versions_through "${through}")
+  done <<< "${versions}"
   exit 0
 fi
 
@@ -52,7 +56,7 @@ if [[ "${command_name}" == 'pull' ]]; then
   [[ $# -eq 2 ]] || usage
   while IFS= read -r version; do
     docker pull "$(image_for "${version}")"
-  done < <(versions_through "${through}")
+  done <<< "${versions}"
   exit 0
 fi
 
@@ -122,6 +126,6 @@ while IFS= read -r version; do
     echo "Historical-engine gate ${version} failed; later gates were not started." >&2
     exit "${gate_status}"
   fi
-done < <(versions_through "${through}")
+done <<< "${versions}"
 
 echo "Historical-engine gates through ${through} passed."

@@ -185,8 +185,10 @@ paths reject such a tree.
 ## Historical-engine validation
 
 Historical testing is deliberately manual, paid, non-publishing, and independent of
-the declared minimum version. The workflow accepts a commit or branch that must
-resolve to an exact commit contained in `main`, plus the oldest requested gate:
+the declared minimum version. The workflow must be dispatched from `main`, so only
+the reviewed workflow and tooling can receive the entitlement. It accepts a separate
+candidate commit or branch that must resolve to an exact commit contained in `main`,
+plus the oldest requested gate:
 
 ```text
 15.0 -> 15.0

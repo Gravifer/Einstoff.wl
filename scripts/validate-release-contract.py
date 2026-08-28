@@ -83,6 +83,52 @@ def check_retry_policy() -> None:
             )
 
 
+def check_historical_matrix_input_policy() -> None:
+    helper = ROOT / "scripts" / "historical-engine-matrix.sh"
+    bash = os.environ.get("EINSTOFF_TEST_BASH", "bash")
+
+    valid = subprocess.run(
+        [bash, helper.as_posix(), "list", "13.2"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if valid.returncode != 0 or valid.stdout.splitlines() != [
+        "15.0 wolframresearch/wolframengine@sha256:3ac08d6aaa33e6dccdda38d14cf8a7e5c22cc84d037a1a7562900914a487ef65",
+        "14.1 wolframresearch/wolframengine@sha256:e2958b13d3ec7aa0a5dcd7d32f8638b7a42ddf7b183bc2e6d63fab2180243cd3",
+        "13.2 wolframresearch/wolframengine@sha256:ef448ad7c3069a4ee4219e72bc03c1db66204c48008a9b6d09ed39069362b2a9",
+    ]:
+        raise AssertionError(
+            "historical matrix must list the requested valid ladder exactly"
+        )
+
+    for command in ("list", "pull"):
+        rejected = subprocess.run(
+            [bash, helper.as_posix(), command, '15.0"; exit 0; #'],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if rejected.returncode != 64 or rejected.stdout:
+            raise AssertionError(
+                f"historical matrix {command} must reject unsupported gates with 64"
+            )
+
+    rejected_run = subprocess.run(
+        [bash, helper.as_posix(), "run", "invalid", "probe", "tooling", "reports"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if rejected_run.returncode != 64:
+        raise AssertionError(
+            "historical matrix run must reject an invalid gate before other checks"
+        )
+
+
 def check_contract() -> None:
     release = load(".github/workflows/release.yml")
     paclet_ci = load(".github/workflows/paclet-ci.yml")
@@ -304,7 +350,11 @@ def check_contract() -> None:
     forbid(historical, "pull_request:", "no historical pull-request trigger")
     forbid(historical, "push:", "no historical push trigger")
     require(historical, "confirm_paid_run:", "explicit paid-run confirmation")
-    require(historical, "if: inputs.confirm_paid_run", "paid-run job guard")
+    require(
+        historical,
+        "if: github.ref == 'refs/heads/main' && inputs.confirm_paid_run",
+        "main-only paid-run job guard",
+    )
     require(historical, "permissions:\n  contents: read", "read-only historical workflow")
     forbid(historical, "contents: write", "no historical write permission")
     forbid(historical, "RESOURCE_PUBLISHER_TOKEN", "publisher-free historical workflow")
@@ -320,6 +370,21 @@ def check_contract() -> None:
     require(historical, "version: 0.11.26", "pinned historical uv")
     require(historical, "prepare-historical-probe.py", "probe-only staging")
     require(historical, "historical-engine-matrix.sh pull", "secret-free image pull")
+    require(historical, "THROUGH: ${{ inputs.through }}", "environment-only gate input")
+    if historical.count("THROUGH: ${{ inputs.through }}") != 2:
+        raise AssertionError("both historical matrix steps must receive the gate via env")
+    if historical.count('case "${THROUGH}" in') != 2:
+        raise AssertionError("both historical matrix steps must allowlist the gate")
+    forbid(
+        historical,
+        'historical-engine-matrix.sh pull "${{ inputs.through }}"',
+        "raw gate interpolation in image pull",
+    )
+    forbid(
+        historical_run,
+        '"${{ inputs.through }}"',
+        "raw gate interpolation in licensed execution",
+    )
     require(historical_run, "historical-engine-matrix.sh run", "sequential historical runner")
     require(historical_run, "WOLFRAMSCRIPT_ENTITLEMENTID", "historical entitlement")
     if historical.count("secrets.WOLFRAMSCRIPT_ENTITLEMENTID") != 1:
@@ -341,6 +406,16 @@ def check_contract() -> None:
     for version, digest in expected_images.items():
         require(historical_matrix, f"@sha256:{digest}", f"pinned Wolfram {version} image")
     require(historical_matrix, "versions_through", "ordered historical ladder")
+    require(
+        historical_matrix,
+        'versions="$(versions_through "${through}")"',
+        "up-front historical gate validation",
+    )
+    forbid(
+        historical_matrix,
+        '< <(versions_through "${through}")',
+        "failure-swallowing gate process substitution",
+    )
     require(historical_matrix, "probeOnly", "probe-only execution guard")
     require(historical_matrix, "${#archives[@]} != 1", "single probe archive guard")
     require(historical_matrix, "--env WOLFRAMSCRIPT_ENTITLEMENTID", "nonliteral entitlement handoff")
@@ -456,6 +531,7 @@ def check_contract() -> None:
 def main() -> None:
     check_contract()
     check_retry_policy()
+    check_historical_matrix_input_policy()
     print("Release workflow contract checks passed.")
 
 
