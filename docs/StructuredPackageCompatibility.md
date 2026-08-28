@@ -187,10 +187,13 @@ paths reject such a tree.
 Historical validation is deliberately manual, non-publishing, and independent of the
 declared minimum version. Image and mount preflighting is unlicensed; engine builds
 and tests are paid. A branch dispatch with paid confirmation left false runs only the
-preflight and never receives the entitlement. Paid builds and tests require a `main`
-dispatch, so only reviewed workflow and tooling can control an entitlement-bearing
-job. Both modes accept a separate candidate commit or
-branch that must resolve to an exact first-parent snapshot of `main`; intermediate
+preflight and never receives the entitlement. Ordinary paid builds and tests require a
+`main` dispatch. To commission a workflow change before merge, the repository owner may
+set both paid confirmations on a review branch, and only for the v15 gate. This narrow
+exception proves the complete build, archive-discovery, engine-runner, report-copy, and
+report-validation sequence; it deliberately places that branch's workflow tooling in
+the entitlement trust boundary. Both modes accept a separate candidate commit or branch
+that must resolve to an exact first-parent snapshot of `main`; intermediate
 commits retained inside merged branch histories are rejected. The candidate package
 and tests execute inside licensed kernels and are therefore also explicitly inside
 the entitlement trust boundary. The remaining input selects the oldest requested

@@ -93,9 +93,12 @@ containers. This workflow is evidence for minimum-version decisions, not ordinar
 it never runs on pushes or pull requests and publishes nothing. Full engine validation
 requires an explicit paid-run confirmation. With that confirmation left false,
 maintainers may dispatch the workflow from a review branch to run only the
-entitlement-free image and mount preflight. Paid build and test execution remains
-restricted to `main`. The separately
-selected candidate must be an exact first-parent snapshot of `main`, excluding
+entitlement-free image and mount preflight. A workflow change may be commissioned
+before merge by setting both paid confirmations on its review branch. That exceptional
+path is restricted to the repository owner and the v15 gate; it exists to prove the
+complete build, archive, runner, and report sequence before the workflow change is
+reviewed. Ordinary paid historical matrices remain restricted to `main`. The separately
+selected candidate must still be an exact first-parent snapshot of `main`, excluding
 intermediate commits retained inside merged branch histories. Its `through` input
 selects the oldest gate; all newer gates run first and the ladder stops at the first
 failure.

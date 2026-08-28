@@ -23,6 +23,11 @@ on:
         required: true
         default: false
         type: boolean
+      confirm_branch_commissioning:
+        description: Owner-only paid v15 commissioning from a review branch
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -34,10 +39,52 @@ concurrency:
 jobs:
   historical-validation:
     name: Preflight or validate through Wolfram ${{ inputs.through }}
-    if: ${{ !inputs.confirm_paid_run || github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
+      - name: Validate paid-run commissioning policy
+        shell: bash
+        env:
+          ACTOR: ${{ github.actor }}
+          CONFIRM_BRANCH_COMMISSIONING: ${{ inputs.confirm_branch_commissioning }}
+          CONFIRM_PAID_RUN: ${{ inputs.confirm_paid_run }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          THROUGH: ${{ inputs.through }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [[ "${CONFIRM_PAID_RUN}" != 'true' ]]; then
+            if [[ "${CONFIRM_BRANCH_COMMISSIONING}" == 'true' ]]; then
+              echo 'Branch commissioning also requires paid-run confirmation.' >&2
+              exit 64
+            fi
+            exit 0
+          fi
+          if [[ "${WORKFLOW_REF}" == 'refs/heads/main' ]]; then
+            if [[ "${CONFIRM_BRANCH_COMMISSIONING}" == 'true' ]]; then
+              echo 'Branch commissioning must remain false for a main workflow run.' >&2
+              exit 64
+            fi
+            exit 0
+          fi
+          if [[ "${CONFIRM_BRANCH_COMMISSIONING}" != 'true' ]]; then
+            echo 'Paid execution outside main requires explicit branch commissioning.' >&2
+            exit 64
+          fi
+          if [[ "${WORKFLOW_REF}" != refs/heads/* ]]; then
+            echo 'Branch commissioning requires a branch workflow ref.' >&2
+            exit 64
+          fi
+          if [[ "${ACTOR}" != "${REPOSITORY_OWNER}" || "${TRIGGERING_ACTOR}" != "${REPOSITORY_OWNER}" ]]; then
+            echo 'Only the repository owner may commission a paid branch run.' >&2
+            exit 64
+          fi
+          if [[ "${THROUGH}" != '15.0' ]]; then
+            echo 'Branch commissioning is restricted to the v15 diagnostic gate.' >&2
+            exit 64
+          fi
+
       - name: Check out trusted historical-validation tooling
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -120,7 +167,7 @@ jobs:
             reports
 
       - name: Build and run the historical-engine ladder
-        if: github.ref == 'refs/heads/main' && inputs.confirm_paid_run
+        if: ${{ inputs.confirm_paid_run && (github.ref == 'refs/heads/main' || (inputs.confirm_branch_commissioning && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner && inputs.through == '15.0' && startsWith(github.ref, 'refs/heads/'))) }}
         shell: bash
         env:
           THROUGH: ${{ inputs.through }}

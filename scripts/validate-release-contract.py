@@ -370,8 +370,39 @@ def check_contract() -> None:
     require(historical, "confirm_paid_run:", "explicit paid-run confirmation")
     require(
         historical,
-        "if: ${{ !inputs.confirm_paid_run || github.ref == 'refs/heads/main' }}",
-        "branch-safe unlicensed historical preflight guard",
+        "confirm_branch_commissioning:",
+        "explicit branch-commissioning confirmation",
+    )
+    require(
+        historical,
+        "Validate paid-run commissioning policy",
+        "explicit historical commissioning policy",
+    )
+    require(historical, "ACTOR: ${{ github.actor }}", "commissioning actor input")
+    require(
+        historical,
+        "REPOSITORY_OWNER: ${{ github.repository_owner }}",
+        "commissioning owner input",
+    )
+    require(
+        historical,
+        "TRIGGERING_ACTOR: ${{ github.triggering_actor }}",
+        "commissioning rerun actor input",
+    )
+    require(
+        historical,
+        "Only the repository owner may commission a paid branch run.",
+        "owner-only branch commissioning",
+    )
+    require(
+        historical,
+        "Branch commissioning is restricted to the v15 diagnostic gate.",
+        "v15-only branch commissioning",
+    )
+    require(
+        historical,
+        "Branch commissioning requires a branch workflow ref.",
+        "branch-only commissioning",
     )
     require(historical, "permissions:\n  contents: read", "read-only historical workflow")
     forbid(historical, "contents: write", "no historical write permission")
@@ -403,8 +434,10 @@ def check_contract() -> None:
         "entitlement-free historical mount preflight",
     )
     require(historical, "THROUGH: ${{ inputs.through }}", "environment-only gate input")
-    if historical.count("THROUGH: ${{ inputs.through }}") != 3:
-        raise AssertionError("all historical matrix steps must receive the gate via env")
+    if historical.count("THROUGH: ${{ inputs.through }}") != 4:
+        raise AssertionError(
+            "the commissioning policy and all matrix steps must receive the gate via env"
+        )
     if historical.count('case "${THROUGH}" in') != 3:
         raise AssertionError("all historical matrix steps must allowlist the gate")
     forbid(
@@ -420,8 +453,18 @@ def check_contract() -> None:
     require(historical_run, "historical-engine-matrix.sh run", "sequential historical runner")
     require(
         historical_run,
-        "if: github.ref == 'refs/heads/main' && inputs.confirm_paid_run",
-        "main-only paid historical execution guard",
+        "inputs.confirm_paid_run && (github.ref == 'refs/heads/main' ||",
+        "explicit paid historical execution guard",
+    )
+    require(
+        historical_run,
+        "inputs.confirm_branch_commissioning && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner",
+        "owner-confirmed branch execution guard",
+    )
+    require(
+        historical_run,
+        "inputs.through == '15.0' && startsWith(github.ref, 'refs/heads/')",
+        "v15 branch-ref execution guard",
     )
     require(historical_run, "WOLFRAMSCRIPT_ENTITLEMENTID", "historical entitlement")
     if historical.count("secrets.WOLFRAMSCRIPT_ENTITLEMENTID") != 1:
