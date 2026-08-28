@@ -138,17 +138,6 @@ def check_historical_matrix_input_policy() -> None:
             "historical matrix run must reject an invalid gate before other checks"
         )
 
-    rejected_diagnostic = subprocess.run(
-        [bash, helper.as_posix(), "diagnose-spf", "15.0", "tooling", "reports"],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if rejected_diagnostic.returncode != 64:
-        raise AssertionError("legacy-SPF diagnostics must be restricted to v14.1")
-
-
 def check_contract() -> None:
     release = load(".github/workflows/release.yml")
     paclet_ci = load(".github/workflows/paclet-ci.yml")
@@ -164,7 +153,6 @@ def check_contract() -> None:
     publication_action_test = load("scripts/test-paclet-publication-action.sh")
     historical_matrix = load("scripts/historical-engine-matrix.sh")
     historical_runner = load("scripts/historical-engine-runner.wls")
-    historical_spf_diagnostic = load("scripts/diagnose-legacy-spf.wls")
     historical_probe = load("scripts/prepare-historical-probe.py")
     historical_report_validator = load("scripts/validate-historical-report.py")
     historical_report_tests = load("scripts/test_historical_report.py")
@@ -387,11 +375,6 @@ def check_contract() -> None:
     )
     require(
         historical,
-        "diagnose_legacy_spf:",
-        "explicit legacy-SPF diagnostic mode",
-    )
-    require(
-        historical,
         "Validate paid-run commissioning policy",
         "explicit historical commissioning policy",
     )
@@ -410,16 +393,6 @@ def check_contract() -> None:
         historical,
         "Only the repository owner may commission a paid branch run.",
         "owner-only branch commissioning",
-    )
-    require(
-        historical,
-        "Branch commissioning is restricted to the v15 diagnostic gate.",
-        "v15-only branch commissioning",
-    )
-    require(
-        historical,
-        "The legacy-SPF diagnostic is restricted to the v14.1 gate.",
-        "v14.1-only legacy-SPF diagnostic",
     )
     require(
         historical,
@@ -456,9 +429,9 @@ def check_contract() -> None:
         "entitlement-free historical mount preflight",
     )
     require(historical, "THROUGH: ${{ inputs.through }}", "environment-only gate input")
-    if historical.count("THROUGH: ${{ inputs.through }}") != 4:
+    if historical.count("THROUGH: ${{ inputs.through }}") != 3:
         raise AssertionError(
-            "the commissioning policy and all matrix steps must receive the gate via env"
+            "all historical matrix steps must receive the gate via env"
         )
     if historical.count('case "${THROUGH}" in') != 3:
         raise AssertionError("all historical matrix steps must allowlist the gate")
@@ -485,13 +458,8 @@ def check_contract() -> None:
     )
     require(
         historical_run,
-        "startsWith(github.ref, 'refs/heads/') && (inputs.through == '15.0' || (inputs.diagnose_legacy_spf && inputs.through == '14.1'))",
-        "restricted branch-ref execution guard",
-    )
-    require(
-        historical_run,
-        "historical-engine-matrix.sh diagnose-spf",
-        "legacy-SPF v14.1 diagnostic runner",
+        "startsWith(github.ref, 'refs/heads/')",
+        "branch-ref execution guard",
     )
     require(historical_run, "WOLFRAMSCRIPT_ENTITLEMENTID", "historical entitlement")
     if historical.count("secrets.WOLFRAMSCRIPT_ENTITLEMENTID") != 1:
@@ -520,11 +488,6 @@ def check_contract() -> None:
     require(historical_matrix, "versions_through", "ordered historical ladder")
     require(
         historical_matrix,
-        "diagnose-legacy-spf.wls",
-        "legacy-SPF diagnostic implementation",
-    )
-    require(
-        historical_matrix,
         'versions="$(versions_through "${through}")"',
         "up-front historical gate validation",
     )
@@ -538,21 +501,6 @@ def check_contract() -> None:
     forbid(historical_matrix, "grep -Eq", "lexical probe manifest validation")
     require(historical_matrix, "${#archives[@]} != 1", "single probe archive guard")
     require(historical_matrix, "archive_list", "checked archive discovery output")
-    require(
-        historical_spf_diagnostic,
-        '"current-nested-wl-symbol"',
-        "current legacy-SPF staging diagnostic",
-    )
-    require(
-        historical_spf_diagnostic,
-        '"flat-m-string"',
-        "established legacy-SPF spelling diagnostic",
-    )
-    require(
-        historical_spf_diagnostic,
-        '"wl-entry-nested-m-string"',
-        "production-compatible legacy-SPF staging diagnostic",
-    )
     require(
         historical_matrix,
         '--volume "${probe_root}:/probe:ro"',
@@ -720,7 +668,7 @@ def check_contract() -> None:
 
     require(publication_action_test, "INPUT_EXPECTED_TAG=main", "malformed tag action test")
     require(publication_action_test, "INPUT_EXPECTED_TAG=v1.2.3-alpha.1", "prerelease action test")
-    require(publication_action_test, '"mappingVersion": 5', "current SPF fixture version")
+    require(publication_action_test, '"mappingVersion": 6', "current SPF fixture version")
     require(
         publication_action_test,
         '"sourceNormalization": "lf-v1"',

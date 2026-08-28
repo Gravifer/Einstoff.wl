@@ -24,12 +24,7 @@ on:
         default: false
         type: boolean
       confirm_branch_commissioning:
-        description: Owner-only paid v15 commissioning from a review branch
-        required: true
-        default: false
-        type: boolean
-      diagnose_legacy_spf:
-        description: Owner-only v14.1 declaration and fragment-discovery diagnostic
+        description: Owner-only paid commissioning from a review branch
         required: true
         default: false
         type: boolean
@@ -53,16 +48,14 @@ jobs:
           ACTOR: ${{ github.actor }}
           CONFIRM_BRANCH_COMMISSIONING: ${{ inputs.confirm_branch_commissioning }}
           CONFIRM_PAID_RUN: ${{ inputs.confirm_paid_run }}
-          DIAGNOSE_LEGACY_SPF: ${{ inputs.diagnose_legacy_spf }}
           REPOSITORY_OWNER: ${{ github.repository_owner }}
-          THROUGH: ${{ inputs.through }}
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
           WORKFLOW_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           if [[ "${CONFIRM_PAID_RUN}" != 'true' ]]; then
-            if [[ "${CONFIRM_BRANCH_COMMISSIONING}" == 'true' || "${DIAGNOSE_LEGACY_SPF}" == 'true' ]]; then
-              echo 'Branch commissioning and diagnostics require paid-run confirmation.' >&2
+            if [[ "${CONFIRM_BRANCH_COMMISSIONING}" == 'true' ]]; then
+              echo 'Branch commissioning also requires paid-run confirmation.' >&2
               exit 64
             fi
             exit 0
@@ -84,14 +77,6 @@ jobs:
           fi
           if [[ "${ACTOR}" != "${REPOSITORY_OWNER}" || "${TRIGGERING_ACTOR}" != "${REPOSITORY_OWNER}" ]]; then
             echo 'Only the repository owner may commission a paid branch run.' >&2
-            exit 64
-          fi
-          if [[ "${DIAGNOSE_LEGACY_SPF}" == 'true' && "${THROUGH}" != '14.1' ]]; then
-            echo 'The legacy-SPF diagnostic is restricted to the v14.1 gate.' >&2
-            exit 64
-          fi
-          if [[ "${DIAGNOSE_LEGACY_SPF}" != 'true' && "${THROUGH}" != '15.0' ]]; then
-            echo 'Branch commissioning is restricted to the v15 diagnostic gate.' >&2
             exit 64
           fi
 
@@ -177,10 +162,9 @@ jobs:
             reports
 
       - name: Build and run the historical-engine ladder
-        if: ${{ inputs.confirm_paid_run && (github.ref == 'refs/heads/main' || (inputs.confirm_branch_commissioning && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner && startsWith(github.ref, 'refs/heads/') && (inputs.through == '15.0' || (inputs.diagnose_legacy_spf && inputs.through == '14.1')))) }}
+        if: ${{ inputs.confirm_paid_run && (github.ref == 'refs/heads/main' || (inputs.confirm_branch_commissioning && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner && startsWith(github.ref, 'refs/heads/'))) }}
         shell: bash
         env:
-          DIAGNOSE_LEGACY_SPF: ${{ inputs.diagnose_legacy_spf }}
           THROUGH: ${{ inputs.through }}
           WOLFRAMSCRIPT_ENTITLEMENTID: ${{ secrets.WOLFRAMSCRIPT_ENTITLEMENTID }}
         run: |
@@ -189,18 +173,11 @@ jobs:
             15.0|14.1|13.2|13.0) ;;
             *) echo "Unsupported historical-engine gate: ${THROUGH}" >&2; exit 64 ;;
           esac
-          if [[ "${DIAGNOSE_LEGACY_SPF}" == 'true' ]]; then
-            bash tooling/scripts/historical-engine-matrix.sh diagnose-spf \
-              "${THROUGH}" \
-              tooling \
-              reports
-          else
-            bash tooling/scripts/historical-engine-matrix.sh run \
-              "${THROUGH}" \
-              probe \
-              tooling \
-              reports
-          fi
+          bash tooling/scripts/historical-engine-matrix.sh run \
+            "${THROUGH}" \
+            probe \
+            tooling \
+            reports
 
       - name: Upload probe archive and per-engine reports
         if: always()
