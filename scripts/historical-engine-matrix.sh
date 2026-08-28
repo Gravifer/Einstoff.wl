@@ -71,7 +71,9 @@ tooling_root="$(realpath "$4")"
 report_root="$(realpath -m "$5")"
 manifest="${probe_root}/spf-compatibility-manifest.json"
 [[ -f "${manifest}" ]] || { echo 'Historical probe manifest is missing.' >&2; exit 2; }
-grep -Eq '"probeOnly"[[:space:]]*:[[:space:]]*true' "${manifest}" || {
+python3 -c \
+  'import json, pathlib, sys; data = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")); assert isinstance(data, dict) and data.get("probeOnly") is True' \
+  "${manifest}" || {
   echo 'Historical execution requires a probeOnly compatibility manifest.' >&2
   exit 2
 }
@@ -92,18 +94,28 @@ if ! docker run --rm \
   exit 1
 fi
 
-mapfile -t archives < <(find "${probe_root}/build" -maxdepth 1 -type f -name '*.paclet' -print)
+archive_list="$(mktemp "${report_root}/historical-archives.XXXXXX")"
+if ! find "${probe_root}/build" -maxdepth 1 -type f -name '*.paclet' -print0 > "${archive_list}"; then
+  rm -f "${archive_list}"
+  echo 'Could not enumerate historical probe archives.' >&2
+  exit 1
+fi
+mapfile -d '' -t archives < "${archive_list}"
+rm -f "${archive_list}"
 if (( ${#archives[@]} != 1 )); then
   echo "Expected exactly one probe archive, found ${#archives[@]}." >&2
   exit 1
 fi
 archive="${archives[0]}"
 archive_name="$(basename "${archive}")"
-sha256sum "${archive}" > "${report_root}/${archive_name}.sha256"
+archive_sha256="$(sha256sum "${archive}" | awk '{print $1}')"
+printf '%s  %s\n' "${archive_sha256}" "${archive_name}" > "${report_root}/${archive_name}.sha256"
 
 while IFS= read -r version; do
   image="$(image_for "${version}")"
   log="${report_root}/wolfram-${version}.log"
+  report="${report_root}/wolfram-${version}.json"
+  rm -f "${report}"
   echo "Running historical-engine gate ${version}..."
   set +e
   docker run --rm \
@@ -120,11 +132,24 @@ while IFS= read -r version; do
     "/reports/wolfram-${version}.json" \
     "${version}" \
     2>&1 | tee "${log}"
-  gate_status=${PIPESTATUS[0]}
+  pipeline_status=("${PIPESTATUS[@]}")
   set -e
+  gate_status=${pipeline_status[0]}
+  tee_status=${pipeline_status[1]}
   if (( gate_status != 0 )); then
     echo "Historical-engine gate ${version} failed; later gates were not started." >&2
     exit "${gate_status}"
+  fi
+  if (( tee_status != 0 )); then
+    echo "Could not preserve the historical-engine ${version} log." >&2
+    exit "${tee_status}"
+  fi
+  if ! python3 "${tooling_root}/scripts/validate-historical-report.py" \
+    --report "${report}" \
+    --expected-version "${version}" \
+    --expected-archive-sha256 "${archive_sha256}"; then
+    echo "Historical-engine gate ${version} produced no trusted passing report." >&2
+    exit 1
   fi
 done <<< "${versions}"
 

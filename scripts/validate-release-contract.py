@@ -144,6 +144,7 @@ def check_contract() -> None:
     historical_matrix = load("scripts/historical-engine-matrix.sh")
     historical_runner = load("scripts/historical-engine-runner.wls")
     historical_probe = load("scripts/prepare-historical-probe.py")
+    historical_report_validator = load("scripts/validate-historical-report.py")
 
     validate = block(release, "  validate:\n", "  publish:\n")
     publish = block(release, "  publish:\n", "  verify-wolfram:\n")
@@ -364,11 +365,15 @@ def check_contract() -> None:
     require(historical, "path: tooling", "separate historical tooling checkout")
     require(historical, "path: candidate", "separate historical candidate checkout")
     require(historical, "merge-base --is-ancestor", "main-contained historical candidate")
+    require(historical, "rev-list --first-parent", "reviewed main-snapshot candidate")
+    require(historical, "grep -Fxq", "exact first-parent candidate match")
     require(historical, 'default: "15.0"', "minimal default historical gate")
     for version in ("15.0", "14.1", "13.2", "13.0"):
         require(historical, f'- "{version}"', f"historical {version} dispatch gate")
     require(historical, "version: 0.11.26", "pinned historical uv")
     require(historical, "prepare-historical-probe.py", "probe-only staging")
+    require(historical, "test_historical_probe.py", "probe compiler tests")
+    require(historical, "test_historical_report.py", "historical report tests")
     require(historical, "historical-engine-matrix.sh pull", "secret-free image pull")
     require(historical, "THROUGH: ${{ inputs.through }}", "environment-only gate input")
     if historical.count("THROUGH: ${{ inputs.through }}") != 2:
@@ -404,7 +409,12 @@ def check_contract() -> None:
         "13.0": "fabfe5bf05b9b1710ca7816a18e86baa59dbeb106f9a0a552d099519115117ff",
     }
     for version, digest in expected_images.items():
-        require(historical_matrix, f"@sha256:{digest}", f"pinned Wolfram {version} image")
+        variable = version.replace(".", "_")
+        require(
+            historical_matrix,
+            f"readonly IMAGE_{variable}='wolframresearch/wolframengine@sha256:{digest}'",
+            f"pinned Wolfram {version} image",
+        )
     require(historical_matrix, "versions_through", "ordered historical ladder")
     require(
         historical_matrix,
@@ -417,10 +427,19 @@ def check_contract() -> None:
         "failure-swallowing gate process substitution",
     )
     require(historical_matrix, "probeOnly", "probe-only execution guard")
+    require(historical_matrix, "json.loads", "semantic probe manifest validation")
+    forbid(historical_matrix, "grep -Eq", "lexical probe manifest validation")
     require(historical_matrix, "${#archives[@]} != 1", "single probe archive guard")
+    require(historical_matrix, "archive_list", "checked archive discovery output")
     require(historical_matrix, "--env WOLFRAMSCRIPT_ENTITLEMENTID", "nonliteral entitlement handoff")
     require(historical_matrix, "later gates were not started", "stop-on-first-failure policy")
-    require(historical_matrix, "gate_status=${PIPESTATUS[0]}", "historical exit classification")
+    require(historical_matrix, "gate_status=${pipeline_status[0]}", "historical exit classification")
+    require(historical_matrix, "tee_status=${pipeline_status[1]}", "historical log classification")
+    require(
+        historical_matrix,
+        "validate-historical-report.py",
+        "trusted historical completion validation",
+    )
 
     require(historical_probe, 'CANONICAL_VERSION = "15.0+"', "canonical probe MSV")
     require(historical_probe, 'PROBE_VERSION = "13.0+"', "historical probe MSV")
@@ -437,6 +456,21 @@ def check_contract() -> None:
     forbid(historical_runner, "ResourceFunction", "v13-safe historical runner")
     forbid(historical_runner, "ExternalEvaluate", "Python-free historical runner")
     forbid(historical_runner, "PacletCICD", "build-tool-free historical runner")
+    require(
+        historical_report_validator,
+        'report.get("Status") != "Passed"',
+        "passing historical status requirement",
+    )
+    require(
+        historical_report_validator,
+        'archive_sha256 = report.get("ArchiveSHA256")',
+        "historical archive digest requirement",
+    )
+    require(
+        historical_report_validator,
+        'require_count(report, "ExecutedTestCount")',
+        "historical executed-test requirement",
+    )
 
     require(paclet_driver, 'Environment["RESOURCE_PUBLISHER_TOKEN"]', "publisher token input")
     require(paclet_driver, 'PublisherID -> "Gravifer"', "fixed publisher identity")
@@ -499,6 +533,9 @@ def check_contract() -> None:
     require(classifier, '"scripts/test_spf_compatibility.py"', "SPF test classification")
     require(classifier, '"scripts/prepare-historical-probe.py"', "probe compiler classification")
     require(classifier, '"scripts/historical-engine-runner.wls"', "historical runner classification")
+    require(classifier, '"scripts/validate-historical-report.py"', "report validator classification")
+    require(paclet_ci, "python scripts/test_historical_probe.py", "ordinary probe tests")
+    require(paclet_ci, "python scripts/test_historical_report.py", "ordinary report tests")
     require(publication_action_test, "INPUT_RELEASE_VALIDATION=true", "incompatible mode action test")
     require(publication_action_test, "RESOURCE_PUBLISHER_TOKEN=", "missing publisher token action test")
     require(publication_action_test, "EINSTOFF_RELEASE_SOURCE_SHA=invalid", "invalid source SHA action test")
@@ -524,7 +561,8 @@ def check_contract() -> None:
         reference = stripped.removeprefix("uses: ")
         if reference.startswith("./"):
             continue
-        if "@" not in reference or len(reference.rsplit("@", 1)[1].split()[0]) != 40:
+        pinned_ref = reference.rsplit("@", 1)[1].split()[0] if "@" in reference else ""
+        if re.fullmatch(r"[0-9a-fA-F]{40}", pinned_ref) is None:
             raise AssertionError(f"external action is not pinned by full SHA: {reference}")
 
 

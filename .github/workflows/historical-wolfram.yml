@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Commit or branch contained in main to validate
+        description: First-parent main commit or branch to validate
         required: true
         default: main
         type: string
@@ -62,6 +62,12 @@ jobs:
           git -C candidate fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
           source_sha="$(git -C candidate rev-parse HEAD)"
           git -C candidate merge-base --is-ancestor "${source_sha}" refs/remotes/origin/main
+          first_parent_commits="${RUNNER_TEMP}/einstoff-main-first-parent.txt"
+          git -C candidate rev-list --first-parent refs/remotes/origin/main > "${first_parent_commits}"
+          if ! grep -Fxq -- "${source_sha}" "${first_parent_commits}"; then
+            echo "Historical candidates must be first-parent main snapshots." >&2
+            exit 1
+          fi
           printf 'source_sha=%s\n' "${source_sha}" >> "${GITHUB_OUTPUT}"
           printf "Historical candidate: \`%s\`\n" "${source_sha}" >> "${GITHUB_STEP_SUMMARY}"
 
@@ -79,6 +85,8 @@ jobs:
           python_version="$(tr -d '[:space:]' < tooling/.python-version)"
           uv run --no-project --managed-python --python "${python_version}" \
             python tooling/scripts/test_historical_probe.py
+          uv run --no-project --managed-python --python "${python_version}" \
+            python tooling/scripts/test_historical_report.py
           uv run --no-project --managed-python --python "${python_version}" \
             python tooling/scripts/prepare-historical-probe.py \
             --source candidate \

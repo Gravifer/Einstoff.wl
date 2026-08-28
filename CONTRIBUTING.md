@@ -87,21 +87,24 @@ credits:
 
 ### Historical Wolfram Engine validation
 
-Maintainers can manually dispatch `historical-wolfram.yml` to test a `main`-contained
-commit under the official Wolfram Engine 15.0, 14.1, 13.2, and 13.0 containers. This
-workflow is evidence for minimum-version decisions, not ordinary CI: it never runs on
-pushes or pull requests, publishes nothing, and requires an explicit paid-run
-confirmation. The workflow itself must be dispatched from `main`; its separately
-selected candidate may be any exact commit contained in `main`. Its `through` input
-selects the oldest gate; all newer gates run first and the ladder stops at the first
-failure.
+Maintainers can manually dispatch `historical-wolfram.yml` to test a first-parent
+`main` snapshot under the official Wolfram Engine 15.0, 14.1, 13.2, and 13.0
+containers. This workflow is evidence for minimum-version decisions, not ordinary CI:
+it never runs on pushes or pull requests, publishes nothing, and requires an explicit
+paid-run confirmation. The workflow itself must be dispatched from `main`; its
+separately selected candidate must be an exact first-parent snapshot of `main`,
+excluding intermediate commits retained inside merged branch histories. Its `through`
+input selects the oldest gate; all newer gates run first and the ladder stops at the
+first failure.
 
 The workflow mechanically generates a `probeOnly` legacy-SPF tree with a temporary
 `13.0+` metadata overlay, builds one archive under version 15, then installs and tests
 that exact archive sequentially under the selected engines. Production release and
 Paclet Repository paths reject the probe marker. Historical runs use the repository
 `WOLFRAMSCRIPT_ENTITLEMENTID` only while kernels execute and never receive the
-publisher token.
+publisher token. The selected candidate package and tests execute inside those
+licensed kernels, so reviewed first-parent candidate code is explicitly inside the
+entitlement trust boundary and can observe the entitlement environment.
 
 Commission a new or materially changed harness progressively: run through `15.0`,
 then `14.1`, `13.2`, and `13.0`, inspecting the temporary reports after each dispatch.

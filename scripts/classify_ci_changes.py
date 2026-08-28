@@ -65,6 +65,8 @@ def classify_path(raw_path: str) -> tuple[ValidationSelection, str]:
         "scripts/historical-engine-runner.wls",
         "scripts/prepare-historical-probe.py",
         "scripts/test_historical_probe.py",
+        "scripts/validate-historical-report.py",
+        "scripts/test_historical_report.py",
     }:
         return PYTHON_SMOKE, "historical-validation-infrastructure"
     if path in {

@@ -185,10 +185,13 @@ paths reject such a tree.
 ## Historical-engine validation
 
 Historical testing is deliberately manual, paid, non-publishing, and independent of
-the declared minimum version. The workflow must be dispatched from `main`, so only
-the reviewed workflow and tooling can receive the entitlement. It accepts a separate
-candidate commit or branch that must resolve to an exact commit contained in `main`,
-plus the oldest requested gate:
+the declared minimum version. The workflow must be dispatched from `main`, so the
+reviewed workflow and tooling control the entitlement-bearing job. It accepts a
+separate candidate commit or branch that must resolve to an exact first-parent
+snapshot of `main`; intermediate commits retained inside merged branch histories are
+rejected. The candidate package and tests execute inside licensed kernels and are
+therefore also explicitly inside the entitlement trust boundary. The remaining input
+selects the oldest requested gate:
 
 ```text
 15.0 -> 15.0
@@ -211,7 +214,9 @@ The workflow has `contents: read`, globally serializes runs, and exposes only
 tooling checkout, candidate verification, probe preparation, and artifact upload are
 unlicensed. A run uploads the probe archive, manifest, checksum, build log, and one
 JSON/log pair per attempted engine for 14 days. A missing JSON report together with a
-container failure identifies licensing or harness startup failure; a JSON
+container failure identifies licensing or harness startup failure. A zero exit status
+is insufficient: the host validates each JSON report's engine version, archive hash,
+public surface, smoke count, and complete passing test counts before advancing. A JSON
 `TestFailure` identifies package behavior or test-count failure.
 
 Commission the workflow progressively after merge: first dispatch through `15.0`,
@@ -247,7 +252,8 @@ change:
    blindly.
 7. Delete `.github/workflows/historical-wolfram.yml`,
    `scripts/historical-engine-matrix.sh`, `scripts/historical-engine-runner.wls`,
-   `scripts/prepare-historical-probe.py`, `scripts/test_historical_probe.py`, and
+   `scripts/prepare-historical-probe.py`, `scripts/test_historical_probe.py`,
+   `scripts/validate-historical-report.py`, `scripts/test_historical_report.py`, and
    their classifier and contract assertions.
 8. Remove `spf-compatibility-manifest.json`,
    `spfCompatibilityManifestSHA256`, `spfCompatibilityMappingVersion`, and
