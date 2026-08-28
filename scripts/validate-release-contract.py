@@ -157,6 +157,7 @@ def check_contract() -> None:
     historical_probe = load("scripts/prepare-historical-probe.py")
     historical_report_validator = load("scripts/validate-historical-report.py")
     historical_report_tests = load("scripts/test_historical_report.py")
+    hygiene_tests = load("tests/Hygiene.wlt")
 
     validate = block(release, "  validate:\n", "  publish:\n")
     publish = block(release, "  publish:\n", "  verify-wolfram:\n")
@@ -591,6 +592,31 @@ def check_contract() -> None:
         "historical public-surface expectation",
     )
     require(historical_runner, "TestReport[file]", "historical full Wolfram suite")
+    forbid(
+        historical_runner,
+        "Check[TestReport[file]",
+        "message-sensitive historical TestReport wrapper",
+    )
+    require(
+        historical_runner,
+        'testReport = TestReport[file];',
+        "direct historical MUnit evaluation",
+    )
+    require(
+        historical_runner,
+        'testReport["TestsSucceededCount"], testReport["TestsFailedCount"]',
+        "historical report-count validation",
+    )
+    require(
+        hygiene_tests,
+        'TestID -> "hyg-private-context-protected-locked-warns"',
+        "message-bearing historical regression test",
+    )
+    require(
+        hygiene_tests,
+        "{Einstoff::privctx}",
+        "expected-message historical regression test",
+    )
     require(historical_runner, "expectedTestCount", "historical test-count guard")
     require(historical_runner, "HISTORICAL_HARNESS_FAILED", "harness failure classification")
     require(historical_runner, "reportWritten", "historical report-write guard")
