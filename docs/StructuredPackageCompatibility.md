@@ -18,7 +18,8 @@ of the low-level build scripts remain canonical-source diagnostics.
 The transformation has two structural parts:
 
 ```text
-one PackageInitialize loader -> Package[context] in every Kernel/*.wl fragment
+PackageInitialize loader      -> Package[context] in the retained .wl entry
+other Kernel/**/*.wl files    -> same relative path and stem with an .m suffix
 PackageExported[{a, b, ...}]  -> one PackageExport declaration per symbol
 PackageScoped[{a, b, ...}]    -> one PackageScope declaration per symbol
 ```
@@ -44,6 +45,10 @@ Wolfram helper that emits the legacy format from canonical Wolfram 15 source:
 - [Declaring Package with dependencies in multiple files](https://mathematica.stackexchange.com/questions/176434/declaring-package-with-dependencies-in-multiples-files)
 - [What to be aware when using new-style package?](https://mathematica.stackexchange.com/questions/184711/what-to-be-aware-when-using-new-style-package)
 - [What are package-context symbols for?](https://mathematica.stackexchange.com/questions/114956/what-are-package-context-symbols-for)
+- [IGraph/M's legacy-SPF entry fragment](https://github.com/szhorvat/IGraphM/blob/master/IGraphM/IGraphM.m)
+- [OpenVDBLink's legacy-SPF entry fragment](https://github.com/AcademySoftwareFoundation/openvdb/blob/master/openvdb_wolfram/OpenVDBLink/OpenVDBLink.m)
+- [WolframResearch/MongoLink's legacy-SPF fragments](https://github.com/WolframResearch/MongoLink/tree/master/MongoLink/Kernel)
+- [WolframResearch/QuantumFramework's nested legacy-SPF fragments](https://github.com/WolframResearch/QuantumFramework/tree/main/QuantumFramework/Kernel)
 - [WolframResearch/CodeParser](https://github.com/WolframResearch/codeparser)
 - [CodeParser documentation](https://reference.wolfram.com/language/CodeParser/guide/CodeParser.html)
 - [DiagrammaticComputation's SPF migration](https://github.com/WolframInstitute/DiagrammaticComputation/commit/d68236343b3788ed7e3c793f93c13e48ddfefe20)
@@ -81,14 +86,17 @@ It:
 - copies the paclet, tests, and locked Python-environment inputs into an empty
   staging directory;
 - reads the context from the one standalone `PackageInitialize` loader;
-- adds the legacy `Package[context]` directive to every nested `Kernel/*.wl`
-  fragment;
+- retains that loader as the only generated `.wl` fragment and emits every other
+  `Kernel/**/*.wl` implementation fragment at the same relative path with an `.m`
+  suffix;
+- adds the legacy `Package[context]` directive to every generated fragment;
 - rewrites complete declaration identifiers outside WL strings and arbitrarily
   nested comments, expanding list-valued declarations into the scalar form accepted
   by the legacy scanner;
-- preserves filenames and every unrelated source byte after canonical LF line-ending
-  normalization;
+- preserves relative directories, filename stems, and every unrelated source byte
+  after canonical LF line-ending normalization;
 - rejects legacy names in canonical source, unrecognized `Package*` directives,
+  pre-existing canonical `Kernel/**/*.m` fragments, generated-path collisions,
   malformed strings or comments, symbolic links or Windows directory junctions,
   missing source roots, and a nonempty destination;
 - verifies that all expected public directives were found and none survived; and
@@ -96,18 +104,25 @@ It:
 
 The manifest schema records the mapping version, source and target dialects, the
 production/probe marker, source replacement counts, emitted legacy directive counts,
-changed files, and each changed file's pre- and post-transformation SHA-256. It
+each canonical source path and generated target path, and each changed file's pre-
+and post-transformation SHA-256. It
 intentionally contains no absolute paths, timestamps, host details, or other
 nondeterministic data. The compiler normalizes canonical `Kernel/**/*.wl` staging
 bytes to LF before hashing or rewriting, and Git also pins their checkout policy to LF
 in `.gitattributes`. Existing Windows clones therefore produce the same source hashes
 without requiring a forced checkout.
 
-The distinction is essential. The legacy `Package` format automatically scans and
-loads all marked fragments, including nested `.wl` files, but every fragment must
-carry the `Package` directive and its export/scope declarations are scalar. Community
-documentation of this formerly undocumented format describes the same static scan and
-per-fragment contract; it also records behavior changes before Wolfram Language 11.
+The distinction is essential. A Wolfram 14.1 diagnostic established that the legacy
+scanner accepts flat and nested `.m` fragments, with symbol- or string-valued
+declarations, but silently ignores non-entry `.wl` fragments. A `.wl` entry with
+nested `.m` fragments succeeds. This matches the community record and the layouts of
+IGraph/M, OpenVDBLink, MongoLink, and QuantumFramework. Every generated fragment must
+still carry the `Package` directive, and list-valued public declarations are expanded
+to the legacy scalar form. Community documentation of this formerly undocumented
+format describes the same static scan and per-fragment contract; it also records
+behavior changes before Wolfram Language 11. The one-off diagnostic workflow was
+removed after [the v14.1 evidence was captured](https://github.com/Gravifer/Einstoff.wl/actions/runs/33154733195),
+rather than retained as a paid maintenance interface.
 See [Declaring Package with dependencies in multiple files](https://mathematica.stackexchange.com/questions/176434/declaring-package-with-dependencies-in-multiples-files)
 and [What to be aware when using new-style package?](https://mathematica.stackexchange.com/questions/184711/what-to-be-aware-when-using-new-style-package).
 Einstoff targets no version below 13, but its v15 acceptance suite still verifies the
@@ -188,11 +203,11 @@ Historical validation is deliberately manual, non-publishing, and independent of
 declared minimum version. Image and mount preflighting is unlicensed; engine builds
 and tests are paid. A branch dispatch with paid confirmation left false runs only the
 preflight and never receives the entitlement. Ordinary paid builds and tests require a
-`main` dispatch. To commission a workflow change before merge, the repository owner may
-set both paid confirmations on a review branch, and only for the v15 gate. This narrow
-exception proves the complete build, archive-discovery, engine-runner, report-copy, and
-report-validation sequence; it deliberately places that branch's workflow tooling in
-the entitlement trust boundary. Both modes accept a separate candidate commit or branch
+`main` dispatch. To commission a workflow or compatibility-build change before merge,
+the repository owner may set both paid confirmations on a review branch for any selected
+gate. This narrow exception proves the complete build, archive-discovery, engine-runner,
+report-copy, and report-validation sequence; it deliberately places that branch's
+workflow tooling in the entitlement trust boundary. Both modes accept a separate candidate commit or branch
 that must resolve to an exact first-parent snapshot of `main`; intermediate
 commits retained inside merged branch histories are rejected. The candidate package
 and tests execute inside licensed kernels and are therefore also explicitly inside
@@ -230,11 +245,13 @@ is insufficient: the host validates each JSON report's engine version, archive h
 public surface, smoke count, and complete passing test counts before advancing. A JSON
 `TestFailure` identifies package behavior or test-count failure.
 
-Commission the workflow progressively after merge: first dispatch through `15.0`,
-then `14.1`, `13.2`, and finally `13.0`. Passing probes are evidence for a later,
-single reviewed MSV change; they do not themselves alter source metadata or any
-published artifact. A genuine 13.0 package failure with a passing 13.2 gate supports
-`13.2+`; otherwise a complete pass supports `13.0+`.
+Select the oldest intended gate once the workflow and compatibility build have passed
+unlicensed review. The workflow runs every gate in order and stops at the first failure,
+so selecting `13.0` exercises `15.0`, `14.1`, `13.2`, and `13.0` without repeated paid
+dispatches. Passing probes are evidence for a later, single reviewed MSV change; they do
+not themselves alter source metadata or any published artifact. A genuine 13.0 package
+failure with a passing 13.2 gate supports `13.2+`; otherwise a complete pass supports
+`13.0+`.
 
 ## Removing the layer after pre-v15 support ends
 
