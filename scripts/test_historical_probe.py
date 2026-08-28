@@ -65,6 +65,12 @@ class HistoricalProbeTests(unittest.TestCase):
             ).read_text(encoding="utf-8")
             self.assertIn('"WolframVersion" -> "13.0+"', staged_info)
             self.assertNotIn('"WolframVersion" -> "15.0+"', staged_info)
+            self.assertTrue(
+                (first / "Gravifer__Einstoff" / "Kernel" / "Core.m").is_file()
+            )
+            self.assertFalse(
+                (first / "Gravifer__Einstoff" / "Kernel" / "Core.wl").exists()
+            )
             self.assertTrue(first_manifest["probeOnly"])
             self.assertEqual(
                 first_manifest["probeOverlay"]["canonicalWolframVersion"],

@@ -9,7 +9,7 @@ trap 'rm -rf "${temp_root}"' EXIT
 mkdir -p "${temp_root}/bin"
 cat > "${temp_root}/expected-manifest.json" <<'EOF'
 {
-  "mappingVersion": 5,
+  "mappingVersion": 6,
   "sourceNormalization": "lf-v1",
   "probeOnly": false
 }
