@@ -67,6 +67,13 @@ class ClassificationTests(unittest.TestCase):
             ".python-version",
             "tests/python/Reshape.wlt",
             "scripts/retry-python-tests.sh",
+            ".github/workflows/historical-wolfram.yml",
+            "scripts/historical-engine-matrix.sh",
+            "scripts/historical-engine-runner.wls",
+            "scripts/prepare-historical-probe.py",
+            "scripts/test_historical_probe.py",
+            "scripts/validate-historical-report.py",
+            "scripts/test_historical_report.py",
         ):
             self.assert_selection(path, classifier.PYTHON_SMOKE)
 

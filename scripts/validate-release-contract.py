@@ -83,9 +83,56 @@ def check_retry_policy() -> None:
             )
 
 
+def check_historical_matrix_input_policy() -> None:
+    helper = ROOT / "scripts" / "historical-engine-matrix.sh"
+    bash = os.environ.get("EINSTOFF_TEST_BASH", "bash")
+
+    valid = subprocess.run(
+        [bash, helper.as_posix(), "list", "13.2"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if valid.returncode != 0 or valid.stdout.splitlines() != [
+        "15.0 wolframresearch/wolframengine@sha256:3ac08d6aaa33e6dccdda38d14cf8a7e5c22cc84d037a1a7562900914a487ef65",
+        "14.1 wolframresearch/wolframengine@sha256:e2958b13d3ec7aa0a5dcd7d32f8638b7a42ddf7b183bc2e6d63fab2180243cd3",
+        "13.2 wolframresearch/wolframengine@sha256:ef448ad7c3069a4ee4219e72bc03c1db66204c48008a9b6d09ed39069362b2a9",
+    ]:
+        raise AssertionError(
+            "historical matrix must list the requested valid ladder exactly"
+        )
+
+    for command in ("list", "pull"):
+        rejected = subprocess.run(
+            [bash, helper.as_posix(), command, '15.0"; exit 0; #'],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if rejected.returncode != 64 or rejected.stdout:
+            raise AssertionError(
+                f"historical matrix {command} must reject unsupported gates with 64"
+            )
+
+    rejected_run = subprocess.run(
+        [bash, helper.as_posix(), "run", "invalid", "probe", "tooling", "reports"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if rejected_run.returncode != 64:
+        raise AssertionError(
+            "historical matrix run must reject an invalid gate before other checks"
+        )
+
+
 def check_contract() -> None:
     release = load(".github/workflows/release.yml")
     paclet_ci = load(".github/workflows/paclet-ci.yml")
+    historical = load(".github/workflows/historical-wolfram.yml")
     action = load(".github/actions/paclet-ci/action.yml")
     driver = load(".github/actions/paclet-ci/main.sh")
     normalized_driver = normalize_shell_continuations(driver)
@@ -94,6 +141,11 @@ def check_contract() -> None:
     runner = load("scripts/run-tests.wls")
     local_release = load("scripts/validate-release.ps1")
     publication_action_test = load("scripts/test-paclet-publication-action.sh")
+    historical_matrix = load("scripts/historical-engine-matrix.sh")
+    historical_runner = load("scripts/historical-engine-runner.wls")
+    historical_probe = load("scripts/prepare-historical-probe.py")
+    historical_report_validator = load("scripts/validate-historical-report.py")
+    historical_report_tests = load("scripts/test_historical_report.py")
 
     validate = block(release, "  validate:\n", "  publish:\n")
     publish = block(release, "  publish:\n", "  verify-wolfram:\n")
@@ -107,6 +159,11 @@ def check_contract() -> None:
     contract_job = block(paclet_ci, "  contract:\n", "  build:\n")
     python_job = block(paclet_ci, "  python-smoke:\n", "  build:\n")
     build_job = block(paclet_ci, "  build:\n")
+    historical_run = block(
+        historical,
+        "      - name: Build and run the historical-engine ladder\n",
+        "      - name: Upload probe archive and per-engine reports\n",
+    )
 
     require(validate, "ref: ${{ github.workflow_sha }}", "trusted tooling ref")
     require(validate, "path: tooling", "trusted tooling checkout")
@@ -291,6 +348,146 @@ def check_contract() -> None:
         "local probe-only staging rejection",
     )
 
+    require(historical, "workflow_dispatch:", "manual-only historical workflow")
+    forbid(historical, "pull_request:", "no historical pull-request trigger")
+    forbid(historical, "push:", "no historical push trigger")
+    require(historical, "confirm_paid_run:", "explicit paid-run confirmation")
+    require(
+        historical,
+        "if: github.ref == 'refs/heads/main' && inputs.confirm_paid_run",
+        "main-only paid-run job guard",
+    )
+    require(historical, "permissions:\n  contents: read", "read-only historical workflow")
+    forbid(historical, "contents: write", "no historical write permission")
+    forbid(historical, "RESOURCE_PUBLISHER_TOKEN", "publisher-free historical workflow")
+    require(historical, "group: historical-wolfram-engine-validation", "global historical lock")
+    require(historical, "cancel-in-progress: false", "noncancelling historical workflow")
+    require(historical, "ref: ${{ github.workflow_sha }}", "trusted historical tooling")
+    require(historical, "path: tooling", "separate historical tooling checkout")
+    require(historical, "path: candidate", "separate historical candidate checkout")
+    require(historical, "merge-base --is-ancestor", "main-contained historical candidate")
+    require(historical, "rev-list --first-parent", "reviewed main-snapshot candidate")
+    require(historical, "grep -Fxq", "exact first-parent candidate match")
+    require(historical, 'default: "15.0"', "minimal default historical gate")
+    for version in ("15.0", "14.1", "13.2", "13.0"):
+        require(historical, f'- "{version}"', f"historical {version} dispatch gate")
+    require(historical, "version: 0.11.26", "pinned historical uv")
+    require(historical, "prepare-historical-probe.py", "probe-only staging")
+    require(historical, "test_historical_probe.py", "probe compiler tests")
+    require(historical, "test_historical_report.py", "historical report tests")
+    require(historical, "historical-engine-matrix.sh pull", "secret-free image pull")
+    require(historical, "THROUGH: ${{ inputs.through }}", "environment-only gate input")
+    if historical.count("THROUGH: ${{ inputs.through }}") != 2:
+        raise AssertionError("both historical matrix steps must receive the gate via env")
+    if historical.count('case "${THROUGH}" in') != 2:
+        raise AssertionError("both historical matrix steps must allowlist the gate")
+    forbid(
+        historical,
+        'historical-engine-matrix.sh pull "${{ inputs.through }}"',
+        "raw gate interpolation in image pull",
+    )
+    forbid(
+        historical_run,
+        '"${{ inputs.through }}"',
+        "raw gate interpolation in licensed execution",
+    )
+    require(historical_run, "historical-engine-matrix.sh run", "sequential historical runner")
+    require(historical_run, "WOLFRAMSCRIPT_ENTITLEMENTID", "historical entitlement")
+    if historical.count("secrets.WOLFRAMSCRIPT_ENTITLEMENTID") != 1:
+        raise AssertionError("historical entitlement must be referenced by exactly one step")
+    forbid(
+        historical.replace(historical_run, ""),
+        "WOLFRAMSCRIPT_ENTITLEMENTID",
+        "historical entitlement outside engine execution",
+    )
+    require(historical, "if: always()", "failure-preserving historical reports")
+    require(historical, "retention-days: 14", "temporary historical artifacts")
+
+    expected_images = {
+        "15.0": "3ac08d6aaa33e6dccdda38d14cf8a7e5c22cc84d037a1a7562900914a487ef65",
+        "14.1": "e2958b13d3ec7aa0a5dcd7d32f8638b7a42ddf7b183bc2e6d63fab2180243cd3",
+        "13.2": "ef448ad7c3069a4ee4219e72bc03c1db66204c48008a9b6d09ed39069362b2a9",
+        "13.0": "fabfe5bf05b9b1710ca7816a18e86baa59dbeb106f9a0a552d099519115117ff",
+    }
+    for version, digest in expected_images.items():
+        variable = version.replace(".", "_")
+        require(
+            historical_matrix,
+            f"readonly IMAGE_{variable}='wolframresearch/wolframengine@sha256:{digest}'",
+            f"pinned Wolfram {version} image",
+        )
+    require(historical_matrix, "versions_through", "ordered historical ladder")
+    require(
+        historical_matrix,
+        'versions="$(versions_through "${through}")"',
+        "up-front historical gate validation",
+    )
+    forbid(
+        historical_matrix,
+        '< <(versions_through "${through}")',
+        "failure-swallowing gate process substitution",
+    )
+    require(historical_matrix, "probeOnly", "probe-only execution guard")
+    require(historical_matrix, "json.loads", "semantic probe manifest validation")
+    forbid(historical_matrix, "grep -Eq", "lexical probe manifest validation")
+    require(historical_matrix, "${#archives[@]} != 1", "single probe archive guard")
+    require(historical_matrix, "archive_list", "checked archive discovery output")
+    require(historical_matrix, "--env WOLFRAMSCRIPT_ENTITLEMENTID", "nonliteral entitlement handoff")
+    require(historical_matrix, "later gates were not started", "stop-on-first-failure policy")
+    require(historical_matrix, "gate_status=${pipeline_status[0]}", "historical exit classification")
+    require(historical_matrix, "tee_status=${pipeline_status[1]}", "historical log classification")
+    require(
+        historical_matrix,
+        "validate-historical-report.py",
+        "trusted historical completion validation",
+    )
+
+    require(historical_probe, 'CANONICAL_VERSION = "15.0+"', "canonical probe MSV")
+    require(historical_probe, 'PROBE_VERSION = "13.0+"', "historical probe MSV")
+    require(historical_probe, 'manifest["probeOnly"] = True', "probe-only manifest overlay")
+    require(historical_probe, "pacletInfoBeforeSHA256", "probe input provenance")
+    require(historical_probe, "pacletInfoAfterSHA256", "probe output provenance")
+
+    require(historical_runner, "PacletInstall[archive]", "historical archive installation")
+    require(historical_runner, 'Names["Gravifer`Einstoff`*"]', "historical public-surface check")
+    require(
+        historical_runner,
+        'expectedPublicSymbols = {"Einstoff"}',
+        "historical public-surface expectation",
+    )
+    require(historical_runner, "TestReport[file]", "historical full Wolfram suite")
+    require(historical_runner, "expectedTestCount", "historical test-count guard")
+    require(historical_runner, "HISTORICAL_HARNESS_FAILED", "harness failure classification")
+    require(historical_runner, "reportWritten", "historical report-write guard")
+    forbid(historical_runner, "ResourceFunction", "v13-safe historical runner")
+    forbid(historical_runner, "ExternalEvaluate", "Python-free historical runner")
+    forbid(historical_runner, "PacletCICD", "build-tool-free historical runner")
+    require(
+        historical_report_validator,
+        'report.get("Status") != "Passed"',
+        "passing historical status requirement",
+    )
+    require(
+        historical_report_validator,
+        'EXPECTED_PUBLIC_SYMBOLS = ["Einstoff"]',
+        "trusted historical public-surface expectation",
+    )
+    require(
+        historical_report_tests,
+        'report["PublicSymbols"] = ["Gravifer`Einstoff`Einstoff"]',
+        "historical public-surface drift rejection",
+    )
+    require(
+        historical_report_validator,
+        'archive_sha256 = report.get("ArchiveSHA256")',
+        "historical archive digest requirement",
+    )
+    require(
+        historical_report_validator,
+        'require_count(report, "ExecutedTestCount")',
+        "historical executed-test requirement",
+    )
+
     require(paclet_driver, 'Environment["RESOURCE_PUBLISHER_TOKEN"]', "publisher token input")
     require(paclet_driver, 'PublisherID -> "Gravifer"', "fixed publisher identity")
     require(paclet_driver, '"SetWorkflowValue" -> False', "workflow mutation disabled")
@@ -350,6 +547,11 @@ def check_contract() -> None:
 
     require(classifier, '"scripts/prepare-legacy-spf.py"', "SPF compiler classification")
     require(classifier, '"scripts/test_spf_compatibility.py"', "SPF test classification")
+    require(classifier, '"scripts/prepare-historical-probe.py"', "probe compiler classification")
+    require(classifier, '"scripts/historical-engine-runner.wls"', "historical runner classification")
+    require(classifier, '"scripts/validate-historical-report.py"', "report validator classification")
+    require(paclet_ci, "python scripts/test_historical_probe.py", "ordinary probe tests")
+    require(paclet_ci, "python scripts/test_historical_report.py", "ordinary report tests")
     require(publication_action_test, "INPUT_RELEASE_VALIDATION=true", "incompatible mode action test")
     require(publication_action_test, "RESOURCE_PUBLISHER_TOKEN=", "missing publisher token action test")
     require(publication_action_test, "EINSTOFF_RELEASE_SOURCE_SHA=invalid", "invalid source SHA action test")
@@ -368,20 +570,22 @@ def check_contract() -> None:
     if runner.index("pythonReady =") > runner.index("dependenciesReady ="):
         raise AssertionError("transport must be probed before dependency imports")
 
-    for line in release.splitlines() + paclet_ci.splitlines():
+    for line in release.splitlines() + paclet_ci.splitlines() + historical.splitlines():
         stripped = line.strip()
         if not stripped.startswith("uses: "):
             continue
         reference = stripped.removeprefix("uses: ")
         if reference.startswith("./"):
             continue
-        if "@" not in reference or len(reference.rsplit("@", 1)[1].split()[0]) != 40:
+        pinned_ref = reference.rsplit("@", 1)[1].split()[0] if "@" in reference else ""
+        if re.fullmatch(r"[0-9a-fA-F]{40}", pinned_ref) is None:
             raise AssertionError(f"external action is not pinned by full SHA: {reference}")
 
 
 def main() -> None:
     check_contract()
     check_retry_policy()
+    check_historical_matrix_input_policy()
     print("Release workflow contract checks passed.")
 
 
