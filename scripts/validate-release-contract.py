@@ -147,6 +147,7 @@ def check_contract() -> None:
     driver = load(".github/actions/paclet-ci/main.sh")
     normalized_driver = normalize_shell_continuations(driver)
     paclet_driver = load("scripts/paclet-cicd.wls")
+    paclet_builder = load("scripts/build-paclet.wls")
     classifier = load("scripts/classify_ci_changes.py")
     runner = load("scripts/run-tests.wls")
     local_release = load("scripts/validate-release.ps1")
@@ -156,6 +157,7 @@ def check_contract() -> None:
     historical_probe = load("scripts/prepare-historical-probe.py")
     historical_report_validator = load("scripts/validate-historical-report.py")
     historical_report_tests = load("scripts/test_historical_report.py")
+    hygiene_tests = load("tests/Hygiene.wlt")
 
     validate = block(release, "  validate:\n", "  publish:\n")
     publish = block(release, "  publish:\n", "  verify-wolfram:\n")
@@ -369,8 +371,39 @@ def check_contract() -> None:
     require(historical, "confirm_paid_run:", "explicit paid-run confirmation")
     require(
         historical,
-        "if: github.ref == 'refs/heads/main' && inputs.confirm_paid_run",
-        "main-only paid-run job guard",
+        "confirm_branch_commissioning:",
+        "explicit branch-commissioning confirmation",
+    )
+    require(
+        historical,
+        "Validate paid-run commissioning policy",
+        "explicit historical commissioning policy",
+    )
+    require(historical, "ACTOR: ${{ github.actor }}", "commissioning actor input")
+    require(
+        historical,
+        "REPOSITORY_OWNER: ${{ github.repository_owner }}",
+        "commissioning owner input",
+    )
+    require(
+        historical,
+        "TRIGGERING_ACTOR: ${{ github.triggering_actor }}",
+        "commissioning rerun actor input",
+    )
+    require(
+        historical,
+        "Only the repository owner may commission a paid branch run.",
+        "owner-only branch commissioning",
+    )
+    require(
+        historical,
+        "Branch commissioning is restricted to the v15 diagnostic gate.",
+        "v15-only branch commissioning",
+    )
+    require(
+        historical,
+        "Branch commissioning requires a branch workflow ref.",
+        "branch-only commissioning",
     )
     require(historical, "permissions:\n  contents: read", "read-only historical workflow")
     forbid(historical, "contents: write", "no historical write permission")
@@ -402,8 +435,10 @@ def check_contract() -> None:
         "entitlement-free historical mount preflight",
     )
     require(historical, "THROUGH: ${{ inputs.through }}", "environment-only gate input")
-    if historical.count("THROUGH: ${{ inputs.through }}") != 3:
-        raise AssertionError("all historical matrix steps must receive the gate via env")
+    if historical.count("THROUGH: ${{ inputs.through }}") != 4:
+        raise AssertionError(
+            "the commissioning policy and all matrix steps must receive the gate via env"
+        )
     if historical.count('case "${THROUGH}" in') != 3:
         raise AssertionError("all historical matrix steps must allowlist the gate")
     forbid(
@@ -417,6 +452,21 @@ def check_contract() -> None:
         "raw gate interpolation in licensed execution",
     )
     require(historical_run, "historical-engine-matrix.sh run", "sequential historical runner")
+    require(
+        historical_run,
+        "inputs.confirm_paid_run && (github.ref == 'refs/heads/main' ||",
+        "explicit paid historical execution guard",
+    )
+    require(
+        historical_run,
+        "inputs.confirm_branch_commissioning && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner",
+        "owner-confirmed branch execution guard",
+    )
+    require(
+        historical_run,
+        "inputs.through == '15.0' && startsWith(github.ref, 'refs/heads/')",
+        "v15 branch-ref execution guard",
+    )
     require(historical_run, "WOLFRAMSCRIPT_ENTITLEMENTID", "historical entitlement")
     if historical.count("secrets.WOLFRAMSCRIPT_ENTITLEMENTID") != 1:
         raise AssertionError("historical entitlement must be referenced by exactly one step")
@@ -474,8 +524,13 @@ def check_contract() -> None:
     )
     require(
         historical_matrix,
-        '--volume "${build_root}:/probe/build"',
+        '--volume "${build_root}:/output"',
         "isolated historical build output",
+    )
+    forbid(
+        historical_matrix,
+        '--volume "${build_root}:/probe/build"',
+        "nested historical build output",
     )
     require(
         historical_matrix,
@@ -502,6 +557,11 @@ def check_contract() -> None:
         "/reports/.einstoff-write-probe",
         "writable report mount preflight",
     )
+    require(
+        historical_matrix,
+        "EINSTOFF_BUILD_ROOT=/output",
+        "independent historical build root",
+    )
     require(historical_matrix, "--env WOLFRAMSCRIPT_ENTITLEMENTID", "nonliteral entitlement handoff")
     require(historical_matrix, "later gates were not started", "stop-on-first-failure policy")
     require(historical_matrix, "gate_status=${pipeline_status[0]}", "historical exit classification")
@@ -518,6 +578,12 @@ def check_contract() -> None:
     require(historical_probe, "pacletInfoBeforeSHA256", "probe input provenance")
     require(historical_probe, "pacletInfoAfterSHA256", "probe output provenance")
 
+    require(
+        paclet_builder,
+        'Environment["EINSTOFF_BUILD_ROOT"]',
+        "private external paclet build root",
+    )
+
     require(historical_runner, "PacletInstall[archive]", "historical archive installation")
     require(historical_runner, 'Names["Gravifer`Einstoff`*"]', "historical public-surface check")
     require(
@@ -526,6 +592,31 @@ def check_contract() -> None:
         "historical public-surface expectation",
     )
     require(historical_runner, "TestReport[file]", "historical full Wolfram suite")
+    forbid(
+        historical_runner,
+        "Check[TestReport[file]",
+        "message-sensitive historical TestReport wrapper",
+    )
+    require(
+        historical_runner,
+        'testReport = TestReport[file];',
+        "direct historical MUnit evaluation",
+    )
+    require(
+        historical_runner,
+        'testReport["TestsSucceededCount"], testReport["TestsFailedCount"]',
+        "historical report-count validation",
+    )
+    require(
+        hygiene_tests,
+        'TestID -> "hyg-private-context-protected-locked-warns"',
+        "message-bearing historical regression test",
+    )
+    require(
+        hygiene_tests,
+        "{Einstoff::privctx}",
+        "expected-message historical regression test",
+    )
     require(historical_runner, "expectedTestCount", "historical test-count guard")
     require(historical_runner, "HISTORICAL_HARNESS_FAILED", "harness failure classification")
     require(historical_runner, "reportWritten", "historical report-write guard")

@@ -182,13 +182,24 @@ totalSucceeded = 0;
 totalFailed = 0;
 Scan[
   Function[file,
-    Module[{testReport},
+    Module[{testReport, testCounts},
       Print["Running ", FileNameTake[file], "..."];
-      testReport = Quiet @ Check[TestReport[file], $Failed];
-      If[testReport === $Failed, failHarness["TestReport failed for " <> file]];
-      totalSucceeded += testReport["TestsSucceededCount"];
-      totalFailed += testReport["TestsFailedCount"];
-      If[testReport["TestsFailedCount"] > 0, Print[testReport]]
+      (* Do not wrap TestReport in Check: message-bearing VerificationTest cases
+         are valid MUnit input and must not become harness failures. Validate the
+         returned report through its count properties after evaluation instead. *)
+      testReport = TestReport[file];
+      testCounts = Quiet @ Check[
+        {testReport["TestsSucceededCount"], testReport["TestsFailedCount"]},
+        $Failed
+      ];
+      If[
+        ! MatchQ[testCounts, {_Integer, _Integer}] ||
+          ! And @@ Map[Function[count, count >= 0], testCounts],
+        failHarness["TestReport returned invalid counts for " <> file]
+      ];
+      totalSucceeded += testCounts[[1]];
+      totalFailed += testCounts[[2]];
+      If[testCounts[[2]] > 0, Print[testReport]]
     ]
   ],
   testFiles
