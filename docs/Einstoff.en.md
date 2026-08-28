@@ -399,6 +399,7 @@ Out[44]= {1, 2, 1, 2, 3}
 
 ### Version History
 
+* [`Gravifer/Einstoff` 0.2.1-beta.1](https://github.com/Gravifer/Einstoff.wl/releases/tag/v0.2.1-beta.1) — 28 August 2026
 * [`Gravifer/Einstoff` 0.2.0](https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/) — 15 August 2026
 * [`ResourceFunction["Einstoff"]` 1.0.0](https://resources.wolframcloud.com/FunctionRepository/resources/Einstoff/) — 24 August 2026
 
@@ -450,7 +451,8 @@ url={https://openreview.net/forum?id=QqvQ3iAdpC}
 
 #### Wolfram Language Version
 
-* 15.0+
+* 13.0+ for `Gravifer/Einstoff` 0.2.1-beta.1 and later
+* 15.0+ for the currently published `Gravifer/Einstoff` 0.2.0 and `ResourceFunction["Einstoff"]` 1.0.0
 
 <!-- 
 #### Operating System

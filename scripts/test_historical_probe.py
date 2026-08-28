@@ -18,7 +18,7 @@ SPEC.loader.exec_module(probe)
 
 
 class HistoricalProbeTests(unittest.TestCase):
-    def make_source(self, root: Path, wolfram_version: str = "15.0+") -> Path:
+    def make_source(self, root: Path, wolfram_version: str = "13.0+") -> Path:
         source = root / "source"
         kernel = source / "Gravifer__Einstoff" / "Kernel"
         kernel.mkdir(parents=True)
@@ -60,9 +60,9 @@ class HistoricalProbeTests(unittest.TestCase):
                 (first / probe.compat.MANIFEST_NAME).read_bytes(),
                 (second / probe.compat.MANIFEST_NAME).read_bytes(),
             )
-            staged_info = (
-                first / "Gravifer__Einstoff" / "PacletInfo.wl"
-            ).read_text(encoding="utf-8")
+            staged_info_path = first / "Gravifer__Einstoff" / "PacletInfo.wl"
+            self.assertEqual(staged_info_path.read_bytes(), canonical)
+            staged_info = staged_info_path.read_text(encoding="utf-8")
             self.assertIn('"WolframVersion" -> "13.0+"', staged_info)
             self.assertNotIn('"WolframVersion" -> "15.0+"', staged_info)
             self.assertTrue(
@@ -73,12 +73,12 @@ class HistoricalProbeTests(unittest.TestCase):
             )
             self.assertTrue(first_manifest["probeOnly"])
             self.assertEqual(
-                first_manifest["probeOverlay"]["canonicalWolframVersion"],
-                "15.0+",
+                first_manifest["probeMetadata"]["wolframVersion"],
+                "13.0+",
             )
             self.assertEqual(
-                first_manifest["probeOverlay"]["probeWolframVersion"],
-                "13.0+",
+                first_manifest["probeMetadata"]["pacletInfoSHA256"],
+                probe.sha256(canonical),
             )
 
     def test_probe_rejects_an_unexpected_canonical_version(self) -> None:
@@ -87,7 +87,7 @@ class HistoricalProbeTests(unittest.TestCase):
             source = self.make_source(root, wolfram_version="14.0+")
             with self.assertRaisesRegex(
                 probe.compat.CompatibilityError,
-                "exactly one canonical 15.0",
+                "exactly one canonical 13.0",
             ):
                 probe.prepare_probe(source, root / "output")
 
@@ -100,7 +100,7 @@ class HistoricalProbeTests(unittest.TestCase):
 
             self.assertTrue(manifest["probeOnly"])
             self.assertEqual(parsed, manifest)
-            self.assertEqual(parsed["probeOverlay"]["probeWolframVersion"], "13.0+")
+            self.assertEqual(parsed["probeMetadata"]["wolframVersion"], "13.0+")
             self.assertGreater(parsed["replacementTotals"]["PackageScoped"], 1)
 
 

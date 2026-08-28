@@ -6,6 +6,31 @@ This project is pre-release, so interfaces may still change before `1.0.0`.
 
 ## Unreleased
 
+## 0.2.1-beta.1 - 2026-08-28
+
+### Added
+
+- Added a provisional, auditable compatibility build that mechanically lowers the
+  canonical Wolfram 15 structured-package vocabulary into legacy SPF staging sources.
+- Added a manual, sequential historical-engine workflow with structured reports for
+  Wolfram Engine 15.0, 14.1, 13.2 and 13.0.
+- Added unified stable-release publication to GitHub and the Wolfram Paclet Repository,
+  with prereleases remaining GitHub-only.
+
+### Changed
+
+- Lowered the declared minimum Wolfram Language version to `13.0+` after the same
+  generated archive passed all 558 tests and 9 smoke checks on every historical gate.
+- Pointed authoritative project metadata at the GitHub repository now that the former
+  Codeberg mirror is private and no longer maintained as a synchronized remote.
+
+### Fixed
+
+- Hardened compatibility staging against ambiguous declarations, unsafe trees,
+  nonportable path collisions and incomplete generated fragment sets.
+- Hardened release and historical validation around immutable inputs, secret scope,
+  container mounts, structured completion reports and stop-on-first-failure behavior.
+
 ## 0.2.0 - 2026-08-15
 
 ### Changed
