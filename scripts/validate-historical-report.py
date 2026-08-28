@@ -16,7 +16,7 @@ EXPECTED_VERSION_NUMBERS = {
     "13.2": 13.2,
     "13.0": 13.0,
 }
-EXPECTED_PUBLIC_SYMBOLS = ["Gravifer`Einstoff`Einstoff"]
+EXPECTED_PUBLIC_SYMBOLS = ["Einstoff"]
 EXPECTED_SMOKE_CHECKS = 9
 MAX_REPORT_BYTES = 1_000_000
 SHA256_PATTERN = re.compile(r"[0-9a-fA-F]{64}")

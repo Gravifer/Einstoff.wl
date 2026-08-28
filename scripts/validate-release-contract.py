@@ -145,6 +145,7 @@ def check_contract() -> None:
     historical_runner = load("scripts/historical-engine-runner.wls")
     historical_probe = load("scripts/prepare-historical-probe.py")
     historical_report_validator = load("scripts/validate-historical-report.py")
+    historical_report_tests = load("scripts/test_historical_report.py")
 
     validate = block(release, "  validate:\n", "  publish:\n")
     publish = block(release, "  publish:\n", "  verify-wolfram:\n")
@@ -449,6 +450,11 @@ def check_contract() -> None:
 
     require(historical_runner, "PacletInstall[archive]", "historical archive installation")
     require(historical_runner, 'Names["Gravifer`Einstoff`*"]', "historical public-surface check")
+    require(
+        historical_runner,
+        'expectedPublicSymbols = {"Einstoff"}',
+        "historical public-surface expectation",
+    )
     require(historical_runner, "TestReport[file]", "historical full Wolfram suite")
     require(historical_runner, "expectedTestCount", "historical test-count guard")
     require(historical_runner, "HISTORICAL_HARNESS_FAILED", "harness failure classification")
@@ -460,6 +466,16 @@ def check_contract() -> None:
         historical_report_validator,
         'report.get("Status") != "Passed"',
         "passing historical status requirement",
+    )
+    require(
+        historical_report_validator,
+        'EXPECTED_PUBLIC_SYMBOLS = ["Einstoff"]',
+        "trusted historical public-surface expectation",
+    )
+    require(
+        historical_report_tests,
+        'report["PublicSymbols"] = ["Gravifer`Einstoff`Einstoff"]',
+        "historical public-surface drift rejection",
     )
     require(
         historical_report_validator,

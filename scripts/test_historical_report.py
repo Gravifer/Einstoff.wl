@@ -27,7 +27,7 @@ def passing_report() -> dict[str, object]:
         "ActualVersionNumber": 13.2,
         "Status": "Passed",
         "ArchiveSHA256": ARCHIVE_SHA256.upper(),
-        "PublicSymbols": ["Gravifer`Einstoff`Einstoff"],
+        "PublicSymbols": ["Einstoff"],
         "SmokeChecksPassed": 9,
         "TestFiles": ["Reshape.wlt", "Reduce.wlt"],
         "ExpectedTestCount": 12,
@@ -82,6 +82,14 @@ class HistoricalReportTests(unittest.TestCase):
             report["ExecutedTestCount"] = 11
             path = self.write_report(Path(directory), report)
             with self.assertRaisesRegex(validator.ReportError, "executed-test"):
+                validator.validate_report(path, "13.2", ARCHIVE_SHA256)
+
+    def test_rejects_a_noncanonical_public_symbol_report(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            report = passing_report()
+            report["PublicSymbols"] = ["Gravifer`Einstoff`Einstoff"]
+            path = self.write_report(Path(directory), report)
+            with self.assertRaisesRegex(validator.ReportError, "public-surface"):
                 validator.validate_report(path, "13.2", ARCHIVE_SHA256)
 
     def test_rejects_malformed_and_oversized_reports(self) -> None:

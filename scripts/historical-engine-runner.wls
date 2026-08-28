@@ -65,7 +65,7 @@ loadResult = Quiet @ Check[Needs["Gravifer`Einstoff`"] ; True, False];
 If[! TrueQ[loadResult], failHarness["could not load Gravifer`Einstoff`"]];
 
 publicSymbols = Sort @ Names["Gravifer`Einstoff`*"];
-expectedPublicSymbols = {"Gravifer`Einstoff`Einstoff"};
+expectedPublicSymbols = {"Einstoff"};
 If[publicSymbols =!= expectedPublicSymbols,
   failHarness["unexpected public symbols: " <> ToString[publicSymbols, InputForm]]
 ];
