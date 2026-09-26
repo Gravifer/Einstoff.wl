@@ -857,7 +857,8 @@ tryStructuralCompiledIRPlan[compiled_Association, tensors_List, operator_String,
 
 tryReduceIRPlan[h_Hold, tensors_List, bindings_List, reducer_, targeting_,
     traceAction_] :=
-  Catch[Module[{compiled, solvedBundle, solved, analysis, plan, held, targetIds, reducedIds},
+  Catch[Module[{compiled, solvedBundle, solved, solvedData, analysis, plan, held,
+          targetIds, reducedIds, inputLiteralIds, literalTargetIds},
     compiled = compileHeldDescIR[h, HoldComplete[bindings], "Reduce",
       <|"Targeting" -> targeting|>];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
@@ -871,12 +872,23 @@ tryReduceIRPlan[h_Hold, tensors_List, bindings_List, reducer_, targeting_,
         ! TrueQ[Replace[analysis, irp["OperationAnalysis"][a_Association] :> a["Valid"]]],
       Throw[plannerFailure["AnalysisRejected", <|"Analysis" -> analysis|>],
         plannerFallbackTag]];
+    (* Literal occurrences have no AxisId, so the named-axis effects in Analysis
+       cannot report them as reduced.  Use their local occurrence IDs to apply the
+       same targeting policy without conflating equal-sized literals. *)
+    solvedData = Replace[solved, irp["SolvedDesc"][a_Association] :> a];
+    inputLiteralIds = Cases[solvedData["Inputs"],
+      irp["LiteralAxis"][occ_, _, _] :> {"Literal", occ}, Infinity];
+    literalTargetIds = Cases[{solvedData["Inputs"], solvedData["Outputs"]},
+      irp["LiteralAxis"][occ_, _, meta_Association] /;
+          meta["TargetHead"] =!= None :> {"Literal", occ}, Infinity];
     (* A kept target belongs to Map/Operate, not reduction. *)
     targetIds = DeleteDuplicates @ Cases[analysis,
       r_Association /; TrueQ[Lookup[r, "Targeted", False]] :> Lookup[r, "Axis"],
       Infinity];
     reducedIds = DeleteDuplicates @ Cases[analysis,
       irp["Reduced"][id_, _] :> id, Infinity];
+    targetIds = DeleteDuplicates @ Join[targetIds, literalTargetIds];
+    reducedIds = DeleteDuplicates @ Join[reducedIds, inputLiteralIds];
     Which[
       targeting === True && Complement[reducedIds, targetIds] =!= {},
         Throw[plannerFailure["ReductionTargetRequired", <||>], plannerFallbackTag],
