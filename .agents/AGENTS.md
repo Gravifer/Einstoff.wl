@@ -30,6 +30,28 @@ where
 
 For more details on the design, see `.agents/SPEC.md`
 
+## Work tracking
+
+- Use [Einstoff / Development](https://github.com/users/Gravifer/projects/12) and
+  the relevant GitHub issue before starting work. Read its acceptance criteria,
+  design references, and evidence against the actual branch and commit.
+- Within the user's authorized task, maintain the issue and Project as part of
+  the work. Reuse existing issues; keep minor steps in checklists. Ready is scoped
+  work, not permission to execute the entire backlog.
+- Before pausing or handing off, record the result, commit or artifact, validation
+  and limitations, next action, and any needed decision. Keep Status and checklist
+  items consistent. Avoid comments that merely report continued activity.
+- Use In review only for a concrete reviewable result with relevant validation.
+  Code is Done when accepted and merged to `main`; documentation and research use
+  their issue's acceptance criteria. Track publication separately.
+- A PR may close an issue only when merging satisfies its full acceptance criteria.
+  Partial PRs use ordinary references. Do not close unimplemented backlog items.
+- If GitHub cannot be updated, state that limitation and provide the checkpoint in
+  the response; reconcile the tracker when access returns.
+- Keep live work status in GitHub. Preserve semantics, rationale, and supported
+  limits in the SPEC. See [CONTRIBUTING](../CONTRIBUTING.md#tracking-work) and the
+  [tracking guide](../docs/project-tracking.md) for the operating convention.
+
 ## Notes
 
 - **Parentheses vs brackets are different things** (don't conflate `(...)` with `[...]`).

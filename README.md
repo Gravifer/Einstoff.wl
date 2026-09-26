@@ -167,6 +167,12 @@ a synchronized publication target.
 
 ## Status
 
+Ongoing work is tracked in the [development board](https://github.com/users/Gravifer/projects/12)
+and [milestones](https://github.com/Gravifer/Einstoff.wl/milestones).
+See the [tracking guide](docs/project-tracking.md) for the workflow and initial
+review findings. The published versions below are distinct from work completed on
+the development branch.
+
 [`Gravifer/Einstoff` 0.2.0](https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/)
 and [`ResourceFunction["Einstoff"]` 1.0.0](https://resources.wolframcloud.com/FunctionRepository/resources/Einstoff/)
 are published. The paclet remains experimental and pre-1.0: the public API is usable,

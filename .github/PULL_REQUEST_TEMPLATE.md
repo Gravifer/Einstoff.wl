@@ -2,6 +2,10 @@
 
 <!-- What changes, and why is it useful? -->
 
+## Related work
+
+<!-- Link the issue. Use "Fixes #N" only when merging satisfies all of its acceptance criteria; use "Related to #N" for partial work. Small incidental changes may have no issue. -->
+
 ## Behavior and documentation
 
 <!-- Describe user-visible behavior, design-boundary changes, and documentation updates. Write "None" where appropriate. -->
