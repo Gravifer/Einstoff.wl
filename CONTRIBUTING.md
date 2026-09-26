@@ -10,7 +10,7 @@ boundaries.
   [`ResourceFunction["Einstoff"]` reference](https://resources.wolframcloud.com/FunctionRepository/resources/Einstoff/),
   and the [`Gravifer/Einstoff` paclet page](https://resources.wolframcloud.com/PacletRepository/resources/Gravifer/Einstoff/).
 - Human contributors should use this file for workflow and testing conventions.
-- Coding agents should read `.agents/agents.md` and `.agents/SPEC.md`; those files are
+- Coding agents should read `AGENTS.md` and `.agents/SPEC.md`; those files are
   intentionally more implementation-heavy than the public documentation.
 
 ## Development Workflow
@@ -26,6 +26,44 @@ boundaries.
 - When changing design boundaries or deferred items, update `.agents/SPEC.md`.
 
 Coding agents may be credited with a commit trailer.
+
+## Tracking work
+
+Use [Einstoff / Development](https://github.com/users/Gravifer/projects/12) for
+current work and the [tracking guide](docs/project-tracking.md) for stable links.
+Issues own scope, acceptance criteria, evidence, decisions, and the next action.
+The Project owns Status and Priority; milestones own bounded commitments. Keep
+language semantics in the SPEC and validation procedures in this contribution guide.
+
+| Status | Meaning |
+| --- | --- |
+| Backlog | Scope or timing is still open |
+| Ready | Scoped and ordered for authorized work |
+| In progress | Implementation or investigation is underway |
+| In review | A concrete result and relevant validation need review or acceptance |
+| Done | Acceptance criteria are satisfied; code changes are merged to `main` |
+
+Keep at most two items In progress. Ready does not authorize executing the whole
+backlog. A test suite still running is In progress; In review links the PR or
+artifact and states the decision needed. Reopen incomplete outcomes; close
+abandoned ideas as not planned with a reason.
+
+At the start of work, read the relevant issue and design notes. Before stopping,
+leave a concise checkpoint: result, commit or artifact, validation and limitations,
+next action, and any needed decision. Update the checklist and Project state to
+agree. Record meaningful changes rather than routine activity messages.
+
+Link a PR with `Fixes #N` or `Closes #N` only when merging completes the issue's
+acceptance criteria. Partial work uses an ordinary issue reference. Documentation
+and investigation issues close when their own criteria are satisfied. Publication
+is a separate release issue covering the chosen channels and availability checks;
+merged implementation does not establish that a release has shipped.
+
+Keep ordinary steps in issue checklists. Split work only when it needs independent
+discussion, ownership, scheduling, or dependencies. Compare einx/einops behavior
+with explicit versions and intended differences; they do not override the SPEC.
+If GitHub is unavailable, include the checkpoint and update limitation in the task
+response, then reconcile the tracker when access returns.
 
 ## Notebooks
 

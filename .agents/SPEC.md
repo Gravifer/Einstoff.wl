@@ -782,20 +782,12 @@ role under the same metaphor (potential TODO). **Remaining feature-roadmap work:
 combiner generalization (`ArrayContract[…, add]` / `Tr[…, add]`), diagonal-keep, and mixed
 within+cross multi-operand einsum.
 
-**Validation policy (settled, not a deferred CI project).** Contributors are expected
-to run the default Wolfram-only suite locally before submitting a PR/MR. Public hosted
-CI is not a near-term goal because `wolframscript` requires a ready Wolfram system and
-the public-runner story is mostly license / installer ceremony for little gain. The
-Python cross-validation suite remains opt-in (`run-tests.wls python`), useful for
-maintainers and larger lowering changes, but not required status. If Python/ZMQ session
-startup flakes on Windows (`0xC0000005` has been observed), retrying locally is fine;
-the cross-validation logic is deterministic once the session starts.
-
-**Deferred post-publication CI/CD integration.** After the project is published as a
-public repo, setting up Wolfram/PacletCICD-style automation may be opened as a
-help-wanted issue. This is intentionally separate from the settled local-validation
-policy above: do not spend near-term implementation effort on CI/CD plumbing before
-publication.
+**Validation and publication workflow.** Hosted validation and release automation
+are implemented. [CONTRIBUTING](../CONTRIBUTING.md) owns the current local/hosted
+test policy, historical-engine validation, and publication procedures. Keep work
+status in [Einstoff / Development](https://github.com/users/Gravifer/projects/12)
+and its issues; the historical implementation descriptions and deferred language
+boundaries in this specification are semantic context, not a parallel task board.
 
 ## 10. Testing & validation
 
