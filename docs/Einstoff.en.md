@@ -142,6 +142,12 @@ The following options can be given:
 | `TraceAction` | `None` | Use `Hold` or `Defer` to inspect the lowered Wolfram expression. |
 | `"Targeting"` | `Automatic` | For `ArrayReduce`, `Dot`, `Inner`, `Massage`, `ArrayContract`, and `einsum`, use `False` to infer operated axes from RHS absence/repetition, `Automatic` to infer but validate explicit targets, or `True` to require explicit targets. |
 
+For `ArrayReduce`, each literal dimension follows the same targeting policy as a
+named axis. For example, `{{Highlighted[2]}} :> {{}}` reduces a size-two input
+with `"Targeting" -> True`, while `{{2}} :> {{}}` requires inference mode.
+Under `Automatic`, if any reduced axis is targeted, every reduced axis must be
+targeted, including literal dimensions.
+
 ## Examples
 
 ### Basic Examples

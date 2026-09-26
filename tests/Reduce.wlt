@@ -444,6 +444,78 @@ VerificationTest[
   TestID -> "reduce-targeting-false-partial-targets"
 ];
 
+(* Literal occurrences obey the same reduction-target policy as named axes.
+   Each occurrence is distinct, including when literals have the same size. *)
+VerificationTest[
+  Quiet[Einstoff[ArrayReduce][Total][{{2}} :> {{}}, {{1, 2}},
+    "Targeting" -> True], {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "reduce-targeting-true-reject-untargeted-literal-only"
+];
+
+VerificationTest[
+  Einstoff[ArrayReduce][Total][{{Highlighted[2]}} :> {{}}, {{1, 2}},
+    "Targeting" -> True],
+  3,
+  TestID -> "reduce-targeting-true-targeted-literal-only"
+];
+
+VerificationTest[
+  {Einstoff[ArrayReduce][Total][{{2}} :> {{}}, {{1, 2}}],
+   Einstoff[ArrayReduce][Total][{{2}} :> {{}}, {{1, 2}},
+     "Targeting" -> False]},
+  {3, 3},
+  TestID -> "reduce-targeting-auto-and-false-infer-literal-only"
+];
+
+VerificationTest[
+  Einstoff[ArrayReduce][Total][
+    {{Highlighted[2], Highlighted[2]}} :> {{}},
+    {ArrayReshape[Range[4], {2, 2}]}, "Targeting" -> True],
+  10,
+  TestID -> "reduce-targeting-true-distinct-equal-sized-literals"
+];
+
+VerificationTest[
+  Quiet[Einstoff[ArrayReduce][Total][
+    {{Highlighted[2], 2}} :> {{}},
+    {ArrayReshape[Range[4], {2, 2}]}], {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "reduce-targeting-auto-reject-partial-equal-sized-literals"
+];
+
+VerificationTest[
+  Quiet[Einstoff[ArrayReduce][Total][
+    {{a_, Highlighted[2], b_}} :> {{a}},
+    {ArrayReshape[Range[12], {2, 2, 3}]}], {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "reduce-targeting-auto-reject-literal-target-and-bare-axis"
+];
+
+VerificationTest[
+  Quiet[Einstoff[ArrayReduce][Total][
+    {{a_, 2, Highlighted[b_]}} :> {{a}},
+    {ArrayReshape[Range[12], {2, 2, 3}]}], {Einstoff::unsupp}],
+  $Failed,
+  TestID -> "reduce-targeting-auto-reject-bare-literal-and-named-target"
+];
+
+VerificationTest[
+  Einstoff[ArrayReduce][Total][
+    {{a_, Highlighted[2], Highlighted[b_]}} :> {{a}},
+    {ArrayReshape[Range[12], {2, 2, 3}]}, "Targeting" -> True],
+  {21, 57},
+  TestID -> "reduce-targeting-true-accept-mixed-targets"
+];
+
+VerificationTest[
+  Einstoff[ArrayReduce][Total][
+    {{a_, Highlighted[2], b_}} :> {{a}},
+    {ArrayReshape[Range[12], {2, 2, 3}]}, "Targeting" -> False],
+  {21, 57},
+  TestID -> "reduce-targeting-false-infer-with-literal-target"
+];
+
 (* 31. ...but a literal-integer axis cannot be KEPT (it has no carryable identity —
    shared materializeOutput guard, Option A); rejected rather than leaked. *)
 VerificationTest[

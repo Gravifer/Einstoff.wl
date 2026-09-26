@@ -669,6 +669,10 @@ still accepted, but explicit targets must exactly agree with the operated input
 occurrences, so mismatched dot targets such as `a [b] c, a [c] d -> a b d` reject.
 `True` requires explicit targets for operated axes. Axis identity is unchanged by this
 option: targeting is occurrence-role metadata, not a separate size/name identity.
+For `ArrayReduce`, literal dimensions obey the same policy per occurrence:
+`{{2}} :> {{}}` is accepted by inference modes but rejected with `True`, while
+`{{Highlighted[2]}} :> {{}}` satisfies `True`. Under `Automatic`, a targeted
+literal together with an untargeted dropped named axis (or the reverse) is rejected.
 
 **`CirclePlus` (direct sum) — implemented and cross-validated.** The direct-sum
 axis `(a + b)` lowers two ways, both folded into the permissive `Einstoff["Massage"]`
