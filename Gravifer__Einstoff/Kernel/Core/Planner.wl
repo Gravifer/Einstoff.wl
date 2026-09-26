@@ -673,6 +673,28 @@ planValueFlowValidQ[steps_List, meta_Association] :=
         irp["IntermediateValue"][Length[steps]]];
 
 concreteDimsQ[dims_List] := AllTrue[dims, IntegerQ[#] && # >= 1 &];
+
+(* Dimensions reports only the rectangular prefix of a ragged List.  Check the
+   complete shape before any plan can flatten or recompose the value.  ArrayQ
+   covers ordinary, sparse, quantity, and symmetrized arrays; NumericArray has
+   reliable dimensions but is not recognized by ArrayQ.  Nonarray expressions
+   remain valid symbolic scalars. *)
+rectangularTensorQ[value_, dims_List] :=
+  Dimensions[value] === dims && If[dims === {},
+    ! ArrayQ[value] && ! ListQ[value] && Head[value] =!= NumericArray,
+    concreteDimsQ[dims] &&
+      (ArrayQ[value, Length[dims]] || Head[value] === NumericArray)];
+
+checkedTensorDimensions[tensors_List] :=
+  Catch[MapIndexed[
+    Function[{tensor, index}, Module[{dims = Dimensions[tensor]},
+      If[rectangularTensorQ[tensor, dims], dims,
+        Throw[plannerFailure["InvalidTensorShape", <|
+          "Operand" -> First[index], "Actual" -> dims,
+          "Reason" -> "input tensor " <> ToString[First[index]] <>
+            " must be a rectangular array with positive dimensions or a scalar"|>],
+          plannerTag]]]], tensors], plannerTag];
+
 positivePositionsQ[pos_List] :=
   DuplicateFreeQ[pos] && AllTrue[pos, IntegerQ[#] && # >= 1 &];
 permutationQ[perm_List] := Sort[perm] === Range[Length[perm]];
@@ -725,12 +747,17 @@ executeExecutionPlan[other_, tensors_] := plannerFailure["ExpectedExecutionPlan"
 executePlanStep[value_, irp["ReshapeStep"][dims_List]] := reshapeTo[value, dims];
 executePlanStep[value_, irp["BroadcastStep"][n_Integer, _]] := ConstantArray[value, n];
 executePlanStep[value_, irp["ReduceStep"][reducer_, pos_List]] :=
-  ArrayReduce[reducer, value, pos];
+  Module[{expected = Delete[Dimensions[value], List /@ pos], reduced},
+    reduced = ArrayReduce[reducer, value, pos];
+    If[rectangularTensorQ[reduced, expected], reduced,
+      plannerFailure["ReducerResultShape", <|
+        "Expected" -> expected, "Actual" -> Dimensions[reduced]|>]]
+  ];
 executePlanStep[value_, irp["ContractStep"][groups_List]] :=
   TensorContract[value, groups];
 executePlanStep[value_, irp["TargetBlockStep"][f_, level_Integer, expected_List]] :=
   Module[{mapped = If[level === 0, f[value], Map[f, value, {level}]]},
-    If[Dimensions[mapped] === expected, mapped,
+    If[rectangularTensorQ[mapped, expected], mapped,
       plannerFailure["TargetBlockShape", <|
         "Expected" -> expected, "Actual" -> Dimensions[mapped]|>]]
   ];
@@ -818,10 +845,12 @@ tryStructuralIRPlan[h_Hold, tensors_List, bindings_List, operator_String,
 tryStructuralCompiledIRPlan[compiled_Association, tensors_List, operator_String,
     targeting_, traceAction_] :=
   Catch[Module[{solvedBundle, solved, analysis, plan, held,
-          normalized, na, inShapes, axisSizes, inAtoms, inKeys},
+          normalized, na, inShapes, axisSizes, inAtoms, inKeys, inputDims},
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
       Throw[compiled["Normalized"], plannerFallbackTag]];
-    solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
+    inputDims = checkedTensorDimensions[tensors];
+    If[plannerFailureQ[inputDims], Throw[inputDims, plannerFallbackTag]];
+    solvedBundle = solveDescIR[compiled, inputDims];
     solved = solvedBundle["Solved"];
     If[Head[solved] =!= irp["SolvedDesc"],
       Throw[solved, plannerFallbackTag]];
@@ -857,12 +886,15 @@ tryStructuralCompiledIRPlan[compiled_Association, tensors_List, operator_String,
 
 tryReduceIRPlan[h_Hold, tensors_List, bindings_List, reducer_, targeting_,
     traceAction_] :=
-  Catch[Module[{compiled, solvedBundle, solved, analysis, plan, held, targetIds, reducedIds},
+  Catch[Module[{compiled, solvedBundle, solved, analysis, plan, held, targetIds,
+          reducedIds, inputDims},
     compiled = compileHeldDescIR[h, HoldComplete[bindings], "Reduce",
       <|"Targeting" -> targeting|>];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
       Throw[compiled["Normalized"], plannerFallbackTag]];
-    solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
+    inputDims = checkedTensorDimensions[tensors];
+    If[plannerFailureQ[inputDims], Throw[inputDims, plannerFallbackTag]];
+    solvedBundle = solveDescIR[compiled, inputDims];
     solved = solvedBundle["Solved"];
     If[Head[solved] =!= irp["SolvedDesc"],
       Throw[solved, plannerFallbackTag]];
@@ -901,12 +933,14 @@ tryReduceIRPlan[h_Hold, tensors_List, bindings_List, reducer_, targeting_,
 
 tryMapIRPlan[h_Hold, tensors_List, bindings_List, f_, strictQ_, traceAction_] :=
   Catch[Module[{operator, compiled, solvedBundle, solved, analysis, plan,
-          executed, held},
+          executed, held, inputDims},
     operator = If[TrueQ[strictQ], "Operate", "Map"];
     compiled = compileHeldDescIR[h, HoldComplete[bindings], operator, <||>];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
       Throw[compiled["Normalized"], plannerFallbackTag]];
-    solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
+    inputDims = checkedTensorDimensions[tensors];
+    If[plannerFailureQ[inputDims], Throw[inputDims, plannerFallbackTag]];
+    solvedBundle = solveDescIR[compiled, inputDims];
     solved = solvedBundle["Solved"];
     If[Head[solved] =!= irp["SolvedDesc"],
       Throw[solved, plannerFallbackTag]];
@@ -935,11 +969,13 @@ tryInnerIRPlan[h_Hold, tensors_List, bindings_List, mul_, add_, targeting_,
 
 tryInnerCompiledIRPlan[compiled_Association, tensors_List, mul_, add_, targeting_,
     traceAction_] :=
-  Catch[Module[{operator, solvedBundle, solved, analysis, plan, held},
+  Catch[Module[{operator, solvedBundle, solved, analysis, plan, held, inputDims},
     operator = If[mul === Times && add === Plus, "Dot", "Inner"];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
       Throw[compiled["Normalized"], plannerFallbackTag]];
-    solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
+    inputDims = checkedTensorDimensions[tensors];
+    If[plannerFailureQ[inputDims], Throw[inputDims, plannerFallbackTag]];
+    solvedBundle = solveDescIR[compiled, inputDims];
     solved = solvedBundle["Solved"];
     If[Head[solved] =!= irp["SolvedDesc"],
       Throw[solved, plannerFallbackTag]];
@@ -967,14 +1003,16 @@ tryDirectSumIRPlan[h_Hold, tensors_List, bindings_List, direction_String,
 
 tryDirectSumCompiledIRPlan[compiled_Association, tensors_List, direction_String,
     traceAction_] :=
-  Catch[Module[{solvedBundle, solved, analysis, plan, held},
+  Catch[Module[{solvedBundle, solved, analysis, plan, held, inputDims},
     If[capturedRepeatedInputQ[Lookup[compiled, "Captured", None]],
       Throw[plannerFailure["RepeatedDirectSumAtom", <||>], plannerFallbackTag]];
     If[Head[compiled["Normalized"]] =!= irp["NormalizedDesc"],
       Throw[compiled["Normalized"], plannerFallbackTag]];
     If[normalizedRepeatedInputQ[compiled["Normalized"]],
       Throw[plannerFailure["RepeatedDirectSumAtom", <||>], plannerFallbackTag]];
-    solvedBundle = solveDescIR[compiled, Dimensions /@ tensors];
+    inputDims = checkedTensorDimensions[tensors];
+    If[plannerFailureQ[inputDims], Throw[inputDims, plannerFallbackTag]];
+    solvedBundle = solveDescIR[compiled, inputDims];
     solved = solvedBundle["Solved"];
     If[Head[solved] =!= irp["SolvedDesc"],
       Throw[solved, plannerFallbackTag]];
@@ -1051,19 +1089,20 @@ plannerJoinHeldBlocks[blocks_List, axes_List, counts_List] :=
 
 executeContractionFold[tensors_List, labels_List, outputKeys_List,
     sizes_Association, mul_, add_] :=
-  First @ Fold[
+  Catch[First @ Fold[
     Function[{acc, i},
       Module[{keep = Union[outputKeys,
-          If[i < Length[labels], Flatten[labels[[i + 1 ;;]]], {}]]},
-        executeContractionPair[mul, add, acc[[1]], acc[[2]], tensors[[i]],
-          labels[[i]], keep, sizes]
+          If[i < Length[labels], Flatten[labels[[i + 1 ;;]]], {}]], pair},
+        pair = executeContractionPair[mul, add, acc[[1]], acc[[2]],
+          tensors[[i]], labels[[i]], keep, sizes];
+        If[plannerFailureQ[pair], Throw[pair, plannerTag], pair]
       ]],
-    {First[tensors], First[labels]}, Range[2, Length[tensors]]];
+    {First[tensors], First[labels]}, Range[2, Length[tensors]]], plannerTag];
 
 executeContractionPair[mul_, add_, t1_, l1_List, t2_, l2_List, keep_List,
     sizes_Association] :=
   Module[{both, batch, contract, left, right, dims, prod, x1, x2, p1, p2,
-          x1r, x2r, mm, resultLabels},
+          x1r, x2r, mm, resultLabels, expected},
     dims[keys_] := Lookup[sizes, keys];
     prod[keys_] := Times @@ dims[keys];
     both = Intersection[l1, l2];
@@ -1084,6 +1123,10 @@ executeContractionPair[mul_, add_, t1_, l1_List, t2_, l2_List, keep_List,
     mm = If[mul === Times && add === Plus,
       MapThread[Dot, {x1r, x2r}],
       MapThread[Inner[mul, #1, #2, add] &, {x1r, x2r}]];
+    expected = {prod[batch], prod[left], prod[right]};
+    If[! rectangularTensorQ[mm, expected],
+      Return[plannerFailure["InnerResultShape", <|
+        "Expected" -> expected, "Actual" -> Dimensions[mm]|>]]];
     resultLabels = Join[batch, left, right];
     {If[resultLabels === {}, First @ Flatten[mm],
       ArrayReshape[mm, dims[resultLabels]]], resultLabels}
@@ -1138,9 +1181,11 @@ plannerFailureQ[expr_] := Head[Unevaluated[expr]] === irp["FailureRecord"];
 
 reportPlannerFailure[irp["FailureRecord"][tag_, stage_, details_Association]] :=
   Module[{text = Lookup[details, "Reason",
-      If[tag === "TargetBlockShape",
-        "the map function returned block dimensions that do not match the RHS",
-        "the staged compiler rejected the description (" <> ToString[tag] <> ")"]],
+      Switch[tag,
+        "TargetBlockShape", "the map function returned a block that does not match the RHS shape",
+        "ReducerResultShape", "the reducer returned a nonscalar or nonrectangular result",
+        "InnerResultShape", "an inner function returned a nonscalar or nonrectangular result",
+        _, "the staged compiler rejected the description (" <> ToString[tag] <> ")"]],
       numericUnsupported, analysisReduction, unsatQ},
     numericUnsupported = tag === "UnsupportedTerm" &&
       ! FreeQ[Lookup[details, "Expression", HoldComplete[]],
@@ -1151,7 +1196,8 @@ reportPlannerFailure[irp["FailureRecord"][tag_, stage_, details_Association]] :=
         tag =!= "OperandCountMismatch") ||
       MemberQ[{"InvalidBindings", "ConflictingBindingFacts",
         "DroppedNonUnitAtom", "DroppedBlockAtom", "KeptLiteralAxis",
-        "TargetBlockShape"}, tag] ||
+        "InvalidTensorShape", "TargetBlockShape", "ReducerResultShape",
+        "InnerResultShape"}, tag] ||
       numericUnsupported || analysisReduction;
     If[unsatQ,
       Message[Einstoff::unsat, text],

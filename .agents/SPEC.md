@@ -651,6 +651,14 @@ shift is a parameter, so it is written with an explicit function such as
 With no target, `Map` follows einx's no-bracket misc-op behavior and maps over scalar
 blocks, not over the whole tensor. `ArrayReduce` remains the declarative reducer path.
 
+Execution accepts scalar expressions and rectangular arrays with positive axis sizes,
+including symbolic scalar elements and supported structured arrays. A ragged `List`
+is invalid even when `Dimensions` reports a matching rectangular prefix. Validate
+the full input shape before flattening, and validate returned map blocks and scalar
+reducer and `Inner` results before recomposition. These checks use the already
+produced result; they do not call a user function again. `TraceAction` retains its
+existing execution contract.
+
 The reducer, the map `f` and `(mul, add)` are **curried** into the operator
 (`Einstoff[ArrayReduce][Total][…]`, `Einstoff[Operate][f][…]`,
 `Einstoff[Map][f][…]`,

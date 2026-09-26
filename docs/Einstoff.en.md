@@ -90,9 +90,18 @@ related_functions:
   before Einstoff receives it.
 - Each input or output shape is a list of dimension terms.
 - `tensors` is a list of tensors.
+- Each tensor must be a scalar or a rectangular array with positive axis sizes.
+  Symbolic scalar elements and supported structured arrays such as `SparseArray`
+  and `NumericArray` are accepted. Ragged nested lists are rejected rather than
+  interpreted using the rectangular prefix reported by `Dimensions`.
 - `bindings` is a list of rules such as `{"channels" -> 3}` or `{c -> 3}`.
 - The public operators do not hold `desc`.
 - `TraceAction -> Hold` and `TraceAction -> Defer` return the lowered Wolfram expression in held or deferred form.
+
+Custom `ArrayReduce` functions must return a scalar for each reduced block.
+`Map` and `Operate` functions must return complete rectangular blocks matching
+the output shape. Custom `Inner` functions must yield scalar contraction results.
+Invalid results fail instead of being flattened or truncated.
 
 Apart from actual functions, some operators accept named recipes to reproduce part of einx behavior:
 - `Einstoff[ArrayReduce]` allows named recipes `"sum" | "total" | "add"` `"mean" | "average"` `"max"` `"min"` `"prod" | "product" | "times"` `"var" | "variance"` `"std" | "stddev"` `"count_nonzero" | "countnonzero"` `"any"` `all` and `"logsumexp" | "lse"`;
