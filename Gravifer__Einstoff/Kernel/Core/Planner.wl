@@ -676,14 +676,14 @@ concreteDimsQ[dims_List] := AllTrue[dims, IntegerQ[#] && # >= 1 &];
 
 (* Dimensions reports only the rectangular prefix of a ragged List.  Check the
    complete shape before any plan can flatten or recompose the value.  ArrayQ
-   covers ordinary, sparse, quantity, and symmetrized arrays; NumericArray has
-   reliable dimensions but is not recognized by ArrayQ.  Nonarray expressions
-   remain valid symbolic scalars. *)
+   covers ordinary, sparse, quantity, and symmetrized arrays; NumericArrayQ
+   covers valid NumericArray objects, which ArrayQ does not recognize.
+   Nonarray expressions remain valid symbolic scalars. *)
 rectangularTensorQ[value_, dims_List] :=
   Dimensions[value] === dims && If[dims === {},
     ! ArrayQ[value] && ! ListQ[value] && Head[value] =!= NumericArray,
     concreteDimsQ[dims] &&
-      (ArrayQ[value, Length[dims]] || Head[value] === NumericArray)];
+      (ArrayQ[value, Length[dims]] || NumericArrayQ[value])];
 
 checkedTensorDimensions[tensors_List] :=
   Catch[MapIndexed[
