@@ -761,6 +761,12 @@ def check_contract() -> None:
     require(runner, "Exit[75]", "temporary failure status")
     if runner.index("pythonReady =") > runner.index("dependenciesReady ="):
         raise AssertionError("transport must be probed before dependency imports")
+    require(runner, "PYTHON_TEST_COUNT_FAILED", "test-count failure marker")
+    require(runner, "Exit[3]", "test-count failure status")
+    require(runner, "PYTHON_TEST_COUNT_MISMATCH", "test-count mismatch marker")
+    require(runner, "countDeclaredTests[file_] := Module[{bytes, text},\n  bytes = Quiet @ Check[ReadByteArray[file]", "byte-level test counting")
+    if runner.index("Exit[3]") > runner.index("StartExternalSession["):
+        raise AssertionError("test counts must be established before Python startup")
 
     for line in release.splitlines() + paclet_ci.splitlines() + historical.splitlines():
         stripped = line.strip()

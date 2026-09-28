@@ -8,6 +8,11 @@ This project is pre-release, so interfaces may still change before `1.0.0`.
 
 ### Fixed
 
+- Report an unreadable Python test file as its own non-retryable test-runner status
+  (exit 3, `PYTHON_TEST_COUNT_FAILED`) instead of a test failure after every test
+  passed, name any file whose executed and declared test counts differ, and print
+  the Wolfram and Python dependency versions used by cross-validation.
+
 - Wait for GitHub's automatically generated immutable-release attestation to
   propagate before failing release and asset verification.
 
