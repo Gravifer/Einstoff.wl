@@ -659,6 +659,10 @@ reducer and `Inner` results before recomposition. These checks use the already
 produced result; they do not call a user function again. `TraceAction` retains its
 existing execution contract.
 
+Scalar status is structural, not `Dimensions[expr] === {}`: compound scalars such
+as `u + v` and `Quantity[2, "Meters"]` have nonempty `Dimensions` because it counts
+their arguments. Non-list, nonarray expressions are treated as rank-zero tensors.
+
 The reducer, the map `f` and `(mul, add)` are **curried** into the operator
 (`Einstoff[ArrayReduce][Total][…]`, `Einstoff[Operate][f][…]`,
 `Einstoff[Map][f][…]`,

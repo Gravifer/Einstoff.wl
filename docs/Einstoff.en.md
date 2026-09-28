@@ -91,8 +91,9 @@ related_functions:
 - Each input or output shape is a list of dimension terms.
 - `tensors` is a list of tensors.
 - Each tensor must be a scalar or a rectangular array with positive axis sizes.
-  Symbolic scalar elements and supported structured arrays such as `SparseArray`
-  and `NumericArray` are accepted. Ragged nested lists are rejected rather than
+  Compound scalars such as `u + v` and `Quantity[2, "Meters"]`, symbolic scalar
+  elements, and supported structured arrays such as `SparseArray` and
+  `NumericArray` are accepted. Ragged nested lists are rejected rather than
   interpreted using the rectangular prefix reported by `Dimensions`.
 - `bindings` is a list of rules such as `{"channels" -> 3}` or `{c -> 3}`.
 - The public operators do not hold `desc`.

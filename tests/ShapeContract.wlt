@@ -54,6 +54,21 @@ VerificationTest[
 ];
 
 VerificationTest[
+  Module[{u, v},
+    Einstoff[ArrayReduce][Total][{{Highlighted[a_]}} :> {{}},
+      {{u, v}}] === u + v],
+  True,
+  TestID -> "shape-accept-symbolic-scalar-reducer-result"
+];
+
+VerificationTest[
+  Einstoff[ArrayReduce][Total][{{Highlighted[a_]}} :> {{}},
+    {{Quantity[2, "Meters"], Quantity[3, "Meters"]}}],
+  Quantity[5, "Meters"],
+  TestID -> "shape-accept-quantity-scalar-reducer-result"
+];
+
+VerificationTest[
   Einstoff[ArrayReduce][If[First[#] === 1, 1, {2}] &][
     {{a_, Highlighted[b_]}} :> {{a}}, {{{1, 2}, {3, 4}}}],
   $Failed, {Einstoff::unsat},
@@ -89,6 +104,26 @@ VerificationTest[
     Einstoff[ArrayReshape][{{a_, b_}} :> {{b, a}}, {x}] === Transpose[x]],
   True,
   TestID -> "shape-preserve-symbolic-scalar-elements"
+];
+
+VerificationTest[
+  Module[{x, y},
+    Einstoff[ArrayReshape][{{}} :> {{}}, {x + y}] === x + y],
+  True,
+  TestID -> "shape-accept-compound-scalar-input"
+];
+
+VerificationTest[
+  Einstoff[ArrayReshape][{{}} :> {{}}, {Quantity[2, "Meters"]}],
+  Quantity[2, "Meters"],
+  TestID -> "shape-accept-quantity-scalar-input"
+];
+
+VerificationTest[
+  Module[{f},
+    Einstoff[ArrayReshape][{{}} :> {{}}, {f[1, 2]}] === f[1, 2]],
+  True,
+  TestID -> "shape-accept-general-compound-scalar-input"
 ];
 
 VerificationTest[

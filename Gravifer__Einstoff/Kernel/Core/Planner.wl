@@ -674,20 +674,24 @@ planValueFlowValidQ[steps_List, meta_Association] :=
 
 concreteDimsQ[dims_List] := AllTrue[dims, IntegerQ[#] && # >= 1 &];
 
-(* Dimensions reports only the rectangular prefix of a ragged List.  Check the
-   complete shape before any plan can flatten or recompose the value.  ArrayQ
-   covers ordinary, sparse, quantity, and symmetrized arrays; NumericArrayQ
-   covers valid NumericArray objects, which ArrayQ does not recognize.
-   Nonarray expressions remain valid symbolic scalars. *)
+(* Dimensions reports only the rectangular prefix of a ragged List, but also
+   counts the arguments of compound scalars such as Plus and Quantity.  Classify
+   scalars before asking for dimensions.  ArrayQ covers ordinary and supported
+   structured arrays; NumericArrayQ covers valid NumericArray objects. *)
+scalarTensorQ[value_] :=
+  ! ListQ[value] && ! ArrayQ[value] && Head[value] =!= NumericArray;
+
+tensorDimensions[value_] :=
+  If[scalarTensorQ[value], {}, Dimensions[value]];
+
 rectangularTensorQ[value_, dims_List] :=
-  Dimensions[value] === dims && If[dims === {},
-    ! ArrayQ[value] && ! ListQ[value] && Head[value] =!= NumericArray,
-    concreteDimsQ[dims] &&
+  If[dims === {}, scalarTensorQ[value],
+    Dimensions[value] === dims && concreteDimsQ[dims] &&
       (ArrayQ[value, Length[dims]] || NumericArrayQ[value])];
 
 checkedTensorDimensions[tensors_List] :=
   Catch[MapIndexed[
-    Function[{tensor, index}, Module[{dims = Dimensions[tensor]},
+    Function[{tensor, index}, Module[{dims = tensorDimensions[tensor]},
       If[rectangularTensorQ[tensor, dims], dims,
         Throw[plannerFailure["InvalidTensorShape", <|
           "Operand" -> First[index], "Actual" -> dims,
@@ -751,7 +755,7 @@ executePlanStep[value_, irp["ReduceStep"][reducer_, pos_List]] :=
     reduced = ArrayReduce[reducer, value, pos];
     If[rectangularTensorQ[reduced, expected], reduced,
       plannerFailure["ReducerResultShape", <|
-        "Expected" -> expected, "Actual" -> Dimensions[reduced]|>]]
+        "Expected" -> expected, "Actual" -> tensorDimensions[reduced]|>]]
   ];
 executePlanStep[value_, irp["ContractStep"][groups_List]] :=
   TensorContract[value, groups];
@@ -759,7 +763,7 @@ executePlanStep[value_, irp["TargetBlockStep"][f_, level_Integer, expected_List]
   Module[{mapped = If[level === 0, f[value], Map[f, value, {level}]]},
     If[rectangularTensorQ[mapped, expected], mapped,
       plannerFailure["TargetBlockShape", <|
-        "Expected" -> expected, "Actual" -> Dimensions[mapped]|>]]
+        "Expected" -> expected, "Actual" -> tensorDimensions[mapped]|>]]
   ];
 executePlanStep[tensors_List,
     irp["InnerStep"][mul_, add_, labels_List, outputKeys_List,
@@ -1126,7 +1130,7 @@ executeContractionPair[mul_, add_, t1_, l1_List, t2_, l2_List, keep_List,
     expected = {prod[batch], prod[left], prod[right]};
     If[! rectangularTensorQ[mm, expected],
       Return[plannerFailure["InnerResultShape", <|
-        "Expected" -> expected, "Actual" -> Dimensions[mm]|>]]];
+        "Expected" -> expected, "Actual" -> tensorDimensions[mm]|>]]];
     resultLabels = Join[batch, left, right];
     {If[resultLabels === {}, First @ Flatten[mm],
       ArrayReshape[mm, dims[resultLabels]]], resultLabels}
