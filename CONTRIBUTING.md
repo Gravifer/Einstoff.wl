@@ -109,8 +109,10 @@ passes. The runner's exit status tells these cases apart:
 | 3 | `PYTHON_TEST_COUNT_FAILED` | The declared Python tests could not be counted; no test ran. |
 | 75 | `PYTHON_SESSION_STARTUP_FAILED` | The Python/ZMQ session did not start; no test ran. |
 
-Only status 75 is temporary. A Python run also prints the Wolfram, Python, einx,
-einops, and NumPy versions it used; include that line when reporting results.
+Only status 75 is temporary. Every Python attempt prints the Wolfram version and
+selected Python interpreter before counting or starting tests. After a successful
+session and dependency probe, it also prints the Python, einx, einops, and NumPy
+versions; include the available environment lines when reporting results.
 Record every command you ran in the pull request. If a relevant check was not
 available locally, say so; do not obtain or share a maintainer credential.
 

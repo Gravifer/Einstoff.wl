@@ -147,6 +147,27 @@ millisOf[q_] := Round[QuantityMagnitude[UnitConvert[q, "Seconds"]] * 1000];
    python/Reshape.wlt are distinguishable. *)
 fileLabel[file_] := FileNameJoin[Drop[FileNameSplit[file], Length[FileNameSplit[testsDir]]]];
 
+(* Resolve the interpreter without starting it so even count and startup
+   failures identify the Wolfram kernel and the selected Python executable. *)
+If[wantPython,
+  configuredPython = Quiet @ Check[Environment["EINSTOFF_TEST_PYTHON"], ""];
+  pythonCandidates = If[StringQ[configuredPython] && configuredPython =!= "",
+    {configuredPython},
+    {
+      FileNameJoin[{root, ".venv", "Scripts", "python.exe"}],
+      FileNameJoin[{root, ".venv", "bin", "python"}]
+    }
+  ];
+  pythonExecutable = SelectFirst[
+    pythonCandidates,
+    StringQ[#] && FileExistsQ[#] &,
+    Missing["NotAvailable"]
+  ];
+  Print["Python cross-validation host: Wolfram ", $Version,
+    "; Python interpreter ",
+    If[MissingQ[pythonExecutable], "unavailable", pythonExecutable]]
+];
+
 (* ---- expected Python test counts ---------------------------------------
    Each Python .wlt declares its tests as top-level VerificationTest[...]
    entries, so the textual count is an independent check that every declared
@@ -197,19 +218,6 @@ expectedPythonTests = Total[Values[expectedPythonCounts]];
 
 Gravifer`Einstoff`Tests`$PySession = None;
 If[wantPython,
-  configuredPython = Quiet @ Check[Environment["EINSTOFF_TEST_PYTHON"], ""];
-  pythonCandidates = If[StringQ[configuredPython] && configuredPython =!= "",
-    {configuredPython},
-    {
-      FileNameJoin[{root, ".venv", "Scripts", "python.exe"}],
-      FileNameJoin[{root, ".venv", "bin", "python"}]
-    }
-  ];
-  pythonExecutable = SelectFirst[
-    pythonCandidates,
-    StringQ[#] && FileExistsQ[#] &,
-    Missing["NotAvailable"]
-  ];
   If[MissingQ[pythonExecutable],
     cleanupArchiveTemp[];
     Print[
