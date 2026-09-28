@@ -99,7 +99,19 @@ wolframscript -script scripts/run-tests.wls python -q
 The Python suite is useful but is not required for every contribution. It still starts
 a Wolfram kernel through `ExternalEvaluate`, and may fail to establish its Python/ZMQ
 session under some Windows sandbox restrictions even when the Wolfram-only suite
-passes. Record every command you ran in the pull request. If a relevant check was not
+passes. The runner's exit status tells these cases apart:
+
+| Status | Marker | Meaning |
+|---|---|---|
+| 0 | | Every requested test ran and passed. |
+| 1 | `[FAIL]` or `PYTHON_TEST_COUNT_MISMATCH` | A test failed, or a Python file executed a different number of tests than it declares. |
+| 2 | `PYTHON_CONFIGURATION_FAILED` | The interpreter is missing or a dependency does not import. |
+| 3 | `PYTHON_TEST_COUNT_FAILED` | The declared Python tests could not be counted; no test ran. |
+| 75 | `PYTHON_SESSION_STARTUP_FAILED` | The Python/ZMQ session did not start; no test ran. |
+
+Only status 75 is temporary. A Python run also prints the Wolfram, Python, einx,
+einops, and NumPy versions it used; include that line when reporting results.
+Record every command you ran in the pull request. If a relevant check was not
 available locally, say so; do not obtain or share a maintainer credential.
 
 Additional tests are appreciated when they clarify behavior, cover a regression, or

@@ -13,9 +13,16 @@
 
    Exit codes:
      0                         all requested tests ran and passed
-     1                         a test failed or the requested test count was wrong
+     1                         a test failed, or a Python test file executed a
+                               different number of tests than it declares
+                               (PYTHON_TEST_COUNT_MISMATCH)
      2                         Python configuration or dependency preflight failed
+     3                         the expected Python test count could not be
+                               established before any test ran
+                               (PYTHON_TEST_COUNT_FAILED)
      75                        Python/ZMQ startup failed before any test ran
+
+   Only 75 is temporary; retry wrappers treat every other status as final.
 
    Invoke either way:
      wolframscript -script scripts/run-tests.wls -q          (dash flags, clean)
@@ -122,9 +129,6 @@ testsDir = FileNameJoin[{root, "tests"}];
 testFiles = Sort @ FileNames["*.wlt", testsDir];
 pythonTestsDir = FileNameJoin[{testsDir, "python"}];
 pythonTestFiles = Sort @ FileNames["*.wlt", pythonTestsDir];
-expectedPythonTests = Total[
-  StringCount[Import[#, "Text"], "VerificationTest["] & /@ pythonTestFiles
-];
 If[wantPython,
   testFiles = Join[testFiles, pythonTestFiles]];
 
@@ -142,6 +146,46 @@ millisOf[q_] := Round[QuantityMagnitude[UnitConvert[q, "Seconds"]] * 1000];
 (* Label a test file by its path relative to tests/, so that e.g. Reshape.wlt and
    python/Reshape.wlt are distinguishable. *)
 fileLabel[file_] := FileNameJoin[Drop[FileNameSplit[file], Length[FileNameSplit[testsDir]]]];
+
+(* ---- expected Python test counts ---------------------------------------
+   Each Python .wlt declares its tests as top-level VerificationTest[...]
+   entries, so the textual count is an independent check that every declared
+   cross-validation test actually executed. The files are read as raw bytes
+   (Latin-1 decoding is total and preserves the ASCII token) rather than through
+   Import, whose converter framework is not needed here: a reviewed run once got
+   Null back from Import[file, "Text"], and the unevaluated StringCount[Null, ...]
+   then made the final comparison fail after every test had passed. Any count
+   that is not a positive integer is reported as its own non-retryable failure,
+   before the Python session starts, and never as a test failure. *)
+
+countDeclaredTests[file_] := Module[{bytes, text},
+  bytes = Quiet @ Check[ReadByteArray[file], $Failed];
+  Which[
+    bytes === EndOfFile, Missing["EmptyFile"],
+    ! ByteArrayQ[bytes], Missing["Unreadable", bytes],
+    True,
+      text = Quiet @ Check[ByteArrayToString[bytes, "ISO8859-1"], $Failed];
+      If[StringQ[text],
+        Replace[StringCount[text, "VerificationTest["],
+          0 -> Missing["NoVerificationTests"]],
+        Missing["Undecodable", text]]]];
+
+expectedPythonCounts = <||>;
+If[wantPython,
+  expectedPythonCounts = AssociationMap[countDeclaredTests, pythonTestFiles];
+  If[pythonTestFiles === {} ||
+      ! AllTrue[Values[expectedPythonCounts], IntegerQ[#] && # > 0 &],
+    If[pythonTestFiles === {},
+      Print["PYTHON_TEST_COUNT_FAILED: no tests/python/*.wlt files found under ",
+        pythonTestsDir]];
+    KeyValueMap[
+      If[! (IntegerQ[#2] && #2 > 0),
+        Print["PYTHON_TEST_COUNT_FAILED: could not count VerificationTest ",
+          "entries in ", fileLabel[#1], ": ", InputForm[#2]]] &,
+      expectedPythonCounts];
+    cleanupArchiveTemp[];
+    Exit[3]]];
+expectedPythonTests = Total[Values[expectedPythonCounts]];
 
 (* ---- shared Python session --------------------------------------------
    First verify the configured interpreter path. Then spawn and transport-probe
@@ -213,12 +257,28 @@ If[wantPython,
       "PYTHON_CONFIGURATION_FAILED: dependency import probe failed."
     ];
     Exit[2]
+  ];
+  (* Record the versions every cross-validation result depends on. This is
+     diagnostic only: a failed probe is reported, never treated as a failure. *)
+  pythonVersions = Quiet @ Check[
+    ExternalEvaluate[
+      Gravifer`Einstoff`Tests`$PySession,
+      "import platform, numpy, einops, einx; " <>
+        "'Python ' + platform.python_version() + ', einx ' + einx.__version__ + " <>
+        "', einops ' + einops.__version__ + ', NumPy ' + numpy.__version__"
+    ],
+    $Failed
+  ];
+  Print[
+    "Python cross-validation environment: Wolfram ", $Version, "; ",
+    If[StringQ[pythonVersions], pythonVersions, "Python versions unavailable"],
+    " (", pythonExecutable, ")"
   ]
 ];
 
 (* ---- run --------------------------------------------------------------- *)
 
-totalPass = 0; totalFail = 0; executedPythonTests = 0;
+totalPass = 0; totalFail = 0; executedPythonCounts = <||>;
 
 Scan[
   Function[file,
@@ -230,7 +290,8 @@ Scan[
       npass = report["TestsSucceededCount"];
       nfail = report["TestsFailedCount"];
       totalPass += npass; totalFail += nfail;
-      If[MemberQ[pythonTestFiles, file], executedPythonTests += npass + nfail];
+      If[MemberQ[pythonTestFiles, file],
+        executedPythonCounts[file] = npass + nfail];
 
       If[verbosity === 0,
         Print[fileLabel[file], ": ", npass, " passed, ", nfail, " failed"],
@@ -271,15 +332,25 @@ Print[""];
 Print["==== ", totalPass, " passed, ", totalFail, " failed (",
       totalPass + totalFail, " total) ===="];
 
+pythonCountMismatches = If[wantPython,
+  Select[pythonTestFiles,
+    Lookup[executedPythonCounts, #, 0] =!= expectedPythonCounts[#] &],
+  {}];
+
 If[wantPython,
   Print[
-    "Python cross-validation: ", executedPythonTests, " of ",
+    "Python cross-validation: ", Total[Values[executedPythonCounts]], " of ",
     expectedPythonTests, " tests executed"
-  ]
+  ];
+  Scan[
+    Print["PYTHON_TEST_COUNT_MISMATCH: ", fileLabel[#], " executed ",
+      Lookup[executedPythonCounts, #, 0], " of ", expectedPythonCounts[#],
+      " declared tests"] &,
+    pythonCountMismatches]
 ];
 
 Exit[If[
-  totalFail === 0 && (! wantPython || executedPythonTests === expectedPythonTests),
+  totalFail === 0 && pythonCountMismatches === {},
   0,
   1
 ]];
